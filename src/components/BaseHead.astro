@@ -1,0 +1,11 @@
+---
+import { site } from '../config/site.ts';
+import { url } from '../lib/urls.ts';
+interface Props { title?: string; description?: string }
+const { title, description = site.description } = Astro.props;
+---
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{title ? `${title} | ${site.name}` : site.name}</title>
+<meta name="description" content={description} />
+<link rel="icon" href={url('favicon.svg')} type="image/svg+xml" />

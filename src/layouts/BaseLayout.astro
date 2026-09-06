@@ -1,0 +1,28 @@
+---
+import '../styles/global.css';
+import BaseHead from '../components/BaseHead.astro';
+import Sidebar from '../components/Sidebar.astro';
+import MobileIndex from '../components/MobileIndex.astro';
+import { site } from '../config/site.ts';
+import { url } from '../lib/urls.ts';
+interface Props { title?: string; description?: string; lang?: string }
+const { lang = site.lang, ...head } = Astro.props;
+---
+<!doctype html>
+<html lang={lang}>
+  <head><BaseHead {...head} /><slot name="head" /></head>
+  <body>
+    <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+    <MobileIndex />
+    <div class="site-shell">
+      <aside class="desktop-sidebar" data-pagefind-ignore>
+        <a class="brand" href={url()}>{site.name}</a>
+        <Sidebar />
+      </aside>
+      <div class="content-shell">
+        <main id="main" tabindex="-1"><slot /></main>
+        <footer class="site-footer" data-pagefind-ignore>© {new Date().getFullYear()} {site.name}</footer>
+      </div>
+    </div>
+  </body>
+</html>
