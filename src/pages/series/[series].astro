@@ -1,0 +1,9 @@
+---
+import PostBrowserLayout from '../../layouts/PostBrowserLayout.astro';
+import { getContent } from '../../lib/posts.ts';
+export async function getStaticPaths() {
+  return (await getContent()).series.map(entry => ({ params: { series: entry.id }, props: { entry } }));
+}
+const { entry } = Astro.props;
+---
+<PostBrowserLayout title={entry.data.title} description={entry.data.description ?? `${entry.count}개의 글이 이어지는 시리즈입니다.`} posts={entry.posts} />

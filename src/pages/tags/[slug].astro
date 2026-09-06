@@ -1,0 +1,9 @@
+---
+import PostBrowserLayout from '../../layouts/PostBrowserLayout.astro';
+import { getContent } from '../../lib/posts.ts';
+export async function getStaticPaths() {
+  return (await getContent()).tags.map(entry => ({ params: { slug: entry.slug }, props: { entry } }));
+}
+const { entry } = Astro.props;
+---
+<PostBrowserLayout title={`${entry.name} 태그`} description={`${entry.name} 태그의 글 ${entry.count}개`} posts={entry.posts} />

@@ -1,0 +1,12 @@
+---
+import type { Post } from '../lib/taxonomy.ts';
+import { slugify } from '../lib/taxonomy.ts';
+import { formatDate } from '../lib/dates.ts';
+import { url } from '../lib/urls.ts';
+interface Props { post: Post }
+const { post } = Astro.props;
+---
+<div class="post-meta">
+  <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+  {post.data.tags.map(tag => <a href={url(`tags/${slugify(tag)}`)}>#{tag}</a>)}
+</div>
