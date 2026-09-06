@@ -1,0 +1,25 @@
+---
+import { Image } from 'astro:assets';
+import type { Post } from '../lib/taxonomy.ts';
+import { slugify } from '../lib/taxonomy.ts';
+import { url } from '../lib/urls.ts';
+import { getContent } from '../lib/posts.ts';
+import PostMeta from './PostMeta.astro';
+interface Props { post: Post }
+const { post } = Astro.props;
+const series = (await getContent()).series.find(entry => entry.id === post.data.series?.id);
+---
+<li class:list={['post-item', { 'has-thumbnail': post.data.thumbnail }]}>
+  {post.data.thumbnail && <a class="post-thumbnail" href={url(`posts/${post.id}`)} tabindex="-1" aria-hidden="true">
+    <Image src={post.data.thumbnail} alt="" width={768} />
+  </a>}
+  <div class="post-summary">
+    <div class="post-context">
+      {post.data.categories.map(category => <a href={url(`categories/${slugify(category)}`)}>{category}</a>)}
+      {series && <a href={url(`series/${series.id}`)}>{series.data.title}</a>}
+    </div>
+    <h2><a href={url(`posts/${post.id}`)}>{post.data.title}</a></h2>
+    <p>{post.data.subtitle ?? post.data.description}</p>
+    <PostMeta post={post} />
+  </div>
+</li>

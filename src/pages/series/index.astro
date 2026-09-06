@@ -1,0 +1,13 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getContent } from '../../lib/posts.ts';
+import { url } from '../../lib/urls.ts';
+const { series } = await getContent();
+---
+<BaseLayout title="Series" description="주제별로 이어지는 연재를 찾아보세요.">
+  <section data-pagefind-body>
+    <h1>Series</h1><p class="muted">주제별로 이어지는 연재입니다.</p>
+    <ul class="taxonomy-index">{series.map(entry => <li><a href={url(`series/${entry.id}`)}>{entry.data.title} <span class="count">{entry.count}</span></a>{entry.data.description && <p>{entry.data.description}</p>}</li>)}</ul>
+    {!series.length && <p class="empty-state">아직 공개된 시리즈가 없습니다.</p>}
+  </section>
+</BaseLayout>

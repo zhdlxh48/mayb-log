@@ -1,0 +1,16 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getContent } from '../../lib/posts.ts';
+import { url } from '../../lib/urls.ts';
+const { archive } = await getContent();
+---
+<BaseLayout title="Archive" description="연도와 월을 따라 기록을 찾아보세요.">
+  <section data-pagefind-body>
+    <h1>Archive</h1><p class="muted">서울 시간 기준, 발행일 순으로 모은 기록입니다.</p>
+    <ul class="taxonomy-index">{archive.map(entry => <li>
+      <a href={url(`archive/${entry.year}`)}>{entry.year}년 <span class="count">{entry.count}</span></a>
+      <ul>{entry.months.map(month => <li><a href={url(`archive/${entry.year}/${month.month}`)}>{month.month}월 <span class="count">{month.count}</span></a></li>)}</ul>
+    </li>)}</ul>
+    {!archive.length && <p class="empty-state">아직 작성된 글이 없습니다.</p>}
+  </section>
+</BaseLayout>

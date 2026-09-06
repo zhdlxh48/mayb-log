@@ -1,0 +1,12 @@
+---
+import PostBrowserLayout from '../../layouts/PostBrowserLayout.astro';
+import { getContent } from '../../lib/posts.ts';
+export async function getStaticPaths() {
+  const data = await getContent();
+  return data.authors.map(author => ({ params: { author: author.id }, props: { author, posts: data.posts.filter(post => post.data.authors.some(entry => entry.id === author.id)) } }));
+}
+const { author, posts } = Astro.props;
+---
+<PostBrowserLayout title={author.data.name} description={author.data.bio ?? `${author.data.name}의 글 ${posts.length}개`} posts={posts}>
+  {author.data.homepage && <p><a href={author.data.homepage}>홈페이지 ↗</a></p>}
+</PostBrowserLayout>
