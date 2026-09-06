@@ -1,0 +1,13 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getContent } from '../../lib/posts.ts';
+import { url } from '../../lib/urls.ts';
+const entries = (await getContent()).tags;
+---
+<BaseLayout title="Tags" description="태그별로 기록을 찾아보세요.">
+  <section data-pagefind-body>
+    <h1>Tags</h1><p class="muted">태그별로 모은 기록입니다.</p>
+    <ul class="taxonomy-index">{entries.map(entry => <li><a href={url(`tags/${entry.slug}`)}>{entry.name} <span class="count">{entry.count}</span></a></li>)}</ul>
+    {!entries.length && <p class="empty-state">아직 등록된 태그가 없습니다.</p>}
+  </section>
+</BaseLayout>

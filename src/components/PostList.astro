@@ -1,0 +1,33 @@
+---
+import type { Post } from '../lib/taxonomy.ts';
+import PostListItem from './PostListItem.astro';
+interface Props { posts: Post[] }
+const { posts } = Astro.props;
+---
+<div data-post-browser>
+  <div class="list-toolbar">
+    <span class="muted">{posts.length}개의 글</span>
+    <div class="view-toggle" role="group" aria-label="목록 표시 방식" hidden>
+      <button type="button" data-view="list" aria-pressed="true">List</button>
+      <button type="button" data-view="grid" aria-pressed="false">Grid</button>
+    </div>
+  </div>
+  {posts.length ? <ul class="post-list">{posts.map(post => <PostListItem post={post} />)}</ul> : <p class="empty-state">아직 작성된 글이 없습니다.</p>}
+</div>
+<script>
+  const browser = document.querySelector<HTMLElement>('[data-post-browser]');
+  if (browser) {
+    const controls = browser.querySelector<HTMLElement>('.view-toggle')!;
+    const buttons = controls.querySelectorAll<HTMLButtonElement>('button');
+    const applyView = (value: string) => {
+      browser.dataset.view = value === 'grid' ? 'grid' : 'list';
+      buttons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.view === browser.dataset.view)));
+    };
+    try { applyView(localStorage.getItem('post-view') ?? 'list'); } catch { applyView('list'); }
+    controls.hidden = false;
+    buttons.forEach(button => button.addEventListener('click', () => {
+      applyView(button.dataset.view!);
+      try { localStorage.setItem('post-view', browser.dataset.view!); } catch { /* Private storage must not block the view toggle. */ }
+    }));
+  }
+</script>
