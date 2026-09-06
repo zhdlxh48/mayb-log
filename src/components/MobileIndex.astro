@@ -1,0 +1,12 @@
+---
+import Sidebar from './Sidebar.astro';
+import { site } from '../config/site.ts';
+import { url } from '../lib/urls.ts';
+---
+<header class="mobile-header" data-pagefind-ignore>
+  <a class="brand" href={url()}>{site.name}</a>
+  <details class="mobile-index">
+    <summary>Index</summary>
+    <div class="mobile-index-content"><Sidebar /></div>
+  </details>
+</header>
