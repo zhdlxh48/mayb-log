@@ -8,5 +8,5 @@ export default defineConfig({
   trailingSlash: 'always',
   output: 'static',
   vite: { plugins: [tailwindcss()] },
-  markdown: { processor: unified() },
+  markdown: { processor: unified(), shikiConfig: { theme: 'github-light' } },
 });
