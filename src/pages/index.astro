@@ -1,10 +1,13 @@
 ---
-import '../styles/global.css';
-import { getContent } from '../lib/posts.ts';
-await getContent();
+import { getEntry, render } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+const about = await getEntry('pages', 'about');
+if (!about) throw new Error('src/content/pages/about.md가 필요합니다.');
+const { Content } = await render(about);
 ---
-<!doctype html>
-<html lang="ko">
-  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /><title>mayb-log</title></head>
-  <body><main><h1>mayb-log</h1><p>개인 기록을 위한 아카이브.</p></main></body>
-</html>
+<BaseLayout description={about.data.description}>
+  <article class="prose about" data-pagefind-body>
+    <h1>{about.data.title}</h1>
+    <Content />
+  </article>
+</BaseLayout>
