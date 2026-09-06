@@ -1,0 +1,59 @@
+---
+import { Image } from 'astro:assets';
+import type { MarkdownHeading } from 'astro';
+import type { Post } from '../lib/taxonomy.ts';
+import { slugify } from '../lib/taxonomy.ts';
+import { getContent } from '../lib/posts.ts';
+import { formatDate } from '../lib/dates.ts';
+import { url } from '../lib/urls.ts';
+import BaseLayout from './BaseLayout.astro';
+import PostMeta from '../components/PostMeta.astro';
+import PostToc from '../components/PostToc.astro';
+interface Props { post: Post; headings: MarkdownHeading[] }
+const { post, headings } = Astro.props;
+const data = await getContent();
+const authors = post.data.authors.map(ref => data.authors.find(author => author.id === ref.id)!);
+const series = data.series.find(entry => entry.id === post.data.series?.id);
+const index = data.posts.findIndex(entry => entry.id === post.id);
+const newer = data.posts[index - 1];
+const older = data.posts[index + 1];
+---
+<BaseLayout title={post.data.seo.title ?? post.data.title} description={post.data.seo.description ?? post.data.description} lang={post.data.lang}>
+  <article class="post-article">
+    <header class="post-header" data-pagefind-body>
+      <div class="post-context">
+        {post.data.categories.map(category => <a href={url(`categories/${slugify(category)}`)}>{category}</a>)}
+        {series && <a href={url(`series/${series.id}`)}>{series.data.title}</a>}
+      </div>
+      <h1 data-pagefind-meta="title">{post.data.title}</h1>
+      {post.data.subtitle && <p class="post-subtitle">{post.data.subtitle}</p>}
+      <div class="author-byline">{authors.map(author => <a href={url(`authors/${author.id}`)} rel="author">{author.data.name}</a>)}</div>
+      <PostMeta post={post} />
+      {post.data.updatedAt && <p class="updated-at">수정 <time datetime={post.data.updatedAt.toISOString()}>{formatDate(post.data.updatedAt)}</time></p>}
+      <meta data-pagefind-meta="description" content={post.data.description} />
+    </header>
+    <div class="article-columns">
+      <PostToc headings={headings} />
+      <div class="article-body">
+        {post.data.thumbnail && <Image class="article-thumbnail" src={post.data.thumbnail} alt={post.data.thumbnailAlt!} width={1200} loading="eager" fetchpriority="high" />}
+        <div class="prose" data-pagefind-body><slot /></div>
+        {series && <nav class="series-navigation" aria-label="시리즈 글" data-pagefind-ignore>
+          <h2><a href={url(`series/${series.id}`)}>{series.data.title}</a></h2>
+          <ol>{series.posts.map(entry => <li><a href={url(`posts/${entry.id}`)} aria-current={entry.id === post.id ? 'page' : undefined}>{entry.data.seriesOrder}. {entry.data.title}</a></li>)}</ol>
+        </nav>}
+        <nav class="post-pagination" aria-label="이전 및 다음 글" data-pagefind-ignore>
+          {older && <a href={url(`posts/${older.id}`)}><span>← 이전 글</span>{older.data.title}</a>}
+          {newer && <a href={url(`posts/${newer.id}`)}><span>다음 글 →</span>{newer.data.title}</a>}
+        </nav>
+        <section class="author-section" aria-label="작성자 소개" data-pagefind-ignore>
+          {authors.map(author => <div class="author-profile">
+            {author.data.avatar && <Image src={author.data.avatar} alt="" width={64} height={64} />}
+            <div><h2><a href={url(`authors/${author.id}`)}>{author.data.name}</a></h2>
+            {author.data.bio && <p>{author.data.bio}</p>}
+            {author.data.homepage && <a href={author.data.homepage}>홈페이지 ↗</a>}</div>
+          </div>)}
+        </section>
+      </div>
+    </div>
+  </article>
+</BaseLayout>

@@ -1,0 +1,11 @@
+---
+import type { MarkdownHeading } from 'astro';
+interface Props { headings: MarkdownHeading[] }
+const headings = Astro.props.headings.filter(heading => heading.depth >= 2 && heading.depth <= 3);
+---
+{headings.length > 0 && <aside class="post-toc" data-pagefind-ignore>
+  <details open>
+    <summary>목차</summary>
+    <nav aria-label="글 목차"><ul>{headings.map(heading => <li class:list={{ 'toc-sub': heading.depth === 3 }}><a href={`#${heading.slug}`}>{heading.text}</a></li>)}</ul></nav>
+  </details>
+</aside>}

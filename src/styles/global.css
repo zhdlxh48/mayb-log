@@ -114,3 +114,32 @@ h3 { font-size: 19px; font-weight: 650; }
   .post-summary > p { font-size: 14px; }
   [data-view="grid"] .post-list { grid-template-columns: minmax(0, 1fr); }
 }
+.post-header { max-width: 720px; margin-bottom: 30px; }
+.post-header h1 { margin-bottom: 12px; }
+.post-subtitle { font-size: 18px; color: var(--color-muted); margin: 0 0 22px; }
+.author-byline { display: flex; gap: 12px; font-size: 13px; margin-bottom: 8px; }
+.updated-at { font-size: 12px; color: var(--color-muted); margin: 5px 0 0; }
+.article-body { min-width: 0; max-width: 720px; }
+.article-thumbnail { display: block; width: 100%; height: auto; margin-bottom: 30px; }
+.post-toc { font-size: 13px; color: var(--color-muted); margin-bottom: 24px; }
+.post-toc summary { padding: 8px 0; color: var(--color-text); }
+.post-toc ul { list-style: none; padding: 8px 0; margin: 0; }
+.post-toc li { margin: 6px 0; }
+.post-toc .toc-sub { padding-left: 14px; }
+.post-toc a { color: var(--color-muted); }
+.series-navigation, .author-section { margin-top: 36px; padding-top: 24px; border-top: 1px solid var(--color-border); }
+.series-navigation h2 { font-size: 16px; margin: 0 0 12px; }
+.series-navigation ol { list-style: none; padding: 0; font-size: 14px; }
+.series-navigation li { margin: 6px 0; }
+.series-navigation [aria-current="page"] { font-weight: 650; text-decoration: underline; }
+.post-pagination { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; margin-top: 30px; border-top: 1px solid var(--color-border); padding-top: 22px; font-size: 14px; overflow-wrap: anywhere; }
+.post-pagination span { display: block; color: var(--color-muted); font-size: 12px; margin-bottom: 5px; }
+.author-profile { display: flex; align-items: flex-start; gap: 16px; font-size: 14px; margin-bottom: 20px; }
+.author-profile img { width: 64px; height: 64px; object-fit: cover; }
+.author-profile h2 { font-size: 16px; margin: 0 0 8px; }
+.author-profile p { margin: 0 0 8px; color: var(--color-muted); }
+@media (min-width: 1280px) {
+  .article-columns { display: grid; grid-template-columns: minmax(0, 720px) minmax(140px, 1fr); gap: 36px; align-items: start; }
+  .post-toc { grid-column: 2; grid-row: 1; position: sticky; top: 28px; max-height: calc(100dvh - 56px); overflow-y: auto; }
+  .article-body { grid-column: 1; grid-row: 1; }
+}
