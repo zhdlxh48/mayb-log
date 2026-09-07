@@ -74,7 +74,15 @@ Astro 7.3.1 기반 정적 블로그를 구현했습니다. About 홈, Sidebar·�
 - 공개 `revision.json`과 배포 커밋 일치 확인
 - [교차 브라우저 CI 성공](https://github.com/zhdlxh48/mayb-log/actions/runs/34101638840)
 
-최종 배포의 커밋·Actions·공개 검증 결과는 인계 시 생성하는 `docs/verification/deployment.json`에 기록합니다. 문서만 갱신하는 커밋이 생기더라도 해당 파일은 검증한 배포를 명확히 식별합니다. 현재 제공 중인 커밋은 [revision.json](https://zhdlxh48.github.io/mayb-log/revision.json)에서 확인할 수 있습니다.
+최종 구현 코드의 검증:
+
+- 커밋: `64281df1976bdf75d756f4c3da7e9d5524a458f2`
+- [최종 구현 CI·Pages 배포 성공](https://github.com/zhdlxh48/mayb-log/actions/runs/34103027603): 기본 검사 13개, 콘텐츠 오류 16개와 빈 블로그, 브라우저 27개 통과
+- 공개 사이트에서 추가로 Chromium·WebKit 18개 검사 통과: 검색·보기 유지·저장소 차단·영상 클릭·JS 없는 탐색·키보드·긴 콘텐츠·4개 viewport·Axe
+- [29개 공개 경로 확인 결과](verification/deployment.json): 해당 커밋의 revision 일치, 한글 URL·검색 asset·RSS·Sitemap·404 확인
+- [성능 원자료](verification/performance.json): 이 배포의 8개 화면에서 실험실 LCP 52–300ms, CLS 0. 제한 없는 실험실 측정이며 방문자 전체의 성능 수치로 일반화하지 않습니다.
+
+이 검증 후의 인계 커밋은 보고서와 검증 원자료만 갱신합니다. 자기 자신의 커밋 ID를 파일 안에 기록할 수 없으므로 위 증거는 검증된 구현 커밋을 가리키며, 현재 배포된 문서 갱신 커밋은 [revision.json](https://zhdlxh48.github.io/mayb-log/revision.json)과 [Actions](https://github.com/zhdlxh48/mayb-log/actions)에서 확인합니다.
 
 ## 인계 후 권장 순서
 
