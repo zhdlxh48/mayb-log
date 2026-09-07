@@ -4,6 +4,7 @@ import { resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { parseHTML } from 'linkedom';
 import sharp from 'sharp';
+import { seedTestContent } from './seed-test-content.mjs';
 sharp.cache(false);
 
 // Every mutation stays in this disposable copy. Real content is never edited.
@@ -21,6 +22,8 @@ for (const path of ['src', 'public', 'astro.config.mjs', 'tsconfig.json', 'packa
 // node_modules is shared, but Astro's content cache must belong to this fixture.
 const configPath = resolve(fixture, 'astro.config.mjs');
 await writeFile(configPath, (await readFile(configPath, 'utf8')).replace('export default defineConfig({', "export default defineConfig({ cacheDir: './.astro/cache/',"));
+await remove('src/content');
+await seedTestContent(fixture);
 try { await access(resolve(fixture, 'node_modules')); } catch { await symlink(resolve('node_modules'), resolve(fixture, 'node_modules'), 'junction'); }
 await mkdir(resolve(fixture, 'logs'), { recursive: true });
 const valid = '---\ntitle: Validation\ndescription: 검증용 콘텐츠\nauthors: [owner]\npublishedAt: 2030-01-01T00:00:00+09:00\n---\n\n검증 본문입니다.\n';
@@ -95,3 +98,9 @@ assert.ok(!(await readFile(resolve(fixture, 'dist/rss.xml'), 'utf8')).includes('
 const indexed = run('node_modules/pagefind/lib/runner/bin.cjs', ['--site', 'dist']);
 assert.equal(indexed.status, 0, indexed.output);
 console.log(`Verified ${failures.length} invalid content cases, publication rules and an empty blog (including Pagefind).`);
+// Leave a complete isolated site for the browser suite, even after real samples are deleted.
+await remove('src/content');
+await seedTestContent(fixture);
+await build('browser-fixture');
+const browserIndex = run('node_modules/pagefind/lib/runner/bin.cjs', ['--site', 'dist']);
+assert.equal(browserIndex.status, 0, browserIndex.output);
