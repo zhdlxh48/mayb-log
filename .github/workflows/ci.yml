@@ -19,8 +19,11 @@ jobs:
           node-version: 24.20.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm check
       - run: pnpm test
-      - run: pnpm build
+      - run: pnpm exec astro build
+      - run: pnpm search:index
+      - run: pnpm check:build
       - run: pnpm test:content
       - run: pnpm exec playwright install --with-deps chromium firefox webkit
       - run: pnpm test:browser
