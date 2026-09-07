@@ -1,5 +1,5 @@
 ---
-import { Image } from 'astro:assets';
+import ContentImage from './ContentImage.astro';
 import type { Post } from '../lib/taxonomy.ts';
 import { slugify } from '../lib/taxonomy.ts';
 import { url } from '../lib/urls.ts';
@@ -11,7 +11,7 @@ const series = (await getContent()).series.find(entry => entry.id === post.data.
 ---
 <li class:list={['post-item', { 'has-thumbnail': post.data.thumbnail }]}>
   {post.data.thumbnail && <a class="post-thumbnail" href={url(`posts/${post.id}`)} tabindex="-1" aria-hidden="true">
-    <Image src={post.data.thumbnail} alt="" width={768} />
+    <ContentImage src={post.data.thumbnail} alt="" sizes="(max-width: 767px) calc(100vw - 40px), (max-width: 1099px) 35vw, 360px" />
   </a>}
   <div class="post-summary">
     <div class="post-context">
