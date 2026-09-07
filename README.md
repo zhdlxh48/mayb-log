@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-개발 서버가 표시하는 `/mayb-log/` 주소를 엽니다. 검색은 정적 검색 말뭉치와 Web Worker를 사용하므로 `pnpm build` 후 `pnpm preview`에서 최종 동작을 확인합니다.
+개발 서버가 표시하는 `/mayb-log/` 주소를 엽니다. 검색은 제목·설명·본문·분류·시리즈·작성자 정보를 담은 정적 말뭉치와 Web Worker를 사용하므로 `pnpm build` 후 `pnpm preview`에서 최종 동작을 확인합니다.
 
 ## 명령
 
@@ -49,7 +49,7 @@ draft: false
 본문입니다.
 ```
 
-일반 글은 Markdown을 권장합니다. 컴포넌트, `LinkPreview`, iframe이 필요할 때만 MDX를 사용합니다. 상세한 필드·이미지·MDX 예제는 [콘텐츠 가이드](docs/CONTENT_GUIDE.md)를 참고하세요.
+일반 글은 Markdown을 권장합니다. 컴포넌트, `LinkPreview`, iframe이 필요할 때만 MDX를 사용합니다. iframe은 크기를 자동으로 강제하지 않으므로 YouTube 같은 영상에는 콘텐츠에서 `aspect-video w-full` 클래스를 지정합니다. 상세한 필드·이미지·MDX 예제는 [콘텐츠 가이드](docs/CONTENT_GUIDE.md)를 참고하세요.
 
 사이트 이름과 주소는 `src/config/site.ts`, 소개는 `src/content/pages/about.md`, 작성자는 `src/content/authors/owner.yml`에서 수정합니다. 샘플 글 세 폴더와 사용하지 않는 `src/content/series/blog-notes.yml`은 자신의 글을 준비한 뒤 삭제할 수 있습니다. 글이 0개여도 빌드됩니다.
 
@@ -64,4 +64,5 @@ draft: false
 - [리팩터링 완료 보고서](docs/IMPLEMENTATION_REPORT.md)
 - [요구사항 대조표](docs/REQUIREMENTS.md)
 - [현재 리팩터링 기준](docs/REFACTORING_ROADMAP.txt)
+- [감사 후 수정 기준](docs/FIX_AFTER_AUDIT_ROADMAP.txt)
 - [초기 개발 로드맵(역사 문서)](docs/DEVELOPMENT_ROADMAP.txt)

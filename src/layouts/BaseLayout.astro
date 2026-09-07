@@ -32,6 +32,7 @@ const { lang = site.lang, ...head } = Astro.props;
     <MobileIndex />
     <div class="min-h-dvh md:grid md:grid-cols-[264px_minmax(0,1fr)]">
       <aside
+        data-site-sidebar
         class="sticky top-0 hidden h-dvh overflow-y-auto border-r border-border bg-sidebar px-6 py-[30px] md:block"
       >
         <a
@@ -41,9 +42,10 @@ const { lang = site.lang, ...head } = Astro.props;
         <Sidebar />
       </aside>
       <div
-        class="w-full min-w-0 max-w-[1280px] px-5 pt-7 pb-5 md:px-7 md:pt-8 min-[1100px]:px-12 min-[1100px]:pt-11"
+        data-content-area
+        class="mx-auto w-full min-w-0 max-w-[1280px] px-5 pt-7 pb-5 md:px-7 md:pt-8 min-[1100px]:px-12 min-[1100px]:pt-11"
       >
-        <main id="main" class="min-w-0 max-w-[1160px]" tabindex="-1"><slot /></main>
+        <main id="main" class="mx-auto min-w-0 max-w-[1160px]" tabindex="-1"><slot /></main>
         <footer class="mt-16 border-t border-border pt-[18px] text-xs text-muted">
           © {new Date().getFullYear()}
           {site.name}

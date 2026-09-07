@@ -22,7 +22,9 @@ const { author, posts } = Astro.props;
   {
     author.data.homepage && (
       <p>
-        <a href={author.data.homepage}>홈페이지 ↗</a>
+        <a class="text-accent hover:underline" href={author.data.homepage}>
+          홈페이지 ↗
+        </a>
       </p>
     )
   }
