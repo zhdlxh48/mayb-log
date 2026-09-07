@@ -9,6 +9,11 @@ declare module 'mdast' {
 }
 
 const supported = ['callout', 'details', 'figure', 'social', 'youtube', 'link-card', 'metric'];
+const attributes: Record<string, string[]> = {
+  callout: ['type', 'title'], details: ['summary'], figure: ['caption', 'credit'],
+  social: ['platform', 'url', 'label'], youtube: ['id', 'title'],
+  'link-card': ['url', 'title', 'description'], metric: ['label', 'value', 'unit', 'status'],
+};
 const element = (tagName: string, children: ElementContent[] = [], properties: Properties = {}): Element => ({ type: 'element', tagName, properties, children });
 const text = (value: string): ElementContent => ({ type: 'text', value });
 const paragraph = (value: string, tagName: string): Paragraph => ({ type: 'paragraph', data: { hName: tagName }, children: [{ type: 'text', value }] });
@@ -23,6 +28,7 @@ export default function directives() {
       const container = ['callout', 'details', 'figure'].includes(node.name);
       if (node.type !== (container ? 'containerDirective' : 'leafDirective')) fail(`${node.name}: ${container ? ':::' : '::'} 문법을 사용하세요.`);
       const attrs = node.attributes ?? {};
+      for (const key of Object.keys(attrs)) if (!attributes[node.name]!.includes(key)) fail(`${node.name}: 알 수 없는 속성 ${key}`);
       const required = (key: string) => attrs[key]?.trim() || fail(`${node.name}: 필수 속성 ${key} 누락`);
       const choice = (key: string, values: string[], fallback?: string) => {
         const value = attrs[key] ?? fallback ?? required(key);

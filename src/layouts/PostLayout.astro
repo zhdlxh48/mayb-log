@@ -1,5 +1,5 @@
 ---
-import { Image, getImage } from 'astro:assets';
+import { getImage } from 'astro:assets';
 import ContentImage from '../components/ContentImage.astro';
 import type { MarkdownHeading } from 'astro';
 import type { Post } from '../lib/taxonomy.ts';
@@ -57,7 +57,7 @@ const ogUrl = og ? assetAbsolute(og.src) : undefined;
         </nav>
         <section class="author-section" aria-label="작성자 소개" data-pagefind-ignore>
           {authors.map(author => <div class="author-profile">
-            {author.data.avatar && <Image src={author.data.avatar} alt="" width={64} height={64} />}
+            {author.data.avatar && <ContentImage src={author.data.avatar} alt="" sizes="64px" />}
             <div><h2><a href={url(`authors/${author.id}`)}>{author.data.name}</a></h2>
             {author.data.bio && <p>{author.data.bio}</p>}
             {author.data.homepage && <a href={author.data.homepage}>홈페이지 ↗</a>}</div>
