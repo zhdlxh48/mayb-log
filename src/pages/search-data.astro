@@ -1,0 +1,133 @@
+---
+import { getEntry, render } from 'astro:content';
+import { getContent } from '../lib/posts';
+import { url } from '../lib/urls';
+
+const data = await getContent();
+const about = await getEntry('pages', 'about');
+if (!about) throw new Error('src/content/pages/about.md 또는 about.mdx가 필요합니다.');
+const { Content: AboutContent } = await render(about);
+
+const posts = await Promise.all(
+  data.posts.map(async (post) => ({ post, rendered: await render(post) })),
+);
+---
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>검색 데이터</title>
+    <meta name="description" content="mayb-log의 검색용 본문 데이터입니다." />
+  </head>
+  <body>
+    <main>
+      <article
+        data-search-document
+        data-url={url()}
+        data-title={about.data.title}
+        data-description={about.data.description}
+      >
+        <h1>{about.data.title}</h1>
+        <AboutContent />
+      </article>
+
+      {
+        posts.map(({ post, rendered }) => (
+          <article
+            data-search-document
+            data-url={url(`posts/${post.id}`)}
+            data-title={post.data.title}
+            data-description={post.data.description}
+          >
+            <h1>{post.data.title}</h1>
+            {post.data.subtitle && <p>{post.data.subtitle}</p>}
+            <p>
+              {post.data.categories.join(' ')} {post.data.tags.join(' ')}
+            </p>
+            <rendered.Content />
+          </article>
+        ))
+      }
+
+      {
+        data.series.map((entry) => (
+          <article
+            data-search-document
+            data-url={url(`series/${entry.id}`)}
+            data-title={entry.data.title}
+            data-description={
+              entry.data.description ?? `${entry.count}개의 글이 이어지는 시리즈입니다.`
+            }
+          >
+            <>
+              <h1>{entry.data.title}</h1>
+              <p>{entry.data.description}</p>
+            </>
+          </article>
+        ))
+      }
+      {
+        data.categories.map((entry) => (
+          <article
+            data-search-document
+            data-url={url(`categories/${entry.slug}`)}
+            data-title={`${entry.name} 분류`}
+            data-description={`${entry.name} 분류의 글 ${entry.count}개`}
+          >
+            <>
+              <h1>{entry.name} 분류</h1>
+              <p>{entry.posts.map((post) => post.data.title).join(' ')}</p>
+            </>
+          </article>
+        ))
+      }
+      {
+        data.tags.map((entry) => (
+          <article
+            data-search-document
+            data-url={url(`tags/${entry.slug}`)}
+            data-title={`${entry.name} 태그`}
+            data-description={`${entry.name} 태그의 글 ${entry.count}개`}
+          >
+            <>
+              <h1>{entry.name} 태그</h1>
+              <p>{entry.posts.map((post) => post.data.title).join(' ')}</p>
+            </>
+          </article>
+        ))
+      }
+      {
+        data.authors.map((author) => (
+          <article
+            data-search-document
+            data-url={url(`authors/${author.id}`)}
+            data-title={author.data.name}
+            data-description={author.data.bio ?? `${author.data.name}의 글`}
+          >
+            <>
+              <h1>{author.data.name}</h1>
+              <p>{author.data.bio}</p>
+            </>
+          </article>
+        ))
+      }
+      {
+        data.archive.map((entry) => (
+          <article
+            data-search-document
+            data-url={url(`archive/${entry.year}`)}
+            data-title={`${entry.year}년 Archive`}
+            data-description={`${entry.year}년에 작성한 글 ${entry.count}개`}
+          >
+            <>
+              <h1>{entry.year}년 Archive</h1>
+              <p>{entry.posts.map((post) => post.data.title).join(' ')}</p>
+            </>
+          </article>
+        ))
+      }
+    </main>
+  </body>
+</html>

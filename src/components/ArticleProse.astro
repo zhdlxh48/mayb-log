@@ -1,0 +1,33 @@
+---
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+---
+
+<div
+  class:list={[
+    'prose max-w-[720px] min-w-0 wrap-anywhere text-[17px] leading-[1.9] max-md:text-base',
+    '[&_h1]:mb-[22px] [&_h1]:text-[32px] [&_h1]:leading-[1.35] [&_h1]:font-bold [&_h1]:tracking-[-0.04em] max-md:[&_h1]:text-[28px]',
+    '[&_h2]:mt-[2em] [&_h2]:mb-[0.8em] [&_h2]:text-[23px] [&_h2]:leading-[1.35] [&_h2]:font-semibold',
+    '[&_h3]:mt-[1.6em] [&_h3]:mb-[0.7em] [&_h3]:text-[19px] [&_h3]:leading-[1.35] [&_h3]:font-semibold',
+    '[&_:is(h2,h3,h4)]:scroll-mt-6 [&_p]:mb-[1.25em]',
+    '[&_a]:text-accent [&_a]:underline [&_a]:decoration-1 [&_a]:underline-offset-[0.2em]',
+    '[&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-[0.35em]',
+    '[&_blockquote]:my-6 [&_blockquote]:border-l-[3px] [&_blockquote]:border-border [&_blockquote]:py-[0.2em] [&_blockquote]:pl-[1.2em] [&_blockquote]:text-muted [&_blockquote_p:last-child]:mb-0',
+    '[&_hr]:my-8 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-border',
+    '[&_code]:rounded-[2px] [&_code]:bg-sidebar [&_code]:px-[0.3em] [&_code]:py-[0.1em] [&_code]:font-mono [&_code]:text-[0.86em]',
+    '[&_pre]:my-6 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:border [&_pre]:border-border [&_pre]:p-[18px] [&_pre]:leading-[1.65] [&_pre_code]:bg-transparent [&_pre_code]:p-0',
+    '[&_table]:my-6 [&_table]:block [&_table]:w-max [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_table]:text-[15px]',
+    '[&_th]:border [&_th]:border-border [&_th]:bg-sidebar [&_th]:px-[14px] [&_th]:py-[9px] [&_th]:text-left [&_td]:border [&_td]:border-border [&_td]:px-[14px] [&_td]:py-[9px] [&_td]:text-left',
+    '[&_img]:my-6 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_input[type=checkbox]]:mr-[0.4em]',
+    '[&_figure]:my-6 [&_figure_img]:mb-2 [&_figcaption]:text-[13px] [&_figcaption]:text-muted',
+    '[&_details]:my-6 [&_details]:border-y [&_details]:border-border [&_details]:py-3 [&_details>summary]:cursor-pointer [&_details>summary]:font-semibold [&_details[open]>summary]:mb-3',
+    '[&_iframe]:my-6 [&_iframe]:block [&_iframe]:aspect-video [&_iframe]:w-full [&_iframe]:border-0',
+    '[--link-preview-corners:2px] [--link-preview-width:100%]',
+    className,
+  ]}
+>
+  <slot />
+</div>

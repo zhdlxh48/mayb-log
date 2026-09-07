@@ -3,10 +3,19 @@ import Sidebar from './Sidebar.astro';
 import { site } from '../config/site.ts';
 import { url } from '../lib/urls.ts';
 ---
-<header class="mobile-header" data-pagefind-ignore>
-  <a class="brand" href={url()}>{site.name}</a>
+
+<header
+  class="relative flex items-baseline justify-between gap-4 border-b border-border bg-sidebar px-5 py-[13px] md:hidden"
+>
+  <a class="text-[21px] font-bold tracking-[-0.045em] text-foreground hover:underline" href={url()}>
+    {site.name}
+  </a>
   <details class="mobile-index">
-    <summary>Index</summary>
-    <div class="mobile-index-content"><Sidebar /></div>
+    <summary class="cursor-pointer py-[5px] pl-3 text-sm">Index</summary>
+    <div
+      class="absolute top-full right-0 left-0 z-10 max-h-[75dvh] overflow-y-auto border-b border-border bg-sidebar p-5"
+    >
+      <Sidebar />
+    </div>
   </details>
 </header>

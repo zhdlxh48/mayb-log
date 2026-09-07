@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { jsonLd, xmlText } from '../src/lib/seo.ts';
+import { jsonLd, xmlText } from '../../src/lib/seo.ts';
 
 test('metadata serialization cannot close a script or break XML', () => {
   const title = '</script><script>alert("hello")</script> & 한글';

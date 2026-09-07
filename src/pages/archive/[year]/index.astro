@@ -2,8 +2,16 @@
 import PostBrowserLayout from '../../../layouts/PostBrowserLayout.astro';
 import { getContent } from '../../../lib/posts.ts';
 export async function getStaticPaths() {
-  return (await getContent()).archive.map(entry => ({ params: { year: entry.year }, props: { entry } }));
+  return (await getContent()).archive.map((entry) => ({
+    params: { year: entry.year },
+    props: { entry },
+  }));
 }
 const { entry } = Astro.props;
 ---
-<PostBrowserLayout title={`${entry.year}년`} description={`${entry.year}년에 작성한 글 ${entry.count}개`} posts={entry.posts} />
+
+<PostBrowserLayout
+  title={`${entry.year}년`}
+  description={`${entry.year}년에 작성한 글 ${entry.count}개`}
+  posts={entry.posts}
+/>

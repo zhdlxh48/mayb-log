@@ -1,5 +1,7 @@
 # `mayb-log` 개발 사양서 / 구현 로드맵
 
+> 역사 문서: 초기 구현 당시 기준입니다. 현재 구현 기준은 `REFACTORING_ROADMAP.txt`이며 directive·Pagefind 등 아래 일부 내용은 더 이상 적용되지 않습니다.
+
 ## 0. 프로젝트 목표
 
 GitHub Repository `zhdlxh48/mayb-log`에 Astro 기반 개인 블로그를 처음부터 구축한다.

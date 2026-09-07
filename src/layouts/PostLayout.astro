@@ -12,59 +12,190 @@ import { ogDimensions } from '../lib/images.ts';
 import BaseLayout from './BaseLayout.astro';
 import PostMeta from '../components/PostMeta.astro';
 import PostToc from '../components/PostToc.astro';
-import YouTubeEnhancement from '../components/YouTubeEnhancement.astro';
-interface Props { post: Post; headings: MarkdownHeading[] }
+import ArticleProse from '../components/ArticleProse.astro';
+interface Props {
+  post: Post;
+  headings: MarkdownHeading[];
+}
 const { post, headings } = Astro.props;
 const data = await getContent();
-const authors = post.data.authors.map(ref => data.authors.find(author => author.id === ref.id)!);
-const series = data.series.find(entry => entry.id === post.data.series?.id);
-const index = data.posts.findIndex(entry => entry.id === post.id);
+const authors = post.data.authors.map((ref) =>
+  data.authors.find((author) => author.id === ref.id)!,
+);
+const series = data.series.find((entry) => entry.id === post.data.series?.id);
+const index = data.posts.findIndex((entry) => entry.id === post.id);
 const newer = data.posts[index - 1];
 const older = data.posts[index + 1];
 const thumbnail = post.data.thumbnail;
-const og = thumbnail && thumbnail.format !== 'svg'
-  ? await getImage({ src: thumbnail, ...ogDimensions(thumbnail), format: 'webp', quality: 80, fit: 'cover', layout: 'none' })
-  : undefined;
+const og =
+  thumbnail && thumbnail.format !== 'svg'
+    ? await getImage({
+        src: thumbnail,
+        ...ogDimensions(thumbnail),
+        format: 'webp',
+        quality: 80,
+        fit: 'cover',
+        layout: 'none',
+      })
+    : undefined;
 const ogUrl = og ? assetAbsolute(og.src) : undefined;
 ---
-<BaseLayout title={post.data.seo.title ?? post.data.title} description={post.data.seo.description ?? post.data.description} lang={post.data.lang} noindex={post.data.seo.noindex} image={ogUrl} type="article">
-  <script is:inline slot="head" type="application/ld+json" set:html={jsonLd(blogPosting(post, authors, ogUrl))} />
-  <article class="post-article">
-    <header class="post-header" data-pagefind-body>
-      <div class="post-context">
-        {post.data.categories.map(category => <a href={url(`categories/${slugify(category)}`)}>{category}</a>)}
-        {series && <a href={url(`series/${series.id}`)}>{series.data.title}</a>}
+
+<BaseLayout
+  title={post.data.seo.title ?? post.data.title}
+  description={post.data.seo.description ?? post.data.description}
+  lang={post.data.lang}
+  noindex={post.data.seo.noindex}
+  image={ogUrl}
+  type="article"
+  publishedAt={post.data.publishedAt}
+  updatedAt={post.data.updatedAt}
+>
+  <script
+    is:inline
+    slot="head"
+    type="application/ld+json"
+    set:html={jsonLd(blogPosting(post, authors, ogUrl))}
+  />
+  <article class="mx-auto max-w-[936px]">
+    <header class="mb-[30px] max-w-[720px]">
+      <div class="mb-2 flex flex-wrap gap-x-3 gap-y-[5px] text-xs">
+        {
+          post.data.categories.map((category) => (
+            <a class="text-muted hover:underline" href={url(`categories/${slugify(category)}`)}>
+              {category}
+            </a>
+          ))
+        }
+        {
+          series && (
+            <a class="text-muted hover:underline" href={url(`series/${series.id}`)}>
+              {series.data.title}
+            </a>
+          )
+        }
       </div>
-      <h1 data-pagefind-meta="title">{post.data.title}</h1>
-      {post.data.subtitle && <p class="post-subtitle">{post.data.subtitle}</p>}
-      <div class="author-byline">{authors.map(author => <a href={url(`authors/${author.id}`)} rel="author">{author.data.name}</a>)}</div>
+      <h1
+        class="mb-3 text-[28px] leading-[1.35] font-bold tracking-[-0.04em] wrap-anywhere md:text-[32px]"
+      >
+        {post.data.title}
+      </h1>
+      {post.data.subtitle && <p class="mb-[22px] text-lg text-muted">{post.data.subtitle}</p>}
+      <div class="mb-2 flex gap-3 text-[13px]">
+        {
+          authors.map((author) => (
+            <a class="text-accent hover:underline" href={url(`authors/${author.id}`)} rel="author">
+              {author.data.name}
+            </a>
+          ))
+        }
+      </div>
       <PostMeta post={post} />
-      {post.data.updatedAt && <p class="updated-at">수정 <time datetime={post.data.updatedAt.toISOString()}>{formatDate(post.data.updatedAt)}</time></p>}
-      <meta data-pagefind-meta="description" content={post.data.description} />
+      {
+        post.data.updatedAt && (
+          <p class="mt-[5px] text-xs text-muted">
+            수정{' '}
+            <time datetime={post.data.updatedAt.toISOString()}>
+              {formatDate(post.data.updatedAt)}
+            </time>
+          </p>
+        )
+      }
     </header>
-    <div class="article-columns">
+    <div
+      class="items-start min-[1280px]:grid min-[1280px]:grid-cols-[minmax(0,720px)_minmax(140px,180px)] min-[1280px]:gap-9"
+    >
       <PostToc headings={headings} />
-      <div class="article-body">
-        {post.data.thumbnail && <ContentImage class="article-thumbnail" src={post.data.thumbnail} alt={post.data.thumbnailAlt!} priority />}
-        <div class="prose" data-pagefind-body><slot /></div>
-        {series && <nav class="series-navigation" aria-label="시리즈 글" data-pagefind-ignore>
-          <h2><a href={url(`series/${series.id}`)}>{series.data.title}</a></h2>
-          <ol>{series.posts.map(entry => <li><a href={url(`posts/${entry.id}`)} aria-current={entry.id === post.id ? 'page' : undefined}>{entry.data.seriesOrder}. {entry.data.title}</a></li>)}</ol>
-        </nav>}
-        <nav class="post-pagination" aria-label="이전 및 다음 글" data-pagefind-ignore>
-          {older && <a href={url(`posts/${older.id}`)}><span>← 이전 글</span>{older.data.title}</a>}
-          {newer && <a href={url(`posts/${newer.id}`)}><span>다음 글 →</span>{newer.data.title}</a>}
+      <div class="min-w-0 max-w-[720px] min-[1280px]:col-start-1 min-[1280px]:row-start-1">
+        {
+          post.data.thumbnail && (
+            <ContentImage
+              class="mb-[30px] block h-auto w-full"
+              src={post.data.thumbnail}
+              alt={post.data.thumbnailAlt!}
+              priority
+            />
+          )
+        }
+        <ArticleProse><slot /></ArticleProse>
+        {
+          series && (
+            <nav class="mt-9 border-t border-border pt-6" aria-label="시리즈 글">
+              <h2 class="mb-3 text-base font-semibold">
+                <a class="text-accent hover:underline" href={url(`series/${series.id}`)}>
+                  {series.data.title}
+                </a>
+              </h2>
+              <ol class="list-none p-0 text-sm">
+                {series.posts.map((entry) => (
+                  <li class="my-[6px]">
+                    <a
+                      class:list={[
+                        'text-accent hover:underline',
+                        { 'font-semibold underline': entry.id === post.id },
+                      ]}
+                      href={url(`posts/${entry.id}`)}
+                      aria-current={entry.id === post.id ? 'page' : undefined}
+                    >
+                      {entry.data.seriesOrder}. {entry.data.title}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          )
+        }
+        <nav
+          class="mt-[30px] grid grid-cols-2 gap-7 border-t border-border pt-[22px] text-sm wrap-anywhere"
+          aria-label="이전 및 다음 글"
+        >
+          {
+            older && (
+              <a class="text-accent hover:underline" href={url(`posts/${older.id}`)}>
+                <span class="mb-[5px] block text-xs text-muted">← 이전 글</span>
+                {older.data.title}
+              </a>
+            )
+          }
+          {
+            newer && (
+              <a class="text-accent hover:underline" href={url(`posts/${newer.id}`)}>
+                <span class="mb-[5px] block text-xs text-muted">다음 글 →</span>
+                {newer.data.title}
+              </a>
+            )
+          }
         </nav>
-        <section class="author-section" aria-label="작성자 소개" data-pagefind-ignore>
-          {authors.map(author => <div class="author-profile">
-            {author.data.avatar && <ContentImage src={author.data.avatar} alt="" sizes="64px" />}
-            <div><h2><a href={url(`authors/${author.id}`)}>{author.data.name}</a></h2>
-            {author.data.bio && <p>{author.data.bio}</p>}
-            {author.data.homepage && <a href={author.data.homepage}>홈페이지 ↗</a>}</div>
-          </div>)}
+        <section class="mt-9 border-t border-border pt-6" aria-label="작성자 소개">
+          {
+            authors.map((author) => (
+              <div class="mb-5 flex items-start gap-4 text-sm">
+                {author.data.avatar && (
+                  <ContentImage
+                    class="h-16 w-16 object-cover"
+                    src={author.data.avatar}
+                    alt=""
+                    sizes="64px"
+                  />
+                )}
+                <div>
+                  <h2 class="mb-2 text-base font-semibold">
+                    <a class="text-accent hover:underline" href={url(`authors/${author.id}`)}>
+                      {author.data.name}
+                    </a>
+                  </h2>
+                  {author.data.bio && <p class="mb-2 text-muted">{author.data.bio}</p>}
+                  {author.data.homepage && (
+                    <a class="text-accent hover:underline" href={author.data.homepage}>
+                      홈페이지 ↗
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))
+          }
         </section>
       </div>
     </div>
   </article>
-  {post.body?.includes('::youtube') && <YouTubeEnhancement />}
 </BaseLayout>

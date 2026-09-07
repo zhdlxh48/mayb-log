@@ -5,21 +5,63 @@ import { slugify } from '../lib/taxonomy.ts';
 import { url } from '../lib/urls.ts';
 import { getContent } from '../lib/posts.ts';
 import PostMeta from './PostMeta.astro';
-interface Props { post: Post }
+interface Props {
+  post: Post;
+}
 const { post } = Astro.props;
-const series = (await getContent()).series.find(entry => entry.id === post.data.series?.id);
+const series = (await getContent()).series.find((entry) => entry.id === post.data.series?.id);
 ---
-<li class:list={['post-item', { 'has-thumbnail': post.data.thumbnail }]}>
-  {post.data.thumbnail && <a class="post-thumbnail" href={url(`posts/${post.id}`)} tabindex="-1" aria-hidden="true">
-    <ContentImage src={post.data.thumbnail} alt="" sizes="(max-width: 767px) calc(100vw - 40px), (max-width: 1099px) 35vw, 360px" />
-  </a>}
-  <div class="post-summary">
-    <div class="post-context">
-      {post.data.categories.map(category => <a href={url(`categories/${slugify(category)}`)}>{category}</a>)}
-      {series && <a href={url(`series/${series.id}`)}>{series.data.title}</a>}
+
+<li
+  class:list={[
+    'post-item min-w-0 border-b border-border py-[25px]',
+    {
+      'has-thumbnail grid grid-cols-[minmax(0,30%)_minmax(0,1fr)] gap-4 md:gap-[25px]':
+        post.data.thumbnail,
+    },
+  ]}
+>
+  {
+    post.data.thumbnail && (
+      <a
+        class="post-thumbnail block min-w-0 self-stretch"
+        href={url(`posts/${post.id}`)}
+        tabindex="-1"
+        aria-hidden="true"
+      >
+        <ContentImage
+          class="block aspect-[1.7] h-full max-h-[210px] w-full object-cover"
+          src={post.data.thumbnail}
+          alt=""
+          sizes="(max-width: 767px) calc(100vw - 40px), (max-width: 1099px) 35vw, 360px"
+        />
+      </a>
+    )
+  }
+  <div class="post-summary min-w-0 wrap-anywhere">
+    <div class="mb-2 flex flex-wrap gap-x-3 gap-y-[5px] text-xs">
+      {
+        post.data.categories.map((category) => (
+          <a class="text-muted hover:underline" href={url(`categories/${slugify(category)}`)}>
+            {category}
+          </a>
+        ))
+      }
+      {
+        series && (
+          <a class="text-muted hover:underline" href={url(`series/${series.id}`)}>
+            {series.data.title}
+          </a>
+        )
+      }
     </div>
-    <h2><a href={url(`posts/${post.id}`)}>{post.data.title}</a></h2>
-    <p>{post.data.subtitle ?? post.data.description}</p>
+    <h2 class="mb-2 text-[18px] leading-[1.35] font-semibold tracking-[-0.025em] md:text-[21px]">
+      <a class="text-foreground hover:underline" href={url(`posts/${post.id}`)}>{post.data.title}</a
+      >
+    </h2>
+    <p class="mb-[14px] text-sm leading-[1.7] text-muted md:text-[15px]">
+      {post.data.subtitle ?? post.data.description}
+    </p>
     <PostMeta post={post} />
   </div>
 </li>

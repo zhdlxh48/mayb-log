@@ -1,13 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { imageOptions, ogDimensions } from '../src/lib/images.ts';
+import { imageOptions, ogDimensions } from '../../src/lib/images.ts';
 
 test('all raster sizes cap the long edge without upscaling', () => {
-  for (const [width, height] of [[2400, 1200], [2400, 1800], [1600, 1000], [1200, 900], [900, 2400], [320, 240]]) {
+  for (const [width, height] of [
+    [2400, 1200],
+    [2400, 1800],
+    [1600, 1000],
+    [1200, 900],
+    [900, 2400],
+    [320, 240],
+  ]) {
     const result = imageOptions({ width: width!, height: height! });
     assert.ok(result.width <= width! && result.height <= height!);
     assert.ok(Math.max(result.width, result.height) <= 1600);
-    assert.ok(result.widths.every(value => value <= result.width));
+    assert.ok(result.widths.every((value) => value <= result.width));
     assert.equal(result.format, 'webp');
     assert.equal(result.quality, 80);
   }
