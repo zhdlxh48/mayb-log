@@ -9,18 +9,19 @@ for (const width of [375, 1440]) {
     const context = await browser.newContext({ viewport: { width, height: 900 } });
     const page = await context.newPage();
     await page.addInitScript(() => {
-      window.siteMetrics = { lcp: 0, cls: 0 };
+      const metrics = { lcp: 0, cls: 0 };
+      window['siteMetrics'] = metrics;
       new PerformanceObserver(list => {
-        window.siteMetrics.lcp = list.getEntries().at(-1).startTime;
+        metrics.lcp = list.getEntries().at(-1).startTime;
       }).observe({ type: 'largest-contentful-paint', buffered: true });
       new PerformanceObserver(list => {
-        for (const entry of list.getEntries()) if (!entry.hadRecentInput) window.siteMetrics.cls += entry.value;
+        for (const entry of list.getEntries()) if (!entry.hadRecentInput) metrics.cls += entry.value;
       }).observe({ type: 'layout-shift', buffered: true });
     });
     await page.goto(new URL(path, base).href);
     await page.waitForTimeout(800);
     const metrics = await page.evaluate(() => ({
-      ...window.siteMetrics,
+      ...window['siteMetrics'],
       resources: performance.getEntriesByType('resource').map(entry => ({
         path: new URL(entry.name).pathname, type: entry.initiatorType, bytes: entry.encodedBodySize,
       })),
@@ -29,7 +30,7 @@ for (const width of [375, 1440]) {
     await context.close();
   }
 }
-const report = { measuredAt: new Date().toISOString(), base, browser: await browser.version(), conditions: 'Windows; new browser context per page; no CPU/network throttling; laboratory measurements, not field Core Web Vitals', results };
+const report = { measuredAt: new Date().toISOString(), base, browser: browser.version(), conditions: 'Windows; new browser context per page; no CPU/network throttling; laboratory measurements, not field Core Web Vitals', results };
 await browser.close();
 await mkdir('docs/verification', { recursive: true });
 await writeFile('docs/verification/performance.json', JSON.stringify(report, null, 2) + '\n');
