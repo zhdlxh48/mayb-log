@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-09-07T08:44:48.189Z",
+  "measuredAt": "2026-09-07T08:58:25.680Z",
   "base": "https://zhdlxh48.github.io/mayb-log/",
   "browser": "153.0.8010.12",
   "conditions": "Windows; new browser context per page; no CPU/network throttling; laboratory measurements, not field Core Web Vitals",
@@ -7,26 +7,26 @@
     {
       "path": "/",
       "width": 375,
-      "lcp": 3192,
+      "lcp": 72,
       "cls": 0,
       "resources": [
         {
-          "path": "/mayb-log/_astro/BaseLayout.D4V_RfDn.css",
+          "path": "/mayb-log/_astro/BaseLayout.Dt0FmCGs.css",
           "type": "link",
-          "bytes": 4894
+          "bytes": 4316
         }
       ]
     },
     {
       "path": "posts/",
       "width": 375,
-      "lcp": 492,
+      "lcp": 68,
       "cls": 0,
       "resources": [
         {
-          "path": "/mayb-log/_astro/BaseLayout.D4V_RfDn.css",
+          "path": "/mayb-log/_astro/BaseLayout.Dt0FmCGs.css",
           "type": "link",
-          "bytes": 4894
+          "bytes": 4316
         },
         {
           "path": "/mayb-log/_astro/thumbnail.CCZBC-qX_o45xS.webp",
@@ -38,13 +38,13 @@
     {
       "path": "posts/first-note/",
       "width": 375,
-      "lcp": 304,
+      "lcp": 88,
       "cls": 0,
       "resources": [
         {
-          "path": "/mayb-log/_astro/BaseLayout.D4V_RfDn.css",
+          "path": "/mayb-log/_astro/BaseLayout.Dt0FmCGs.css",
           "type": "link",
-          "bytes": 4894
+          "bytes": 4316
         },
         {
           "path": "/mayb-log/_astro/thumbnail.CCZBC-qX_o45xS.webp",
@@ -57,14 +57,14 @@
           "bytes": 323
         },
         {
+          "path": "/mayb-log/_astro/small.DyucKA5e_Z1G93u6.webp",
+          "type": "img",
+          "bytes": 462
+        },
+        {
           "path": "/mayb-log/_astro/screen.bkraAnoJ_eKxzl.webp",
           "type": "img",
           "bytes": 398
-        },
-        {
-          "path": "/mayb-log/_astro/landscape.DOlMGOuy_ZSrhUP.webp",
-          "type": "img",
-          "bytes": 456
         },
         {
           "path": "/mayb-log/_astro/portrait.Cv8d95gG_nL9lu.webp",
@@ -72,22 +72,22 @@
           "bytes": 1390
         },
         {
-          "path": "/mayb-log/_astro/small.DyucKA5e_Z1G93u6.webp",
+          "path": "/mayb-log/_astro/landscape.DOlMGOuy_ZSrhUP.webp",
           "type": "img",
-          "bytes": 462
+          "bytes": 456
         }
       ]
     },
     {
       "path": "search/",
       "width": 375,
-      "lcp": 252,
+      "lcp": 52,
       "cls": 0,
       "resources": [
         {
-          "path": "/mayb-log/_astro/BaseLayout.D4V_RfDn.css",
+          "path": "/mayb-log/_astro/BaseLayout.Dt0FmCGs.css",
           "type": "link",
-          "bytes": 4894
+          "bytes": 4316
         },
         {
           "path": "/mayb-log/scripts/search.js",
@@ -99,26 +99,26 @@
     {
       "path": "/",
       "width": 1440,
-      "lcp": 64,
+      "lcp": 256,
       "cls": 0,
       "resources": [
         {
-          "path": "/mayb-log/_astro/BaseLayout.D4V_RfDn.css",
+          "path": "/mayb-log/_astro/BaseLayout.Dt0FmCGs.css",
           "type": "link",
-          "bytes": 4894
+          "bytes": 4316
         }
       ]
     },
     {
       "path": "posts/",
       "width": 1440,
-      "lcp": 60,
+      "lcp": 256,
       "cls": 0,
       "resources": [
         {
-          "path": "/mayb-log/_astro/BaseLayout.D4V_RfDn.css",
+          "path": "/mayb-log/_astro/BaseLayout.Dt0FmCGs.css",
           "type": "link",
-          "bytes": 4894
+          "bytes": 4316
         },
         {
           "path": "/mayb-log/_astro/thumbnail.CCZBC-qX_o45xS.webp",
@@ -130,13 +130,13 @@
     {
       "path": "posts/first-note/",
       "width": 1440,
-      "lcp": 92,
+      "lcp": 300,
       "cls": 0,
       "resources": [
         {
-          "path": "/mayb-log/_astro/BaseLayout.D4V_RfDn.css",
+          "path": "/mayb-log/_astro/BaseLayout.Dt0FmCGs.css",
           "type": "link",
-          "bytes": 4894
+          "bytes": 4316
         },
         {
           "path": "/mayb-log/_astro/thumbnail.CCZBC-qX_Z23pLWz.webp",
@@ -154,27 +154,27 @@
           "bytes": 994
         },
         {
-          "path": "/mayb-log/_astro/small.DyucKA5e_Z1gyvSX.webp",
-          "type": "img",
-          "bytes": 994
-        },
-        {
           "path": "/mayb-log/_astro/screen.bkraAnoJ_Z24v8wg.webp",
           "type": "img",
           "bytes": 824
+        },
+        {
+          "path": "/mayb-log/_astro/small.DyucKA5e_Z1gyvSX.webp",
+          "type": "img",
+          "bytes": 994
         }
       ]
     },
     {
       "path": "search/",
       "width": 1440,
-      "lcp": 56,
+      "lcp": 256,
       "cls": 0,
       "resources": [
         {
-          "path": "/mayb-log/_astro/BaseLayout.D4V_RfDn.css",
+          "path": "/mayb-log/_astro/BaseLayout.Dt0FmCGs.css",
           "type": "link",
-          "bytes": 4894
+          "bytes": 4316
         },
         {
           "path": "/mayb-log/scripts/search.js",
