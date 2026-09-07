@@ -1,6 +1,7 @@
 ---
 import { getEntry, render } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import YouTubeEnhancement from '../components/YouTubeEnhancement.astro';
 const about = await getEntry('pages', 'about');
 if (!about) throw new Error('src/content/pages/about.md가 필요합니다.');
 const { Content } = await render(about);
@@ -10,4 +11,5 @@ const { Content } = await render(about);
     <h1>{about.data.title}</h1>
     <Content />
   </article>
+  {about.body?.includes('::youtube') && <YouTubeEnhancement />}
 </BaseLayout>
