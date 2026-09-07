@@ -1,11 +1,31 @@
 ---
 import { site } from '../config/site.ts';
 import { url } from '../lib/urls.ts';
-interface Props { title?: string; description?: string; noindex?: boolean; image?: string; type?: 'website' | 'article' }
-const { title, description = site.description, noindex = false, image, type = 'website' } = Astro.props;
+interface Props {
+  title?: string;
+  description?: string;
+  noindex?: boolean;
+  image?: string;
+  type?: 'website' | 'article';
+  publishedAt?: Date;
+  updatedAt?: Date;
+}
+const {
+  title,
+  description = site.description,
+  noindex = false,
+  image,
+  type = 'website',
+  publishedAt,
+  updatedAt,
+} = Astro.props;
 const fullTitle = title ? `${title} | ${site.name}` : site.name;
-const canonical = new URL(Astro.url.pathname.endsWith('/404/') ? url('404.html') : Astro.url.pathname, site.origin).href;
+const canonical = new URL(
+  Astro.url.pathname.endsWith('/404/') ? url('404.html') : Astro.url.pathname,
+  site.origin,
+).href;
 ---
+
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>{fullTitle}</title>
@@ -20,4 +40,18 @@ const canonical = new URL(Astro.url.pathname.endsWith('/404/') ? url('404.html')
 <meta property="og:url" content={canonical} />
 <meta property="og:site_name" content={site.name} />
 {image && <meta property="og:image" content={image} />}
+{
+  type === 'article' && publishedAt && (
+    <meta property="article:published_time" content={publishedAt.toISOString()} />
+  )
+}
+{
+  type === 'article' && updatedAt && (
+    <meta property="article:modified_time" content={updatedAt.toISOString()} />
+  )
+}
+<meta name="twitter:card" content={image ? 'summary_large_image' : 'summary'} />
+<meta name="twitter:title" content={fullTitle} />
+<meta name="twitter:description" content={description} />
+{image && <meta name="twitter:image" content={image} />}
 {noindex && <meta name="robots" content="noindex,follow" />}

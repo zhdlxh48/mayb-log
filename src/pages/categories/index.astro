@@ -4,10 +4,27 @@ import { getContent } from '../../lib/posts.ts';
 import { url } from '../../lib/urls.ts';
 const entries = (await getContent()).categories;
 ---
+
 <BaseLayout title="Categories" description="분류별로 기록을 찾아보세요.">
-  <section data-pagefind-body>
-    <h1>Categories</h1><p class="muted">분류별로 모은 기록입니다.</p>
-    <ul class="taxonomy-index">{entries.map(entry => <li><a href={url(`categories/${entry.slug}`)}>{entry.name} <span class="count">{entry.count}</span></a></li>)}</ul>
-    {!entries.length && <p class="empty-state">아직 등록된 분류가 없습니다.</p>}
+  <section>
+    <h1 class="mb-[22px] text-[28px] leading-[1.35] font-bold tracking-[-0.04em] md:text-[32px]">
+      Categories
+    </h1><p class="text-muted">분류별로 모은 기록입니다.</p>
+    <ul class="my-7 max-w-[720px] list-none p-0">
+      {
+        entries.map((entry) => (
+          <li class="border-b border-border py-[14px]">
+            <a
+              class="flex justify-between gap-3 text-accent hover:underline"
+              href={url(`categories/${entry.slug}`)}
+            >
+              {entry.name}{' '}
+              <span class="shrink-0 text-xs text-muted tabular-nums">{entry.count}</span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+    {!entries.length && <p class="py-[35px] text-muted">아직 등록된 분류가 없습니다.</p>}
   </section>
 </BaseLayout>

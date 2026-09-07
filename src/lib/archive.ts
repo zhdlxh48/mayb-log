@@ -10,9 +10,17 @@ export function getArchive(posts: Post[]) {
     if (!months.has(month)) months.set(month, []);
     months.get(month)!.push(post);
   }
-  return [...years].sort(([a], [b]) => b.localeCompare(a)).map(([year, months]) => {
-    const entries = [...months].sort(([a], [b]) => b.localeCompare(a))
-      .map(([month, posts]) => ({ month, posts, count: posts.length }));
-    return { year, months: entries, posts: entries.flatMap(entry => entry.posts), count: entries.reduce((sum, entry) => sum + entry.count, 0) };
-  });
+  return [...years]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([year, months]) => {
+      const entries = [...months]
+        .sort(([a], [b]) => b.localeCompare(a))
+        .map(([month, posts]) => ({ month, posts, count: posts.length }));
+      return {
+        year,
+        months: entries,
+        posts: entries.flatMap((entry) => entry.posts),
+        count: entries.reduce((sum, entry) => sum + entry.count, 0),
+      };
+    });
 }

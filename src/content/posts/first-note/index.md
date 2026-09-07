@@ -36,29 +36,33 @@ console.log(archive.join(' · '));
 
 ## 문서 확장 예제
 
-:::callout{type="tip" title="샘플 콘텐츠 안내"}
-이 글과 이미지는 검증용입니다. 내 글을 작성할 때 삭제하거나 바꿔도 됩니다.
-:::
+> **샘플 콘텐츠 안내**
+>
+> 이 글과 이미지는 검증용입니다. 내 글을 작성할 때 삭제하거나 바꿔도 됩니다.
 
-::::details{summary="접어서 보는 메모"}
-HTML의 기본 기능으로 내용을 접습니다.
+<details>
+<summary>접어서 보는 메모</summary>
+<p>HTML의 기본 기능으로 내용을 접습니다.</p>
 
-:::details{summary="중첩된 메모"}
-안쪽 메모도 JavaScript 없이 열 수 있습니다.
-:::
-::::
+<details>
+<summary>중첩된 메모</summary>
+<p>안쪽 메모도 JavaScript 없이 열 수 있습니다.</p>
+</details>
+</details>
 
-:::figure{caption="Markdown에서 배포까지" credit="MayB"}
+<figure>
+
 ![Markdown → Astro build → GitHub Pages](./images/diagram.svg)
-:::
 
-::link-card{url="https://docs.astro.build/ko/" title="Astro 문서" description="Astro의 공식 한국어 가이드"}
+<figcaption>Markdown에서 배포까지 · MayB</figcaption>
+</figure>
 
-::social{platform="github" url="https://github.com/zhdlxh48" label="GitHub에서 더 보기"}
+- [Astro 공식 한국어 문서](https://docs.astro.build/ko/)
+- [GitHub에서 더 보기](https://github.com/zhdlxh48)
 
-::metric{label="예시 측정값: LCP" value="1.2" unit="s" status="good"}
-
-::youtube{id="aqz-KE-bpKQ" title="Big Buck Bunny (샘플 영상)"}
+| 예시 측정값 | 값   |
+| ----------- | ---- |
+| LCP         | 1.2s |
 
 ## 이미지 크기 검증
 

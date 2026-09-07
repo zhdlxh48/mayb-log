@@ -2,15 +2,149 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { url } from '../lib/urls';
 ---
-<BaseLayout title="Search" description="블로그의 글과 분류를 검색합니다." noindex>
-  <h1>Search</h1>
-  <form class="search-form" role="search" data-base={url()} data-search-module={url('pagefind/pagefind.js')}>
-    <label for="search-input">글과 분류 검색</label>
-    <div><input id="search-input" name="q" type="search" placeholder="검색어를 입력하세요" autocomplete="off" /><button type="submit">검색</button></div>
-  </form>
-  <p id="search-status" class="muted" role="status" aria-live="polite">검색어를 입력하면 결과가 표시됩니다.</p>
-  <noscript><p>검색에는 JavaScript가 필요합니다. Index에서 분류와 날짜별로 글을 찾아볼 수 있습니다.</p></noscript>
-  <ul id="search-results" class="search-results"></ul>
-</BaseLayout>
-<script is:inline type="module" src={url('scripts/search.js')}></script>
 
+<BaseLayout title="Search" description="블로그의 글과 분류를 검색합니다." noindex>
+  <h1 class="mb-[22px] text-[28px] leading-[1.35] font-bold tracking-[-0.04em] md:text-[32px]">
+    Search
+  </h1>
+  <form class="my-6 max-w-[720px]" role="search" data-search-source={url('search-data')}>
+    <label class="mb-2 block text-sm" for="search-input">글과 분류 검색</label>
+    <div class="flex gap-2">
+      <input
+        class="min-w-0 flex-1 rounded-[2px] border border-border px-3 py-[10px]"
+        id="search-input"
+        name="q"
+        type="search"
+        placeholder="검색어를 입력하세요"
+        autocomplete="off"
+      />
+      <button
+        class="cursor-pointer rounded-[2px] border border-border bg-sidebar px-4 py-2"
+        type="submit">검색</button
+      >
+    </div>
+  </form>
+  <p id="search-status" class="text-muted" role="status" aria-live="polite">
+    검색어를 입력하면 결과가 표시됩니다.
+  </p>
+  <noscript>
+    <p>검색에는 JavaScript가 필요합니다. Index에서 분류와 날짜별로 글을 찾아볼 수 있습니다.</p>
+  </noscript>
+  <ul id="search-results" class="max-w-[720px] list-none p-0"></ul>
+</BaseLayout>
+
+<script>
+  import type { SearchDocument } from '../lib/search';
+
+  const form = document.querySelector<HTMLFormElement>('[data-search-source]')!;
+  const input = form.querySelector<HTMLInputElement>('input')!;
+  const status = document.querySelector<HTMLElement>('#search-status')!;
+  const results = document.querySelector<HTMLUListElement>('#search-results')!;
+  let workerPromise: Promise<Worker> | undefined;
+  let requestId = 0;
+  let timer = 0;
+
+  function startWorker() {
+    workerPromise ??= (async () => {
+      const response = await fetch(form.dataset.searchSource!);
+      if (!response.ok) throw new Error(`검색 데이터를 불러올 수 없습니다 (${response.status}).`);
+
+      const source = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const documents = [...source.querySelectorAll<HTMLElement>('[data-search-document]')].map(
+        (element, id): SearchDocument => ({
+          id,
+          url: element.dataset.url!,
+          title: element.dataset.title!,
+          description: element.dataset.description!,
+          text: [
+            element.textContent,
+            ...[...element.querySelectorAll<HTMLImageElement>('img')].map((image) => image.alt),
+          ].join(' '),
+        }),
+      );
+
+      const worker = new Worker(new URL('../workers/search.worker.ts', import.meta.url), {
+        type: 'module',
+      });
+      await new Promise<void>((resolve, reject) => {
+        worker.addEventListener('message', (event) => event.data.type === 'ready' && resolve(), {
+          once: true,
+        });
+        worker.addEventListener(
+          'error',
+          () => reject(new Error('검색 작업자를 시작하지 못했습니다.')),
+          {
+            once: true,
+          },
+        );
+        worker.postMessage({ type: 'initialize', documents });
+      });
+      return worker;
+    })();
+    return workerPromise;
+  }
+
+  function showResults(documents: SearchDocument[]) {
+    results.replaceChildren(
+      ...documents.map((entry) => {
+        const item = document.createElement('li');
+        item.className = 'border-b border-border py-5';
+        const heading = document.createElement('h2');
+        heading.className = 'mb-2 text-[19px] font-semibold';
+        const link = document.createElement('a');
+        link.className = 'text-accent hover:underline';
+        link.href = entry.url;
+        link.textContent = entry.title;
+        const description = document.createElement('p');
+        description.className = 'm-0 text-sm text-muted';
+        description.textContent = entry.description;
+        heading.append(link);
+        item.append(heading, description);
+        return item;
+      }),
+    );
+    status.textContent = documents.length
+      ? `${documents.length}개의 검색 결과`
+      : '검색 결과가 없습니다.';
+  }
+
+  async function search() {
+    const query = input.value.trim();
+    if (!query) {
+      results.replaceChildren();
+      status.textContent = '검색어를 입력하면 결과가 표시됩니다.';
+      return;
+    }
+
+    const currentRequest = ++requestId;
+    status.textContent = '검색하는 중…';
+    try {
+      const worker = await startWorker();
+      const documents = await new Promise<SearchDocument[]>((resolve, reject) => {
+        const onMessage = (event: MessageEvent) => {
+          if (event.data.type === 'results' && event.data.requestId === currentRequest) {
+            worker.removeEventListener('message', onMessage);
+            resolve(event.data.documents);
+          }
+        };
+        worker.addEventListener('message', onMessage);
+        worker.addEventListener('error', () => reject(new Error('검색 중 오류가 발생했습니다.')), {
+          once: true,
+        });
+        worker.postMessage({ type: 'search', requestId: currentRequest, query });
+      });
+      if (currentRequest === requestId) showResults(documents);
+    } catch {
+      status.textContent = '검색을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
+    }
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    search();
+  });
+  input.addEventListener('input', () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(search, 180);
+  });
+</script>

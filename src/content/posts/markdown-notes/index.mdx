@@ -1,0 +1,53 @@
+---
+title: Markdown으로 읽기 좋은 글 쓰기
+description: 제목, 표, 코드와 이미지를 이용해 내용을 명확하게 정리하는 방법을 살펴봅니다.
+authors: [owner]
+publishedAt: 2026-08-31T15:00:00Z
+updatedAt: 2026-09-02T09:00:00+09:00
+tags: [Markdown, Astro, 글쓰기]
+categories: [개발]
+series: blog-notes
+seriesOrder: 2
+---
+
+import { LinkPreview } from 'astro-embed';
+
+썸네일이 없는 **샘플 글**입니다. 이미지 없이도 제목과 설명이 자연스럽게 배치됩니다.
+
+## 글의 구조
+
+| 요소 | 목적                          |
+| ---- | ----------------------------- |
+| 제목 | 문서의 구조를 보여 줍니다     |
+| 설명 | 글의 내용을 간단히 소개합니다 |
+| 링크 | 관련된 기록으로 연결합니다    |
+
+> 잘 정리한 글은 미래의 나에게 보내는 친절한 메모입니다.
+
+### 확인 목록
+
+- [x] 간결한 제목
+- [x] 의미 있는 소제목
+- [ ] 나만의 첫 글 작성
+
+~~너무 많은 장식~~ 대신 읽기 편한 문장을 남깁니다.
+
+## MDX 컴포넌트
+
+MDX에서는 공식 컴포넌트를 직접 가져와 링크 미리보기를 표시할 수 있습니다.
+
+<LinkPreview id="https://astro.build/" />
+
+공식 iframe 코드도 그대로 사용할 수 있습니다.
+
+<iframe
+  src="https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ"
+  title="Big Buck Bunny 샘플 영상"
+  loading="lazy"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
+
+Markdown과 같은 이미지 처리 규칙도 적용됩니다.
+
+![작은 이미지 처리 예시](./images/tiny.jpg)
