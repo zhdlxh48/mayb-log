@@ -21,6 +21,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm test:content
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm test:browser
       - name: Record deployed commit
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         run: node -e "require('fs').writeFileSync('dist/revision.json', JSON.stringify({commit:process.env.GITHUB_SHA}))"

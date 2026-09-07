@@ -40,13 +40,13 @@ console.log(archive.join(' · '));
 이 글과 이미지는 검증용입니다. 내 글을 작성할 때 삭제하거나 바꿔도 됩니다.
 :::
 
-:::details{summary="접어서 보는 메모"}
+::::details{summary="접어서 보는 메모"}
 HTML의 기본 기능으로 내용을 접습니다.
 
-::::details{summary="중첩된 메모"}
+:::details{summary="중첩된 메모"}
 안쪽 메모도 JavaScript 없이 열 수 있습니다.
-::::
 :::
+::::
 
 :::figure{caption="Markdown에서 배포까지" credit="MayB"}
 ![Markdown → Astro build → GitHub Pages](./images/diagram.svg)
