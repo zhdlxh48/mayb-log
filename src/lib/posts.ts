@@ -3,9 +3,13 @@ import { collator, getTaxonomy, newestFirst } from './taxonomy.ts';
 import { getArchive } from './archive.ts';
 
 async function loadContent() {
-  const [allPosts, authors, allSeries] = await Promise.all([
-    getCollection('posts'), getCollection('authors'), getCollection('series'),
+  const [allPosts, authors, allSeries, pages] = await Promise.all([
+    getCollection('posts'), getCollection('authors'), getCollection('series'), getCollection('pages'),
   ]);
+  // Astro's glob loader logs Markdown failures without throwing. Do not publish empty bodies.
+  for (const entry of [...allPosts, ...pages]) {
+    if (!entry.rendered) throw new Error(`${entry.filePath}: Markdown 렌더링 실패. 위의 상세 오류를 수정하세요.`);
+  }
   const orders = new Set<string>();
   // Validate references explicitly: a reference schema alone does not resolve entries.
   for (const post of allPosts) {

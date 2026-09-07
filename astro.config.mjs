@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import remarkDirective from 'remark-directive';
 import directives from './src/lib/markdown/directives.ts';
 import markdownImages from './src/lib/markdown/images.ts';
+import markdownLinks from './src/lib/markdown/links.ts';
 import { imageBreakpoints } from './src/lib/images.ts';
 import sitemap from '@astrojs/sitemap';
 import { readFileSync } from 'node:fs';
@@ -23,8 +24,8 @@ export default defineConfig({
       return !readFileSync(file, 'utf8').includes('content="noindex,follow"');
     },
   })],
-  vite: { plugins: [tailwindcss()] },
-  markdown: { processor: unified({ remarkPlugins: [remarkDirective, directives], rehypePlugins: [markdownImages] }), shikiConfig: { theme: 'github-light' } },
+  vite: { cacheDir: './.astro/vite', plugins: [tailwindcss()] },
+  markdown: { processor: unified({ remarkPlugins: [remarkDirective, directives], rehypePlugins: [markdownLinks, markdownImages] }), shikiConfig: { theme: 'github-light' } },
   image: {
     layout: 'constrained', breakpoints: imageBreakpoints,
     service: { entrypoint: 'astro/assets/services/sharp', config: { webp: { quality: 80, effort: 6 } } },

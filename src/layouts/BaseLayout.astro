@@ -12,7 +12,7 @@ const { lang = site.lang, ...head } = Astro.props;
 <html lang={lang}>
   <head><BaseHead {...head} /><slot name="head" /></head>
   <body>
-    <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+    <a class="skip-link" href="#main" tabindex="0">본문으로 건너뛰기</a>
     <MobileIndex />
     <div class="site-shell">
       <aside class="desktop-sidebar" data-pagefind-ignore>
