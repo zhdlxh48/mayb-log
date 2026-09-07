@@ -9,6 +9,7 @@ import { url } from '../lib/urls.ts';
 import BaseLayout from './BaseLayout.astro';
 import PostMeta from '../components/PostMeta.astro';
 import PostToc from '../components/PostToc.astro';
+import YouTubeEnhancement from '../components/YouTubeEnhancement.astro';
 interface Props { post: Post; headings: MarkdownHeading[] }
 const { post, headings } = Astro.props;
 const data = await getContent();
@@ -56,4 +57,5 @@ const older = data.posts[index + 1];
       </div>
     </div>
   </article>
+  {post.body?.includes('::youtube') && <YouTubeEnhancement />}
 </BaseLayout>
