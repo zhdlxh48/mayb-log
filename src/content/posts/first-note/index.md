@@ -59,3 +59,17 @@ HTML의 기본 기능으로 내용을 접습니다.
 ::metric{label="예시 측정값: LCP" value="1.2" unit="s" status="good"}
 
 ::youtube{id="aqz-KE-bpKQ" title="Big Buck Bunny (샘플 영상)"}
+
+## 이미지 크기 검증
+
+다음 이미지는 서로 다른 원본 크기의 출력 검증에 사용하는 단순 패턴입니다.
+
+![2400×1800 원본](./images/landscape.jpg)
+
+![1600×1000 PNG 원본](./images/screen.png)
+
+![1200×900 원본](./images/small.jpg)
+
+![900×2400 세로 원본](./images/portrait.jpg)
+
+![320×240 작은 원본](./images/tiny.jpg)
