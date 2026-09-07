@@ -1,5 +1,6 @@
 ---
 import { Image } from 'astro:assets';
+import ContentImage from '../components/ContentImage.astro';
 import type { MarkdownHeading } from 'astro';
 import type { Post } from '../lib/taxonomy.ts';
 import { slugify } from '../lib/taxonomy.ts';
@@ -36,7 +37,7 @@ const older = data.posts[index + 1];
     <div class="article-columns">
       <PostToc headings={headings} />
       <div class="article-body">
-        {post.data.thumbnail && <Image class="article-thumbnail" src={post.data.thumbnail} alt={post.data.thumbnailAlt!} width={1200} loading="eager" fetchpriority="high" />}
+        {post.data.thumbnail && <ContentImage class="article-thumbnail" src={post.data.thumbnail} alt={post.data.thumbnailAlt!} priority />}
         <div class="prose" data-pagefind-body><slot /></div>
         {series && <nav class="series-navigation" aria-label="시리즈 글" data-pagefind-ignore>
           <h2><a href={url(`series/${series.id}`)}>{series.data.title}</a></h2>
