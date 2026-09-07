@@ -1,11 +1,23 @@
 ---
 import { site } from '../config/site.ts';
 import { url } from '../lib/urls.ts';
-interface Props { title?: string; description?: string }
-const { title, description = site.description } = Astro.props;
+interface Props { title?: string; description?: string; noindex?: boolean; image?: string; type?: 'website' | 'article' }
+const { title, description = site.description, noindex = false, image, type = 'website' } = Astro.props;
+const fullTitle = title ? `${title} | ${site.name}` : site.name;
+const canonical = new URL(Astro.url.pathname.endsWith('/404/') ? url('404.html') : Astro.url.pathname, site.origin).href;
 ---
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>{title ? `${title} | ${site.name}` : site.name}</title>
+<title>{fullTitle}</title>
 <meta name="description" content={description} />
 <link rel="icon" href={url('favicon.svg')} type="image/svg+xml" />
+<link rel="canonical" href={canonical} />
+<link rel="alternate" type="application/rss+xml" title={site.name} href={url('rss.xml')} />
+<link rel="sitemap" href={url('sitemap-index.xml')} />
+<meta property="og:title" content={fullTitle} />
+<meta property="og:description" content={description} />
+<meta property="og:type" content={type} />
+<meta property="og:url" content={canonical} />
+<meta property="og:site_name" content={site.name} />
+{image && <meta property="og:image" content={image} />}
+{noindex && <meta name="robots" content="noindex,follow" />}

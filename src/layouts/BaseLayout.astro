@@ -5,7 +5,7 @@ import Sidebar from '../components/Sidebar.astro';
 import MobileIndex from '../components/MobileIndex.astro';
 import { site } from '../config/site.ts';
 import { url } from '../lib/urls.ts';
-interface Props { title?: string; description?: string; lang?: string }
+interface Props { title?: string; description?: string; lang?: string; noindex?: boolean; image?: string; type?: 'website' | 'article' }
 const { lang = site.lang, ...head } = Astro.props;
 ---
 <!doctype html>

@@ -7,7 +7,7 @@ const { posts } = Astro.props;
 <div data-post-browser>
   <div class="list-toolbar">
     <span class="muted">{posts.length}개의 글</span>
-    <div class="view-toggle" role="group" aria-label="목록 표시 방식" hidden>
+    <div class="view-toggle" role="group" aria-label="목록 표시 방식" data-pagefind-ignore hidden>
       <button type="button" data-view="list" aria-pressed="true">List</button>
       <button type="button" data-view="grid" aria-pressed="false">Grid</button>
     </div>

@@ -1,12 +1,14 @@
 ---
-import { Image } from 'astro:assets';
+import { Image, getImage } from 'astro:assets';
 import ContentImage from '../components/ContentImage.astro';
 import type { MarkdownHeading } from 'astro';
 import type { Post } from '../lib/taxonomy.ts';
 import { slugify } from '../lib/taxonomy.ts';
 import { getContent } from '../lib/posts.ts';
 import { formatDate } from '../lib/dates.ts';
-import { url } from '../lib/urls.ts';
+import { url, assetAbsolute } from '../lib/urls.ts';
+import { blogPosting, jsonLd } from '../lib/seo.ts';
+import { ogDimensions } from '../lib/images.ts';
 import BaseLayout from './BaseLayout.astro';
 import PostMeta from '../components/PostMeta.astro';
 import PostToc from '../components/PostToc.astro';
@@ -19,8 +21,14 @@ const series = data.series.find(entry => entry.id === post.data.series?.id);
 const index = data.posts.findIndex(entry => entry.id === post.id);
 const newer = data.posts[index - 1];
 const older = data.posts[index + 1];
+const thumbnail = post.data.thumbnail;
+const og = thumbnail && thumbnail.format !== 'svg'
+  ? await getImage({ src: thumbnail, ...ogDimensions(thumbnail), format: 'webp', quality: 80, fit: 'cover', layout: 'none' })
+  : undefined;
+const ogUrl = og ? assetAbsolute(og.src) : undefined;
 ---
-<BaseLayout title={post.data.seo.title ?? post.data.title} description={post.data.seo.description ?? post.data.description} lang={post.data.lang}>
+<BaseLayout title={post.data.seo.title ?? post.data.title} description={post.data.seo.description ?? post.data.description} lang={post.data.lang} noindex={post.data.seo.noindex} image={ogUrl} type="article">
+  <script is:inline slot="head" type="application/ld+json" set:html={jsonLd(blogPosting(post, authors, ogUrl))} />
   <article class="post-article">
     <header class="post-header" data-pagefind-body>
       <div class="post-context">
