@@ -1,0 +1,16 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { url } from '../lib/urls';
+---
+<BaseLayout title="Search" description="블로그의 글과 분류를 검색합니다." noindex>
+  <h1>Search</h1>
+  <form class="search-form" role="search" data-base={url()} data-search-module={url('pagefind/pagefind.js')}>
+    <label for="search-input">글과 분류 검색</label>
+    <div><input id="search-input" name="q" type="search" placeholder="검색어를 입력하세요" autocomplete="off" /><button type="submit">검색</button></div>
+  </form>
+  <p id="search-status" class="muted" role="status" aria-live="polite">검색어를 입력하면 결과가 표시됩니다.</p>
+  <noscript><p>검색에는 JavaScript가 필요합니다. Index에서 분류와 날짜별로 글을 찾아볼 수 있습니다.</p></noscript>
+  <ul id="search-results" class="search-results"></ul>
+</BaseLayout>
+<script is:inline type="module" src={url('scripts/search.js')}></script>
+
