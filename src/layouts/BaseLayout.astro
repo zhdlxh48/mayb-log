@@ -5,23 +5,49 @@ import Sidebar from '../components/Sidebar.astro';
 import MobileIndex from '../components/MobileIndex.astro';
 import { site } from '../config/site.ts';
 import { url } from '../lib/urls.ts';
-interface Props { title?: string; description?: string; lang?: string; noindex?: boolean; image?: string; type?: 'website' | 'article' }
+interface Props {
+  title?: string;
+  description?: string;
+  lang?: string;
+  noindex?: boolean;
+  image?: string;
+  type?: 'website' | 'article';
+  publishedAt?: Date;
+  updatedAt?: Date;
+}
 const { lang = site.lang, ...head } = Astro.props;
 ---
+
 <!doctype html>
 <html lang={lang}>
-  <head><BaseHead {...head} /><slot name="head" /></head>
-  <body>
-    <a class="skip-link" href="#main" tabindex="0">본문으로 건너뛰기</a>
+  <head>
+    <BaseHead {...head} /><slot name="head" />
+  </head>
+  <body class="m-0 bg-background font-sans text-base leading-[1.65] text-foreground">
+    <a
+      class="skip-link fixed top-[-5rem] left-4 z-20 border border-foreground bg-background px-4 py-2 text-accent underline-offset-[0.2em] focus:top-4"
+      href="#main"
+      tabindex="0">본문으로 건너뛰기</a
+    >
     <MobileIndex />
-    <div class="site-shell">
-      <aside class="desktop-sidebar" data-pagefind-ignore>
-        <a class="brand" href={url()}>{site.name}</a>
+    <div class="min-h-dvh md:grid md:grid-cols-[264px_minmax(0,1fr)]">
+      <aside
+        class="sticky top-0 hidden h-dvh overflow-y-auto border-r border-border bg-sidebar px-6 py-[30px] md:block"
+      >
+        <a
+          class="mb-[25px] inline-block text-[21px] font-bold tracking-[-0.045em] text-foreground hover:underline"
+          href={url()}>{site.name}</a
+        >
         <Sidebar />
       </aside>
-      <div class="content-shell">
-        <main id="main" tabindex="-1"><slot /></main>
-        <footer class="site-footer" data-pagefind-ignore>© {new Date().getFullYear()} {site.name}</footer>
+      <div
+        class="w-full min-w-0 max-w-[1280px] px-5 pt-7 pb-5 md:px-7 md:pt-8 min-[1100px]:px-12 min-[1100px]:pt-11"
+      >
+        <main id="main" class="min-w-0 max-w-[1160px]" tabindex="-1"><slot /></main>
+        <footer class="mt-16 border-t border-border pt-[18px] text-xs text-muted">
+          © {new Date().getFullYear()}
+          {site.name}
+        </footer>
       </div>
     </div>
   </body>

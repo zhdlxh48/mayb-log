@@ -6,15 +6,22 @@ export function imageOptions(source: { width: number; height: number; format?: s
   const width = Math.max(1, Math.floor(source.width * scale));
   const height = Math.max(1, Math.floor(source.height * scale));
   return {
-    width, height,
-    widths: source.format === 'svg' ? [width] : [...new Set([...imageBreakpoints.filter(size => size < width), width])],
+    width,
+    height,
+    widths:
+      source.format === 'svg'
+        ? [width]
+        : [...new Set([...imageBreakpoints.filter((size) => size < width), width])],
     layout: 'constrained' as const,
-    format: source.format === 'svg' ? 'svg' as const : 'webp' as const,
+    format: source.format === 'svg' ? ('svg' as const) : ('webp' as const),
     quality: 80,
   };
 }
 
 export function ogDimensions(source: { width: number; height: number }) {
   const scale = Math.min(1, source.width / 1200, source.height / 630);
-  return { width: Math.max(1, Math.floor(1200 * scale)), height: Math.max(1, Math.floor(630 * scale)) };
+  return {
+    width: Math.max(1, Math.floor(1200 * scale)),
+    height: Math.max(1, Math.floor(630 * scale)),
+  };
 }

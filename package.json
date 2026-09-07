@@ -8,36 +8,50 @@
     "node": "24.20.0"
   },
   "scripts": {
+    "prepare": "husky",
     "dev": "astro dev",
     "check": "astro check",
-    "build": "astro check && astro build && pnpm search:index && pnpm check:build",
+    "build": "astro build",
     "preview": "astro preview",
-    "test": "node --test tests/*.test.ts",
-    "search:index": "pagefind --site dist",
-    "check:build": "node scripts/check-build.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "test": "node --test tests/unit/*.test.ts",
+    "test:build": "node --test tests/build/*.test.ts",
     "test:browser": "playwright test",
-    "test:content": "node scripts/test-content.mjs"
+    "test:browser:ui": "playwright test --ui"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "7.3.0",
+    "@astrojs/mdx": "8.0.0",
     "@astrojs/rss": "4.0.19",
     "@astrojs/sitemap": "3.7.4",
     "astro": "7.3.1",
-    "remark-directive": "4.0.0",
+    "astro-embed": "0.14.0",
+    "flexsearch": "0.8.212",
     "sharp": "0.35.4",
     "unist-util-visit": "5.1.0"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",
     "@axe-core/playwright": "4.13.0",
+    "@eslint/js": "10.0.1",
     "@playwright/test": "1.63.0",
     "@tailwindcss/vite": "4.3.3",
     "@types/hast": "3.0.5",
     "@types/mdast": "4.0.4",
     "@types/node": "24.13.3",
+    "eslint": "10.10.0",
+    "eslint-plugin-astro": "3.1.0",
+    "globals": "17.12.0",
+    "husky": "9.1.7",
     "linkedom": "0.18.13",
-    "pagefind": "1.5.2",
+    "lint-staged": "17.5.0",
+    "prettier": "3.9.6",
+    "prettier-plugin-astro": "0.14.1",
     "tailwindcss": "4.3.3",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.69.0"
   }
 }

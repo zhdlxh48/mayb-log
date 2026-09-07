@@ -1,6 +1,8 @@
 # 구현 결정
 
-기준: DEVELOPMENT_ROADMAP.txt 전체. 아래 합의 사항이 원문보다 우선한다.
+> 역사 기록: 초기 구현 당시 결정입니다. 현재 기준은 `REFACTORING_ROADMAP.txt`입니다.
+
+초기 기준: DEVELOPMENT_ROADMAP.txt 전체. 아래 합의 사항이 원문보다 우선했습니다.
 
 - Astro 7.3.1 + 공식 @astrojs/markdown-remark 7.3.0, markdown.processor 사용.
 - 기능은 최신 main에서 feature/로 분기하고 순차 완료. dev와 main에 각각 --no-ff 병합.
@@ -10,7 +12,7 @@
 - OG에도 확대 금지. 작은 원본은 비율을 유지한 작은 OG. SVG 썸네일은 OG/JSON-LD image 생략.
 - 서로 다른 taxonomy 이름의 slug 충돌은 빌드 실패.
 - 미래 날짜도 draft: false이면 공개. 예약 발행 없음.
-- directive 속성은 표준 한 줄 문법. 다중 행 예제는 수정.
+- 초기에는 directive 속성을 한 줄 문법으로 정리했으나 현재는 directive를 제거하고 Markdown·표준 HTML·MDX를 사용.
 - 한국어 문서, Node 24.20.0, pnpm 11.25.0, lockfile 고정.
 - 실제 배포와 빈 콘텐츠 상태 검증을 완료 조건에 포함.
 - DRY/KISS/YAGNI: 명시적인 Astro 페이지와 작은 공유 함수. 불필요한 추상화·범용 팩터리·미래 기능은 추가하지 않는다.

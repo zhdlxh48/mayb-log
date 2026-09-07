@@ -3,9 +3,10 @@ import { render } from 'astro:content';
 import { getPublishedPosts } from '../../lib/posts.ts';
 import PostLayout from '../../layouts/PostLayout.astro';
 export async function getStaticPaths() {
-  return (await getPublishedPosts()).map(post => ({ params: { id: post.id }, props: { post } }));
+  return (await getPublishedPosts()).map((post) => ({ params: { id: post.id }, props: { post } }));
 }
 const { post } = Astro.props;
 const { Content, headings } = await render(post);
 ---
+
 <PostLayout post={post} headings={headings}><Content /></PostLayout>
