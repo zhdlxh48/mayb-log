@@ -1,24 +1,25 @@
 # mayb-log
 
-Cloudflare Workers가 HTML을 만들고 D1에 글과 사용자를 저장하는 작은 개인 블로그입니다. 글은 Markdown으로 작성하며 저장할 때 안전한 HTML과 검색 텍스트로 변환됩니다. 공개 요청에서는 저장된 HTML을 바로 사용합니다.
+Cloudflare Workers에서 실행되는 작은 개인 블로그입니다. Express가 요청을 처리하고, D1의 데이터를 실제 EJS 템플릿으로 렌더링합니다. 게시글 이미지는 R2에 저장하며 CSS와 브라우저 JavaScript는 Workers Static Assets가 제공합니다.
 
-## 로컬 실행
+## 준비
 
-Node.js 24.20.0과 pnpm 11.25.0을 사용합니다.
+- Node.js 24.20.0
+- pnpm 11.25.0
+- Cloudflare 계정과 Wrangler 로그인
 
-```bash
+```powershell
 pnpm install --frozen-lockfile
-copy .dev.vars.example .dev.vars
 pnpm db:local
-pnpm seed:media:local
+pnpm seed:local
 pnpm dev
 ```
 
-Wrangler가 표시한 로컬 주소를 엽니다. `.dev.vars.example`의 키는 Cloudflare 공식 테스트 키이며 운영에 사용하면 안 됩니다.
+로컬 주소는 `http://127.0.0.1:8787`입니다. 개발용 계정은 `testuser` / `test-password-1234`이며 로컬·테스트 데이터에만 사용합니다.
 
-## 검사
+## 확인
 
-```bash
+```powershell
 pnpm check
 pnpm test
 pnpm test:integration
@@ -26,39 +27,16 @@ pnpm build
 pnpm test:browser
 ```
 
-`test:integration`은 로컬 Worker와 D1을 사용해 인증·CSRF·권한을 검사합니다. 브라우저 검사는 Chromium, Firefox, WebKit에서 실행됩니다.
+CI는 설치, 소스 검사, 단위 테스트, 로컬 D1 migration과 seed, 통합 테스트, Worker dry-run, Chromium·Firefox·WebKit 검증 순서로 실행됩니다.
 
-## 첫 관리자 만들기
+## 배포
 
-자동 관리자나 초기 비밀번호는 없습니다.
+`main` push가 CI를 모두 통과하면 GitHub Actions가 D1 migration을 적용하고 Worker를 배포합니다. 샘플 데이터와 이미지는 배포 때마다 넣지 않습니다.
 
-1. `/signup`에서 일반 회원가입을 합니다. 계정은 `pending/author`로 생성됩니다.
-2. 로컬에서는 다음 명령으로 최초 관리자만 활성화합니다.
+Cloudflare 리소스를 새로 만들었을 때 한 번만 다음 값을 준비합니다.
 
-```bash
-pnpm exec wrangler d1 execute mayb-log --local --command "UPDATE users SET status='active', role='admin' WHERE username='내아이디'"
-```
+- `wrangler.jsonc`의 D1 `database_id`와 R2 bucket
+- Worker secret `TURNSTILE_SECRET_KEY`
+- GitHub Actions secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 
-3. 운영에서는 `--local`을 `--remote`로 바꿉니다.
-4. 이후 가입 승인은 `/admin/users`에서 처리합니다.
-
-## Cloudflare 최초 설정
-
-```bash
-pnpm exec wrangler login
-pnpm exec wrangler d1 create mayb-log
-pnpm exec wrangler r2 bucket create mayb-log-media
-pnpm exec wrangler secret put TURNSTILE_SECRET_KEY
-```
-
-D1 생성 결과의 `database_id`를 `wrangler.jsonc`에 넣습니다. Cloudflare Turnstile에서 위젯을 만들고 사이트 키를 `TURNSTILE_SITE_KEY`, 허용 hostname과 실제 주소를 `SITE_ORIGIN`에 설정합니다. 그런 다음 실행합니다.
-
-```bash
-pnpm db:remote
-pnpm seed:media:remote
-pnpm deploy
-```
-
-GitHub Actions 자동 배포에는 저장소 Actions secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `TURNSTILE_SECRET_KEY`가 필요합니다. API token에는 Worker 배포, D1 편집, R2 편집 권한을 부여합니다. workflow의 `Set Worker secret` 단계가 `TURNSTILE_SECRET_KEY`를 매 배포에 반영합니다. 위 `wrangler secret put` 명령은 수동으로 최초 배포할 때 사용합니다.
-
-자세한 글 작성법은 [콘텐츠 가이드](docs/CONTENT_GUIDE.md), 구조와 장애 대응은 [유지보수 가이드](docs/MAINTENANCE.md)를 참고하세요.
+콘텐츠 작성법은 [콘텐츠 가이드](docs/CONTENT_GUIDE.md), 구조와 운영법은 [유지보수 가이드](docs/MAINTENANCE.md)를 참고하세요. 최종 기준은 [최종 수정 지시서](docs/FINAL_REFACTOR_INSTRUCTIONS.txt)입니다.
