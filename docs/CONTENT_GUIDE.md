@@ -91,8 +91,12 @@ const message = '안녕하세요';
 ```mdx
 import { LinkPreview } from 'astro-embed';
 
-<LinkPreview id="https://astro.build/" />
+<div class="not-prose">
+  <LinkPreview id="https://astro.build/" />
+</div>
 ```
+
+`not-prose` 경계 안의 독립 컴포넌트에는 본문용 `p`, `a`, `img` 스타일이 적용되지 않습니다.
 
 영상은 제공자가 안내하는 iframe을 직접 넣고 `title`과 `loading="lazy"`를 지정합니다. 공통 본문 스타일은 iframe의 비율과 너비를 강제하지 않습니다. YouTube처럼 반응형 16:9 영상이 필요하면 아래처럼 `aspect-video w-full`을 글에 명시합니다.
 

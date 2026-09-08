@@ -6,28 +6,205 @@ interface Props {
 const { class: className } = Astro.props;
 ---
 
-<div
-  class:list={[
-    'prose max-w-[720px] min-w-0 wrap-anywhere text-[17px] leading-[1.9] max-md:text-base',
-    '[&_h1]:mb-[22px] [&_h1]:text-[32px] [&_h1]:leading-[1.35] [&_h1]:font-bold [&_h1]:tracking-[-0.04em] max-md:[&_h1]:text-[28px]',
-    '[&_h2]:mt-[2em] [&_h2]:mb-[0.8em] [&_h2]:text-[23px] [&_h2]:leading-[1.35] [&_h2]:font-semibold',
-    '[&_h3]:mt-[1.6em] [&_h3]:mb-[0.7em] [&_h3]:text-[19px] [&_h3]:leading-[1.35] [&_h3]:font-semibold',
-    '[&_:is(h2,h3,h4)]:scroll-mt-6 [&_p]:mb-[1.25em]',
-    '[&_a]:text-accent [&_a]:underline [&_a]:decoration-1 [&_a]:underline-offset-[0.2em]',
-    '[&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-[0.35em]',
-    '[&_blockquote]:my-6 [&_blockquote]:border-l-[3px] [&_blockquote]:border-border [&_blockquote]:py-[0.2em] [&_blockquote]:pl-[1.2em] [&_blockquote]:text-muted [&_blockquote_p:last-child]:mb-0',
-    '[&_hr]:my-8 [&_hr]:border-0 [&_hr]:border-t [&_hr]:border-border',
-    '[&_code]:rounded-[2px] [&_code]:bg-sidebar [&_code]:px-[0.3em] [&_code]:py-[0.1em] [&_code]:font-mono [&_code]:text-[0.86em]',
-    '[&_pre]:my-6 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:border [&_pre]:border-border [&_pre]:p-[18px] [&_pre]:leading-[1.65] [&_pre_code]:bg-transparent [&_pre_code]:p-0',
-    '[&_table]:my-6 [&_table]:block [&_table]:w-max [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_table]:text-[15px]',
-    '[&_th]:border [&_th]:border-border [&_th]:bg-sidebar [&_th]:px-[14px] [&_th]:py-[9px] [&_th]:text-left [&_td]:border [&_td]:border-border [&_td]:px-[14px] [&_td]:py-[9px] [&_td]:text-left',
-    '[&_img]:my-6 [&_img]:block [&_img]:h-auto [&_img]:max-w-full [&_input[type=checkbox]]:mr-[0.4em]',
-    '[&_figure]:my-6 [&_figure_img]:mb-2 [&_figcaption]:text-[13px] [&_figcaption]:text-muted',
-    '[&_details]:my-6 [&_details]:border-y [&_details]:border-border [&_details]:py-3 [&_details>summary]:cursor-pointer [&_details>summary]:font-semibold [&_details[open]>summary]:mb-3',
-    '[&_iframe]:my-6 [&_iframe]:block [&_iframe]:max-w-full [&_iframe]:border-0',
-    '[--link-preview-corners:2px] [--link-preview-width:100%]',
-    className,
-  ]}
->
+<div class:list={['article-prose', className]}>
   <slot />
 </div>
+
+<style>
+  @layer components {
+    .article-prose {
+      max-width: 720px;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      --link-preview-corners: 2px;
+      --link-preview-width: 100%;
+    }
+
+    .article-prose :global(h1:not(.not-prose *)) {
+      margin-bottom: 22px;
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1.35;
+      letter-spacing: -0.04em;
+    }
+
+    .article-prose :global(h2:not(.not-prose *)) {
+      margin-top: 2em;
+      margin-bottom: 0.8em;
+      font-size: 23px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .article-prose :global(h3:not(.not-prose *)) {
+      margin-top: 1.6em;
+      margin-bottom: 0.7em;
+      font-size: 19px;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .article-prose :global(h4:not(.not-prose *)) {
+      font-size: 17px;
+      line-height: 1.9;
+    }
+
+    .article-prose :global(:is(h2, h3, h4):not(.not-prose *)) {
+      scroll-margin-top: 1.5rem;
+    }
+
+    .article-prose :global(p:not(.not-prose *)),
+    .article-prose :global(li:not(.not-prose *)) {
+      font-size: 17px;
+      line-height: 1.9;
+    }
+
+    .article-prose :global(p:not(.not-prose *)) {
+      margin-bottom: 1.25em;
+    }
+
+    .article-prose :global(a:not(.not-prose *)) {
+      color: var(--color-accent);
+      text-decoration-line: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 0.2em;
+    }
+
+    .article-prose :global(:is(ul, ol):not(.not-prose *)) {
+      margin-block: 1rem;
+      padding-left: 1.5rem;
+    }
+
+    .article-prose :global(ul:not(.not-prose *)) {
+      list-style-type: disc;
+    }
+
+    .article-prose :global(ol:not(.not-prose *)) {
+      list-style-type: decimal;
+    }
+
+    .article-prose :global(li:not(.not-prose *)) {
+      margin-block: 0.35em;
+    }
+
+    .article-prose :global(blockquote:not(.not-prose *)) {
+      margin-block: 1.5rem;
+      border-left: 3px solid var(--color-border);
+      padding: 0.2em 0 0.2em 1.2em;
+      color: var(--color-muted);
+      font-size: 17px;
+      line-height: 1.9;
+    }
+
+    .article-prose :global(blockquote:not(.not-prose *) p:last-child:not(.not-prose *)) {
+      margin-bottom: 0;
+    }
+
+    .article-prose :global(hr:not(.not-prose *)) {
+      margin-block: 2rem;
+      border: 0;
+      border-top: 1px solid var(--color-border);
+    }
+
+    .article-prose :global(code:not(.not-prose *)) {
+      border-radius: 2px;
+      background: var(--color-sidebar);
+      padding: 0.1em 0.3em;
+      font-family: var(--font-mono);
+      font-size: 0.86em;
+    }
+
+    .article-prose :global(pre:not(.not-prose *)) {
+      margin-block: 1.5rem;
+      max-width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--color-border);
+      padding: 18px;
+      line-height: 1.65;
+    }
+
+    .article-prose :global(pre:not(.not-prose *) code:not(.not-prose *)) {
+      background: transparent;
+      padding: 0;
+    }
+
+    .article-prose :global(table:not(.not-prose *)) {
+      display: block;
+      width: max-content;
+      max-width: 100%;
+      margin-block: 1.5rem;
+      overflow-x: auto;
+      border-collapse: collapse;
+      font-size: 15px;
+    }
+
+    .article-prose :global(:is(th, td):not(.not-prose *)) {
+      border: 1px solid var(--color-border);
+      padding: 9px 14px;
+      text-align: left;
+    }
+
+    .article-prose :global(th:not(.not-prose *)) {
+      background: var(--color-sidebar);
+    }
+
+    .article-prose :global(img:not(.not-prose *)) {
+      display: block;
+      width: auto;
+      max-width: 100%;
+      height: auto;
+      margin-block: 1.5rem;
+    }
+
+    .article-prose :global(input[type='checkbox']:not(.not-prose *)) {
+      margin-right: 0.4em;
+    }
+
+    .article-prose :global(figure:not(.not-prose *)) {
+      margin-block: 1.5rem;
+    }
+
+    .article-prose :global(figure:not(.not-prose *) img:not(.not-prose *)) {
+      margin-bottom: 0.5rem;
+    }
+
+    .article-prose :global(figcaption:not(.not-prose *)) {
+      color: var(--color-muted);
+      font-size: 13px;
+    }
+
+    .article-prose :global(details:not(.not-prose *)) {
+      margin-block: 1.5rem;
+      border-block: 1px solid var(--color-border);
+      padding-block: 0.75rem;
+      font-size: 17px;
+      line-height: 1.9;
+    }
+
+    .article-prose :global(details:not(.not-prose *) > summary:not(.not-prose *)) {
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .article-prose :global(details[open]:not(.not-prose *) > summary:not(.not-prose *)) {
+      margin-bottom: 0.75rem;
+    }
+
+    .article-prose :global(iframe:not(.not-prose *)) {
+      display: block;
+      max-width: 100%;
+      margin-block: 1.5rem;
+      border: 0;
+    }
+
+    @media (width < 48rem) {
+      .article-prose :global(h1:not(.not-prose *)) {
+        font-size: 28px;
+      }
+
+      .article-prose :global(:is(p, li, blockquote, details):not(.not-prose *)) {
+        font-size: 16px;
+      }
+    }
+  }
+</style>

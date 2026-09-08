@@ -14,6 +14,17 @@ interface CorpusEntry {
   noindex: boolean;
 }
 
+type SyntheticKind = 'about' | 'post' | 'series' | 'category' | 'tag' | 'author' | 'archive';
+
+function syntheticCorpus(entries: Array<{ kind: SyntheticKind; title: string; index?: number }>) {
+  return `<!doctype html><html><body><main>${entries
+    .map(
+      (entry) =>
+        `<article data-search-document data-kind="${entry.kind}" data-url="/mayb-log/${entry.kind}/${entry.index ?? 0}/" data-title="${entry.title}" data-description="Synthetic result"></article>`,
+    )
+    .join('')}</main></body></html>`;
+}
+
 async function getCorpus(page: Page) {
   await page.goto('search/');
   const entries = await page.evaluate(async () => {
@@ -129,6 +140,8 @@ test('production search indexes every post field and supports infix queries', as
   if (noindex) await searchFor(page, noindex.title, noindex.url);
   await page.getByRole('searchbox').fill('zznoresultszz');
   await expect(page.locator('#search-status')).toHaveText('검색 결과가 없습니다.');
+  await expect(page.locator('[data-search-filter]:not(:disabled)')).toHaveCount(0);
+  await expect(page.locator('[data-search-section]')).toHaveCount(0);
 });
 
 test('search retries a failed corpus request without reloading', async ({ page }) => {
@@ -144,6 +157,112 @@ test('search retries a failed corpus request without reloading', async ({ page }
   await searchFor(page, target.title, target.url);
 });
 
+test('search summary, filters, pagination and history reuse one result set', async ({ page }) => {
+  const entries = [
+    { kind: 'about' as const, title: 'Needle About' },
+    ...Array.from({ length: 65 }, (_, index) => ({
+      kind: 'post' as const,
+      title: `Needle Post ${index + 1}`,
+      index,
+    })),
+    ...Array.from({ length: 12 }, (_, index) => ({
+      kind: 'tag' as const,
+      title: `Needle Tag ${index + 1}`,
+      index,
+    })),
+    { kind: 'series' as const, title: 'Needle Series' },
+    { kind: 'category' as const, title: 'Needle Category' },
+    { kind: 'author' as const, title: 'Needle Author' },
+    { kind: 'archive' as const, title: 'Needle Archive' },
+  ];
+  let corpusRequests = 0;
+  await page.route('**/search-data/', async (route) => {
+    corpusRequests++;
+    await route.fulfill({ contentType: 'text/html', body: syntheticCorpus(entries) });
+  });
+
+  await page.goto('search/?q=needle');
+  await expect(page.locator('#search-status')).toHaveText('82개의 검색 결과');
+  await expect(page.getByRole('button', { name: 'All 82' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByRole('button', { name: 'Posts 65' })).toBeEnabled();
+  await expect(page.locator('[data-search-section="post"] li')).toHaveCount(10);
+  await expect(page.locator('[data-search-section="tag"] li')).toHaveCount(10);
+  await expect(page.getByRole('navigation', { name: 'Search result pages' })).toHaveCount(0);
+
+  await page.locator('[data-search-section="post"]').getByRole('button', { name: 'More' }).click();
+  await expect(page).toHaveURL(/\?q=needle&type=post$/);
+  await expect(page.locator('[data-search-section="post"] li')).toHaveCount(20);
+  await expect(page.getByRole('button', { name: 'Page 1' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await page.getByRole('button', { name: 'Page 2' }).click();
+  await expect(page).toHaveURL(/\?q=needle&type=post&page=2$/);
+  await expect(page.getByRole('button', { name: 'Page 2' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  expect(corpusRequests).toBe(1);
+
+  await page.goBack();
+  await expect(page.getByRole('button', { name: 'Page 1' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await page.goBack();
+  await expect(page.getByRole('button', { name: 'All 82' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.goForward();
+  await expect(page.getByRole('button', { name: 'Posts 65' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('searchbox').fill('post');
+  await expect(page.locator('#search-status')).toHaveText('65개의 검색 결과');
+  await expect(page.getByRole('button', { name: 'All 65' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page).toHaveURL(/\?q=post$/);
+  expect(corpusRequests).toBe(1);
+});
+
+test('direct search URLs restore type and page with safe fallbacks', async ({ page }) => {
+  const entries = Array.from({ length: 45 }, (_, index) => ({
+    kind: 'tag' as const,
+    title: `Needle Tag ${index + 1}`,
+    index,
+  }));
+  await page.route('**/search-data/', (route) =>
+    route.fulfill({ contentType: 'text/html', body: syntheticCorpus(entries) }),
+  );
+
+  await page.goto('search/?q=needle&type=tag&page=3');
+  await expect(page.getByRole('searchbox')).toHaveValue('needle');
+  await expect(page.getByRole('button', { name: 'Tags 45' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.locator('[data-search-section="tag"] li')).toHaveCount(5);
+  await expect(page.getByRole('button', { name: 'Page 3' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+
+  await page.goto('search/?q=needle&type=unknown&page=bad');
+  await expect(page.getByRole('button', { name: 'All 45' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByRole('navigation', { name: 'Search result pages' })).toHaveCount(0);
+  await expect(page).toHaveURL(/\?q=needle$/);
+});
+
 test('available MDX features keep previews, iframe metadata and processed images', async ({
   page,
 }) => {
@@ -154,7 +273,7 @@ test('available MDX features keep previews, iframe metadata and processed images
     if (
       (await page.locator('.link-preview').count()) &&
       (await page.locator('iframe').count()) &&
-      (await page.locator('.prose img[srcset*=".webp"]').count())
+      (await page.locator('.article-prose img[srcset*=".webp"]').count())
     ) {
       featureUrl = post.url;
       break;
@@ -163,6 +282,7 @@ test('available MDX features keep previews, iframe metadata and processed images
   if (!featureUrl) return;
 
   await expect(page.locator('.link-preview')).toBeVisible();
+  await expect(page.locator('.not-prose .link-preview')).toBeVisible();
   const iframe = page.locator('iframe').first();
   await expect(iframe).toHaveAttribute('loading', 'lazy');
   await expect(iframe).toHaveAttribute('title', /.+/);
@@ -170,7 +290,28 @@ test('available MDX features keep previews, iframe metadata and processed images
     await expect(iframe).toHaveClass(/aspect-video/);
     await expect(iframe).toHaveClass(/w-full/);
   }
-  await expect(page.locator('.prose img[srcset*=".webp"]').first()).toBeVisible();
+  await expect(page.locator('.article-prose img[srcset*=".webp"]').first()).toBeVisible();
+
+  const styles = await page.evaluate(() => {
+    const prose = document.querySelector('.article-prose')!;
+    const normalParagraph = prose.querySelector('p')!;
+    const isolatedParagraph = document.createElement('p');
+    isolatedParagraph.textContent = 'isolated';
+    prose.querySelector('.not-prose')!.append(isolatedParagraph);
+    const iframe = prose.querySelector('iframe')!;
+    return {
+      paragraphSize: getComputedStyle(normalParagraph).fontSize,
+      isolatedSize: getComputedStyle(isolatedParagraph).fontSize,
+      isolatedMargin: getComputedStyle(isolatedParagraph).marginBottom,
+      iframeMaxWidth: getComputedStyle(iframe).maxWidth,
+    };
+  });
+  expect(styles).toEqual({
+    paragraphSize: '17px',
+    isolatedSize: '16px',
+    isolatedMargin: '0px',
+    iframeMaxWidth: '100%',
+  });
 });
 
 test('navigation and available details work without JavaScript', async ({ browser, baseURL }) => {
@@ -206,7 +347,7 @@ test('navigation and available details work without JavaScript', async ({ browse
       if (await homepage.count()) await expect(homepage).toHaveClass(/text-accent/);
       await page.goto(post.url);
     }
-    const details = page.locator('.prose details').first();
+    const details = page.locator('.article-prose details').first();
     if (await details.count()) {
       await details.locator(':scope > summary').click();
       await expect(details).toHaveAttribute('open', '');
@@ -221,7 +362,7 @@ test('long titles, code and tables stay inside six viewport widths', async ({ pa
   await page.goto(posts[0]?.url ?? './');
   await page.evaluate(() => {
     document.querySelector('h1')!.textContent = '아주긴제목'.repeat(25);
-    const prose = document.querySelector('.prose') ?? document.querySelector('main')!;
+    const prose = document.querySelector('.article-prose') ?? document.querySelector('main')!;
     const code = document.createElement('pre');
     code.dataset.testLong = '';
     code.textContent = 'const veryLongIdentifier = '.repeat(50);
