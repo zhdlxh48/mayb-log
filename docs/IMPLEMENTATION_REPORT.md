@@ -18,7 +18,7 @@
 14. **검색:** D1 `LIKE ... ESCAPE '\\'`에 NFKC lowercase 검색 텍스트 사용. All은 종류별 10개, 필터는 20개/페이지와 고정 10-page group. htmx outerHTML 교체와 일반 GET을 함께 제공.
 15. **검증:** Node unit 8개, 실제 local Worker/D1 인증 통합 시나리오, Chromium/WebKit 브라우저 각 3개 통과. 로컬 Firefox는 Windows side-by-side runtime 오류로 실행되지 않았으나 Ubuntu GitHub Actions에서 Chromium·Firefox·WebKit 전체가 통과.
 16. **migration:** 로컬과 APAC 원격 D1 `f429e531-8485-4981-a0e9-0545cba677a8`에 `0001_initial.sql`, `0002_sample_content.sql` 적용 성공. 원격 결과는 users 1, content 4, series 1, migrations 2이며 R2 sample도 업로드·다운로드 확인.
-17. **배포:** GitHub Actions `34250458960`의 verify/deploy가 모두 성공했고 현재 Worker version은 `a5e6c4cf-afdd-408a-8a6c-7052d13c4509`입니다. `https://mayb-log.mayb.workers.dev`의 공개·분류·검색·feed·auth form·404와 canonical/JSON-LD/Prism을 운영 환경에서 확인.
+17. **배포:** `main` GitHub Actions의 verify/deploy가 모두 성공했습니다. `https://mayb-log.mayb.workers.dev`의 공개·분류·검색·feed·auth form·404와 canonical/JSON-LD/Prism을 운영 환경에서 확인했습니다. 최신 실행과 Worker version은 Actions 및 `pnpm exec wrangler deployments list --name mayb-log`로 확인합니다.
 18. **미완료:** 사용자가 `/signup`에서 첫 계정을 만든 뒤 D1에서 한 번 관리자 승격해야 합니다. 목록 썸네일과 비밀번호 변경은 지시서가 허용한 v1 제외 항목이며 구현하지 않았습니다. 실제 Safari는 테스트 환경이 없어 WebKit으로 대체했습니다.
 
 보안 설정으로 Cloudflare 계정 소유 API 토큰을 D1·R2·Workers Scripts 쓰기 권한으로만 생성해 GitHub Actions Secret에 저장했습니다. Cloudflare 계정 ID와 Turnstile 비밀 키도 Actions Secret에 저장했으며 값은 저장소에 커밋하지 않았습니다. 설정 중 출력에 노출된 최초 토큰은 즉시 재발급해 무효화했습니다.

@@ -59,6 +59,6 @@ pnpm seed:media:remote
 pnpm deploy
 ```
 
-GitHub Actions 자동 배포에는 저장소 Actions secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `TURNSTILE_SECRET_KEY`가 필요합니다. API token에는 Worker 배포, D1 편집, R2 편집 권한을 부여합니다. 현재 workflow는 Wrangler secret 값을 GitHub에서 원격으로 만들지 않으므로 최초 한 번은 위 `wrangler secret put`을 실행해야 합니다.
+GitHub Actions 자동 배포에는 저장소 Actions secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `TURNSTILE_SECRET_KEY`가 필요합니다. API token에는 Worker 배포, D1 편집, R2 편집 권한을 부여합니다. workflow의 `Set Worker secret` 단계가 `TURNSTILE_SECRET_KEY`를 매 배포에 반영합니다. 위 `wrangler secret put` 명령은 수동으로 최초 배포할 때 사용합니다.
 
 자세한 글 작성법은 [콘텐츠 가이드](docs/CONTENT_GUIDE.md), 구조와 장애 대응은 [유지보수 가이드](docs/MAINTENANCE.md)를 참고하세요.
