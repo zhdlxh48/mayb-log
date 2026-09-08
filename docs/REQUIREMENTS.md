@@ -19,5 +19,11 @@
 | 단순 CI·Pages 유지                 | `.github/workflows/ci.yml`                      | branch/main Actions와 공개 배포             |
 | SEO 보강                           | `BaseHead.astro`, `PostLayout.astro`            | article 시간·Twitter meta 산출물 검사       |
 | 문서 갱신                          | README와 `docs/`                                | 제거된 명령·기능 참조 검색                  |
+| ArticleProse scoped CSS            | `ArticleProse.astro`                            | 산출 CSS·semantic style 브라우저 검사       |
+| 독립 MDX 컴포넌트 경계             | `.not-prose`, 샘플 `LinkPreview`                | build·computed style 브라우저 검사          |
+| 검색 종류·중복 없는 말뭉치         | `search-data.astro`, `search-text.ts`           | 종류·필드 범위 단위 및 build 검사           |
+| All 요약·필터 count·More           | `search.astro`, `search-view.ts`                | 82개 합성 말뭉치 브라우저 검사              |
+| 20개 페이지·고정 10페이지 블록     | `search-view.ts`, `search.astro`                | 47페이지 순수 함수·브라우저 검사            |
+| 전체 결과·URL History 복원         | `search.ts`, Worker, `search.astro`             | 65개 결과·직접 URL·Back/Forward 검사        |
 
-초기 요구사항은 [DEVELOPMENT_ROADMAP.txt](DEVELOPMENT_ROADMAP.txt), 리팩터링 기준은 [REFACTORING_ROADMAP.txt](REFACTORING_ROADMAP.txt)에 보존했습니다. 현재 보정 기준은 [FIX_AFTER_AUDIT_ROADMAP.txt](FIX_AFTER_AUDIT_ROADMAP.txt)입니다.
+초기 요구사항은 [DEVELOPMENT_ROADMAP.txt](DEVELOPMENT_ROADMAP.txt), 리팩터링 기준은 [REFACTORING_ROADMAP.txt](REFACTORING_ROADMAP.txt)에 보존했습니다. 감사 보정은 [FIX_AFTER_AUDIT_ROADMAP.txt](FIX_AFTER_AUDIT_ROADMAP.txt), 현재 추가 개선 기준은 [FIX_ADDITIONAL_ROADMAP.txt](FIX_ADDITIONAL_ROADMAP.txt)입니다.

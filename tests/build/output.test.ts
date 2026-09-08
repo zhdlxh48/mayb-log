@@ -114,12 +114,15 @@ test('the production output is complete and internally consistent', async () => 
     (document) =>
       document.querySelector('.link-preview') &&
       document.querySelector('iframe') &&
-      document.querySelector('.prose img[srcset*=".webp"]'),
+      document.querySelector('.article-prose img[srcset*=".webp"]'),
   );
   if (featureDocument) {
     assert.ok(featureDocument.querySelector('.link-preview'), 'MDX LinkPreview');
+    assert.ok(featureDocument.querySelector('.not-prose .link-preview'), 'not-prose LinkPreview');
     assert.match(
-      featureDocument.querySelector('.prose img[srcset*=".webp"]')?.getAttribute('srcset') ?? '',
+      featureDocument
+        .querySelector('.article-prose img[srcset*=".webp"]')
+        ?.getAttribute('srcset') ?? '',
       /\.webp/,
     );
   }
@@ -141,6 +144,17 @@ test('the production output is complete and internally consistent', async () => 
   }
 
   const searchData = await readFile(resolve(root, 'search-data/index.html'));
+  const searchDocument = parseHTML(searchData.toString()).document;
+  const searchEntries = [...searchDocument.querySelectorAll<HTMLElement>('[data-search-document]')];
+  assert.deepEqual(
+    new Set(searchEntries.map((entry) => entry.dataset.kind)),
+    new Set(['about', 'post', 'series', 'category', 'tag', 'author', 'archive']),
+  );
+  for (const entry of searchEntries.filter((entry) =>
+    ['series', 'category', 'tag', 'author', 'archive'].includes(entry.dataset.kind ?? ''),
+  )) {
+    assert.equal(entry.querySelector('[data-search-body]'), null, `${entry.dataset.kind} body`);
+  }
   console.log(
     `Search corpus: ${searchData.byteLength} bytes raw, ${gzipSync(searchData).byteLength} bytes gzip.`,
   );

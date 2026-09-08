@@ -1,0 +1,1848 @@
+# mayb-log ArticleProse 스타일링 및 Search UX 개선 작업 지시문
+
+대상 저장소:
+
+`https://github.com/zhdlxh48/mayb-log`
+
+현재 기준으로 기존 리팩터링과 감사 수정은 완료된 상태다.
+
+이번 작업의 범위는 크게 두 가지다.
+
+1. `ArticleProse.astro`의 Markdown/MDX 본문 스타일 구조를 읽기 쉽고 수정하기 쉽게 개선
+2. Search 결과를 타입별로 구분하고 filter + summary view + pagination UX를 추가
+
+기존 정상 기능과 디자인을 불필요하게 변경하지 마라.
+
+---
+
+# 1. 기존 Tailwind 구조는 유지한다
+
+사이트 전체를 CSS/SCSS로 전환하지 않는다.
+
+Tailwind CSS는 계속 다음 영역의 primary styling system으로 사용한다.
+
+* BaseLayout
+* Sidebar
+* MobileIndex
+* PostList
+* PostListItem
+* Post metadata
+* taxonomy pages
+* archive pages
+* Search UI
+* buttons
+* pagination
+* article layout
+* TOC
+* 기타 일반 Astro UI
+
+SCSS는 도입하지 않는다.
+
+새 CSS framework도 추가하지 않는다.
+
+`@tailwindcss/typography`도 도입하지 않는다.
+
+이번 변경의 목적은 Tailwind를 제거하는 것이 아니라, **Markdown renderer가 생성하는 HTML에 거대한 Tailwind descendant selector를 적용하는 현재 `ArticleProse.astro`만 더 적합한 방식으로 바꾸는 것**이다.
+
+---
+
+# 2. ArticleProse만 Astro scoped CSS 방식으로 변경
+
+현재 `ArticleProse.astro`는 대략 다음과 같은 형태다.
+
+```astro
+<div
+  class:list={[
+    '...',
+    '[&_h1]:...',
+    '[&_h2]:...',
+    '[&_p]:...',
+    '[&_blockquote]:...',
+    '[&_pre]:...',
+    '[&_table]:...',
+    ...
+  ]}
+>
+  <slot />
+</div>
+```
+
+이 구조는 기능상 동작하지만 Markdown 스타일 한 항목을 수정하려 할 때 class 문자열이 지나치게 길고 읽기 어렵다.
+
+이를 제거한다.
+
+최종 구조는 다음 철학을 따른다.
+
+```text
+사이트 UI
+→ Tailwind utility
+
+Markdown/MDX가 렌더링한 일반 prose HTML
+→ ArticleProse.astro의 scoped CSS
+```
+
+---
+
+# 3. ArticleProse의 CSS는 컴포넌트 안에 둔다
+
+별도의 대형 global CSS 파일로 이동하지 않는다.
+
+가능하면:
+
+```astro
+<div class:list={['article-prose', className]}>
+  <slot />
+</div>
+
+<style>
+  ...
+</style>
+```
+
+형태를 사용한다.
+
+Astro scoped CSS를 사용한다.
+
+Markdown/MDX가 `<slot>`을 통해 생성한 실제 HTML element를 스타일링해야 하므로 필요한 selector에는 Astro의 `:global()`을 사용한다.
+
+예:
+
+```css
+.article-prose :global(h2) {
+  ...
+}
+
+.article-prose :global(p) {
+  ...
+}
+
+.article-prose :global(blockquote) {
+  ...
+}
+```
+
+---
+
+# 4. Tailwind theme token은 그대로 재사용
+
+현재 `global.css`의 Tailwind v4 `@theme` 값은 유지한다.
+
+예:
+
+```css
+--color-background
+--color-sidebar
+--color-foreground
+--color-muted
+--color-border
+--color-accent
+--font-sans
+--font-mono
+```
+
+ArticleProse CSS에서는 이 값을 CSS variable로 직접 사용한다.
+
+예:
+
+```css
+color: var(--color-muted);
+border-color: var(--color-border);
+font-family: var(--font-mono);
+```
+
+Markdown용 별도 색상 체계를 새로 만들지 않는다.
+
+즉 Tailwind UI와 ArticleProse CSS가 같은 design token을 공유해야 한다.
+
+---
+
+# 5. 가능하면 prose CSS를 Tailwind layer에 넣는다
+
+Tailwind와 일반 CSS의 cascade 관계를 명확하게 하기 위해 ArticleProse scoped CSS를 가능하면:
+
+```css
+@layer components {
+  ...
+}
+```
+
+내부에 둔다.
+
+목적은 prose의 기본 스타일보다 Tailwind utilities가 필요할 때 자연스럽게 override할 수 있도록 하는 것이다.
+
+단 현재 Tailwind/Astro 버전에서 component-local scoped style과 `@layer` 조합에 문제가 있다면 억지 workaround를 만들지 말고, scoped CSS만 사용한다.
+
+기능과 명확성을 우선한다.
+
+---
+
+# 6. Markdown semantic element 스타일은 현재 디자인을 유지하며 CSS로 옮긴다
+
+현재 `ArticleProse.astro`에 Tailwind descendant selector로 지정된 모든 유효한 스타일을 누락 없이 CSS로 옮긴다.
+
+최소한 다음 요소를 검토한다.
+
+```text
+h1
+h2
+h3
+h4
+p
+
+a
+
+ul
+ol
+li
+
+blockquote
+
+hr
+
+code
+pre
+
+table
+thead
+tbody
+tr
+th
+td
+
+img
+
+figure
+figcaption
+
+details
+summary
+
+input[type="checkbox"]
+
+iframe
+```
+
+현재 typography와 spacing을 크게 redesign하지 않는다.
+
+목표는 **스타일 표현 방법 변경**이지 디자인 변경이 아니다.
+
+---
+
+# 7. ArticleProse wrapper 자체에는 상속되는 typography를 과도하게 넣지 않는다
+
+MDX 안에는 독립적인 Astro component 또는 third-party component가 들어갈 수 있다.
+
+따라서 `.article-prose` wrapper 자체에:
+
+```text
+모든 color
+모든 font-size
+모든 line-height
+```
+
+를 강하게 지정해서 내부의 독립 component까지 상속시키지 않는다.
+
+wrapper에는 가능한 한:
+
+```text
+max-width
+min-width
+overflow-wrap
+layout-related defaults
+```
+
+정도만 둔다.
+
+문단 글자 크기/line-height 등은:
+
+```css
+.article-prose :global(p)
+.article-prose :global(li)
+```
+
+등 실제 prose element에 지정한다.
+
+---
+
+# 8. MDX 독립 컴포넌트를 prose 스타일에서 제외할 수 있도록 `not-prose` 경계를 지원
+
+MDX에는 다음과 같은 독립적인 component가 들어갈 수 있다.
+
+```mdx
+<LinkPreview ... />
+```
+
+또는 향후 다른 Astro component.
+
+이런 component의 내부 markup이 ArticleProse의:
+
+```css
+p
+a
+img
+```
+
+스타일에 영향을 받아서는 안 되는 경우가 있다.
+
+이를 위해 `.not-prose` 경계를 지원한다.
+
+개념:
+
+```mdx
+<div class="not-prose">
+  <LinkPreview id="..." />
+</div>
+```
+
+`.not-prose` 내부에는 ArticleProse의 일반 prose selector가 적용되지 않게 한다.
+
+---
+
+# 9. `not-prose` selector는 실제로 안전하게 설계
+
+다음 의도를 만족해야 한다.
+
+```text
+.article-prose 내부 일반 Markdown
+→ prose CSS 적용
+
+.article-prose .not-prose 내부
+→ prose CSS 제외
+```
+
+예를 들어 `h2`에 대한 selector가 있다면 `.not-prose` 내부의 `h2`에는 적용되지 않아야 한다.
+
+CSS selector는 지나치게 복잡하게 만들지 말고 일관된 helper pattern을 사용한다.
+
+브라우저 호환성이 불필요하게 낮아지는 selector는 피한다.
+
+---
+
+# 10. LinkPreview는 기본적으로 독립 component 취급
+
+`astro-embed`의 `LinkPreview`는 일반 Markdown prose가 아니라 별도 UI component로 취급하는 것이 좋다.
+
+샘플 MDX와 문서에서 필요하다면:
+
+```mdx
+<div class="not-prose">
+  <LinkPreview id="https://astro.build/" />
+</div>
+```
+
+형태로 사용한다.
+
+LinkPreview 내부 DOM을 ArticleProse의 일반:
+
+```text
+a
+p
+img
+```
+
+스타일로 억지로 변형하지 않는다.
+
+필요한 사이트 수준의 LinkPreview custom property 정도만 별도/명시적으로 적용할 수 있다.
+
+---
+
+# 11. iframe은 현재 결정대로 유지
+
+공식 iframe/embed를 MDX에서 직접 사용하는 기존 원칙을 유지한다.
+
+ArticleProse 공통 CSS는 모든 iframe을 16:9로 만들지 않는다.
+
+공통적으로 필요한:
+
+```text
+display: block
+max-width: 100%
+margin
+border: 0
+```
+
+정도만 적용한다.
+
+YouTube와 같이 16:9가 필요한 경우 MDX에서 직접:
+
+```mdx
+<iframe
+  class="aspect-video w-full"
+  ...
+/>
+```
+
+처럼 Tailwind utility를 적용한다.
+
+---
+
+# 12. Search 결과 타입 정보를 SearchDocument까지 전달
+
+현재 `search-data.astro`에는 이미:
+
+```text
+data-kind="about"
+data-kind="post"
+data-kind="series"
+data-kind="category"
+data-kind="tag"
+data-kind="author"
+data-kind="archive"
+```
+
+가 존재한다.
+
+이 정보를 검색 DOM parsing 과정에서 버리지 말고 `SearchDocument`에 포함한다.
+
+예:
+
+```ts
+export type SearchKind =
+  | 'about'
+  | 'post'
+  | 'series'
+  | 'category'
+  | 'tag'
+  | 'author'
+  | 'archive';
+
+export interface SearchDocument {
+  id: number;
+  kind: SearchKind;
+  url: string;
+  title: string;
+  description: string;
+  text: string;
+}
+```
+
+정확한 type 구성은 자연스럽게 개선해도 된다.
+
+---
+
+# 13. Search filter 명칭은 영어 사용
+
+Search 상단의 filter label은 영어로 표시한다.
+
+순서:
+
+```text
+All
+Posts
+Series
+Categories
+Tags
+Authors
+Archive
+```
+
+`About`은 별도 필터로 노출하지 않는다.
+
+About 검색 결과가 필요하다면 `All` 내부에서만 자연스럽게 처리하거나, 검색 UX상 더 적합하면 Posts 이전에 단일 일반 결과로 처리한다.
+
+About 때문에 별도의 복잡한 filter를 만들지 않는다.
+
+---
+
+# 14. Search 상단 filter에는 결과 count 표시
+
+검색 결과가 생기면 상단에 다음과 같은 형태로 표시한다.
+
+예:
+
+```text
+All 127 · Posts 83 · Series 4 · Categories 9 · Tags 22 · Authors 3 · Archive 6
+```
+
+실제 UI는 현재 디자인에 맞게 조정하되 다음을 지킨다.
+
+* 카드 UI 금지
+* 큰 pill UI 불필요
+* 과도한 background 금지
+* 단순한 text/button 형태
+* keyboard 접근 가능
+* active filter 명확
+* disabled/0 결과 표현 명확
+
+현재 블로그의 minimal design을 유지한다.
+
+---
+
+# 15. Search corpus의 Index 계열 중복 색인을 제거
+
+현재 Category/Tag/Archive가 하위 게시물 title을 자기 검색 text로 갖고 있어서 검색 결과가 불필요하게 확대된다.
+
+이를 수정한다.
+
+검색 대상은 다음과 같이 구분한다.
+
+## Posts
+
+게시물은 full-text 검색한다.
+
+최소:
+
+```text
+title
+subtitle
+description
+rendered body
+authors
+series
+categories
+tags
+published date
+```
+
+## Series
+
+```text
+title
+description
+```
+
+해당 series의 모든 게시물 title을 Series 검색 text에 복사하지 않는다.
+
+## Categories
+
+```text
+category name
+```
+
+현재 별도 description 데이터가 없다면 category name만 검색한다.
+
+해당 category의 게시물 title 전체를 넣지 않는다.
+
+## Tags
+
+```text
+tag name
+```
+
+해당 tag가 붙은 게시물 title 전체를 넣지 않는다.
+
+## Authors
+
+```text
+name
+bio
+```
+
+## Archive
+
+해당 archive 자체를 설명하는:
+
+```text
+year
+month
+Archive
+```
+
+정도만 사용한다.
+
+그 archive에 속한 게시물 title 전체를 넣지 않는다.
+
+## About
+
+```text
+title
+description
+body
+```
+
+정도.
+
+---
+
+# 16. All 화면은 summary view로 만든다
+
+`All` filter가 활성화된 상태에서는 모든 검색 결과를 한 리스트로 섞지 않는다.
+
+kind별 section으로 분리한다.
+
+순서:
+
+```text
+Posts
+Series
+Categories
+Tags
+Authors
+Archive
+```
+
+결과가 0개인 section은 `All` 화면에서는 숨긴다.
+
+예:
+
+```text
+Posts · 83
+────────────────
+
+결과 1
+결과 2
+...
+결과 10
+
+More →
+
+
+Series · 4
+────────────────
+
+결과 4개
+
+
+Tags · 22
+────────────────
+
+결과 10개
+
+More →
+```
+
+---
+
+# 17. All 화면에서는 각 section 최대 10개만 표시
+
+상수로 명확하게 둔다.
+
+예:
+
+```ts
+const SUMMARY_LIMIT = 10;
+```
+
+`All` 상태에서는 각 kind별 최대 10개까지만 표시한다.
+
+전체 화면에는 pagination을 표시하지 않는다.
+
+즉 다음처럼 section마다 pager가 여러 개 생기면 안 된다.
+
+```text
+Posts
+1 2 3 ...
+
+Tags
+1 2 3 ...
+
+Categories
+1 2 ...
+```
+
+이 방식은 금지한다.
+
+---
+
+# 18. 10개를 초과하는 section에만 `More` 표시
+
+해당 kind의 검색 결과가:
+
+```text
+<= 10
+```
+
+이면 `More`를 표시하지 않는다.
+
+```text
+> 10
+```
+
+일 때만:
+
+```text
+More →
+```
+
+또는 현재 디자인에 자연스러운 동일 의미의 text action을 표시한다.
+
+`More`는 일반 navigation처럼 보여야 한다.
+
+과도한 button/card UI는 사용하지 않는다.
+
+---
+
+# 19. More 클릭은 해당 filter를 누르는 것과 완전히 동일한 동작
+
+예:
+
+```text
+Tags · 22
+
+10개 표시
+
+More →
+```
+
+에서 `More` 클릭 시:
+
+```text
+All → Tags
+```
+
+filter로 전환한다.
+
+페이지 reload는 하지 않는다.
+
+상단의 `Tags` filter를 직접 누른 것과 동일한 state transition function을 사용한다.
+
+`More` 전용 별도 페이지/route를 만들지 않는다.
+
+---
+
+# 20. 특정 filter에서는 해당 kind만 표시
+
+예를 들어 `Categories`를 선택하면:
+
+```text
+Categories · 37
+────────────────
+
+결과 20개
+
+pagination
+```
+
+만 표시한다.
+
+다른:
+
+```text
+Posts
+Series
+Tags
+Authors
+Archive
+```
+
+section은 숨긴다.
+
+UI를 새로 만들지 말고 All 화면에서 사용하는 section rendering 구조를 최대한 재사용한다.
+
+---
+
+# 21. 특정 filter에서는 20개 단위 pagination 적용
+
+상수:
+
+```ts
+const PAGE_SIZE = 20;
+```
+
+다음 filter에 적용한다.
+
+```text
+Posts
+Series
+Categories
+Tags
+Authors
+Archive
+```
+
+페이지가 한 페이지만 존재하면 pagination UI를 표시하지 않아도 된다.
+
+---
+
+# 22. Pagination의 페이지 번호는 10개 고정 블록 방식
+
+페이지 번호 표시 개수:
+
+```ts
+const PAGE_BLOCK_SIZE = 10;
+```
+
+현재 페이지가 1~10이면:
+
+```text
+1 2 3 4 5 6 7 8 9 10
+```
+
+현재 페이지가 11~20이면:
+
+```text
+11 12 13 14 15 16 17 18 19 20
+```
+
+현재 페이지가 21~30이면:
+
+```text
+21 22 23 24 25 26 27 28 29 30
+```
+
+마지막 block은 실제 존재하는 페이지까지만 표시한다.
+
+현재 페이지를 중심으로 페이지 번호 window를 이동시키지 않는다.
+
+**반드시 고정 10페이지 block 방식**이다.
+
+---
+
+# 23. Pagination `<< < > >>` 의미를 정확히 구현
+
+중요하다.
+
+이전의 일반적인:
+
+```text
+< = 이전 1페이지
+> = 다음 1페이지
+```
+
+방식이 아니다.
+
+최종 동작은 다음이다.
+
+## `<<`
+
+첫 페이지로 이동.
+
+```text
+page 1
+```
+
+## `<`
+
+**이전 10페이지 block으로 이동.**
+
+예를 들어 현재 block:
+
+```text
+11 12 13 14 15 16 17 18 19 20
+```
+
+이면 `<`를 누르면 이전 block으로 이동한다.
+
+이때 이동 target은 **이전 block의 마지막 페이지**로 한다.
+
+예:
+
+```text
+현재 page 13
+block 11~20
+
+<
+↓
+page 10
+block 1~10
+```
+
+현재 block이 21~30이면:
+
+```text
+<
+↓
+page 20
+block 11~20
+```
+
+첫 block에서는 disabled.
+
+## `>`
+
+**다음 10페이지 block으로 이동.**
+
+현재 block:
+
+```text
+1~10
+```
+
+이면:
+
+```text
+>
+↓
+page 11
+block 11~20
+```
+
+현재 block:
+
+```text
+11~20
+```
+
+이면:
+
+```text
+>
+↓
+page 21
+block 21~30
+```
+
+다음 block이 없으면 disabled.
+
+## `>>`
+
+마지막 페이지로 이동.
+
+예를 들어 총 47페이지면:
+
+```text
+>>
+↓
+page 47
+```
+
+그리고 표시 block은:
+
+```text
+41 42 43 44 45 46 47
+```
+
+---
+
+# 24. Pagination 예시
+
+총 47페이지일 때:
+
+## 현재 page 5
+
+```text
+<<  <  1  2  3  4  [5]  6  7  8  9  10  >  >>
+```
+
+`<` disabled.
+
+`>` → 11.
+
+## 현재 page 13
+
+```text
+<<  <  11  12  [13]  14  15  16  17  18  19  20  >  >>
+```
+
+`<` → 10.
+
+`>` → 21.
+
+## 현재 page 47
+
+```text
+<<  <  41  42  43  44  45  46  [47]  >  >>
+```
+
+`>` disabled.
+
+`>>` disabled 또는 현재 페이지 상태.
+
+---
+
+# 25. Pagination 접근성
+
+현재 page 번호에는:
+
+```html
+aria-current="page"
+```
+
+를 사용한다.
+
+이동할 수 없는 control은 명확하게 disabled 처리한다.
+
+각 control에는 screen reader가 이해할 수 있는 label을 제공한다.
+
+예:
+
+```text
+<< → First page
+<  → Previous page group
+>  → Next page group
+>> → Last page
+```
+
+단 시각적으로는 사용자가 요청한:
+
+```text
+<< < > >>
+```
+
+기호를 사용한다.
+
+---
+
+# 26. Search 결과 제한 50개 제거
+
+현재 Worker는 대략:
+
+```ts
+index.search(query, { limit: 50 });
+```
+
+형태로 결과를 50개까지만 반환한다.
+
+이 상태로는 정확한 결과 count와 pagination을 구현할 수 없다.
+
+이를 수정한다.
+
+개인 블로그 규모에서는 검색 결과 전체 ID를 Worker에서 반환하고 browser에서:
+
+```text
+group
+filter
+summary
+pagination
+```
+
+을 처리한다.
+
+예:
+
+```ts
+index.search(query, {
+  limit: documents.length,
+});
+```
+
+현재 FlexSearch API에 맞는 안전한 방법을 사용한다.
+
+검색 결과가 실제 document 수보다 많이 반환되거나 limit 때문에 누락되지 않아야 한다.
+
+---
+
+# 27. 검색 결과 순서는 FlexSearch 결과 순서를 유지
+
+검색 결과를 kind별로 분리할 때 각 kind 내부의 순서는 FlexSearch가 반환한 relevance 순서를 그대로 유지한다.
+
+예:
+
+```ts
+const posts = results.filter((result) => result.kind === 'post');
+```
+
+처럼 안정적인 filtering만 한다.
+
+별도의 title alphabetical sorting을 추가하지 않는다.
+
+---
+
+# 28. Search filter는 reload 없이 client-side 전환
+
+filter를 변경할 때:
+
+* 새로운 fetch 금지
+* FlexSearch 재검색 불필요
+* 페이지 reload 금지
+
+현재 검색 결과 배열을 그대로 재사용한다.
+
+즉:
+
+```text
+FlexSearch 검색 한 번
+        ↓
+matching SearchDocument[]
+        ↓
+UI state에서 filter
+        ↓
+render
+```
+
+구조를 사용한다.
+
+---
+
+# 29. Search query/filter/page 상태를 URL과 동기화
+
+가능하면 History API를 사용한다.
+
+예:
+
+## 전체
+
+```text
+/search/?q=markdown
+```
+
+## Categories
+
+```text
+/search/?q=markdown&type=category
+```
+
+## Categories page 5
+
+```text
+/search/?q=markdown&type=category&page=5
+```
+
+페이지 reload 없이:
+
+```ts
+history.pushState(...)
+```
+
+또는 의미에 맞는 `replaceState()`를 사용한다.
+
+---
+
+# 30. URL state 복원
+
+Search 페이지를 다음 URL로 직접 열어도 상태를 복원한다.
+
+```text
+/search/?q=markdown&type=tag&page=3
+```
+
+즉 초기 load 시:
+
+1. `q`
+2. `type`
+3. `page`
+
+를 읽는다.
+
+검색 query가 있으면 자동으로 검색을 수행한다.
+
+해당 filter를 선택한다.
+
+해당 page를 표시한다.
+
+잘못된 type/page는 안전하게 fallback한다.
+
+---
+
+# 31. 브라우저 뒤로가기/앞으로가기 지원
+
+`pushState()`를 사용하는 경우 `popstate`를 처리한다.
+
+예:
+
+```text
+All
+→ Tags
+→ Tags page 2
+→ Back
+```
+
+하면:
+
+```text
+Tags page 1
+```
+
+로 UI도 실제로 복원되어야 한다.
+
+새 framework/router를 추가하지 않는다.
+
+plain browser History API로 충분하다.
+
+---
+
+# 32. 검색어가 변경되면 상태 초기화
+
+사용자가 새로운 검색어를 입력하면:
+
+```text
+filter = All
+page = 1
+```
+
+로 초기화한다.
+
+이전 검색어에서 선택한:
+
+```text
+Tags page 5
+```
+
+같은 상태를 새 query에 그대로 적용하지 않는다.
+
+---
+
+# 33. Filter 또는 More 선택 시 page = 1
+
+상단에서 새로운 type을 선택하거나 `More`를 눌렀을 때:
+
+```text
+page = 1
+```
+
+로 시작한다.
+
+예:
+
+```text
+All
+→ Tags
+→ page 1
+```
+
+---
+
+# 34. All로 돌아갈 때 pagination은 제거
+
+특정 filter의 page가 7이더라도 `All`을 선택하면 summary view로 돌아간다.
+
+All에서는 pagination state를 표시하지 않는다.
+
+URL에서도 가능하면 의미 없는 `page` parameter를 제거한다.
+
+예:
+
+```text
+/search/?q=markdown&type=tag&page=7
+```
+
+에서 All 클릭:
+
+```text
+/search/?q=markdown
+```
+
+---
+
+# 35. Search UI 디자인 원칙
+
+현재 사이트의 단순한 UI 철학을 유지한다.
+
+다음을 만들지 마라.
+
+* 커다란 tabs component
+* rounded pill navigation
+* shadow card
+* gradient
+* animated slider
+* SPA-style heavy UI
+
+권장:
+
+```text
+All 127
+Posts 83
+Series 4
+Categories 9
+Tags 22
+Authors 3
+Archive 6
+```
+
+를 작은 텍스트 button/link처럼 배치.
+
+active item은:
+
+* underline
+* font-semibold
+* accent color
+
+정도로 충분하다.
+
+현재 Sidebar/List 스타일과 시각 언어를 맞춘다.
+
+---
+
+# 36. 각 section의 type 표현
+
+All 상태에서 각 section heading은 영어로 한다.
+
+```text
+Posts · 83
+Series · 4
+Categories · 9
+Tags · 22
+Authors · 3
+Archive · 6
+```
+
+현재 사이트 typography에 맞게 단순하게 표현한다.
+
+각 individual result에 종류 badge를 반복해서 붙일 필요는 없다.
+
+section 자체가 type을 설명하기 때문이다.
+
+특정 filter 상태에서도 heading은 동일 구조를 재사용한다.
+
+---
+
+# 37. Search 결과 카드 구조는 만들지 않는다
+
+Post 결과는 기존처럼:
+
+```text
+제목
+description
+```
+
+중심.
+
+Index 계열은 필요하다면:
+
+```text
+title
+description
+```
+
+만 출력한다.
+
+불필요한 thumbnail/card/background/border-radius를 추가하지 않는다.
+
+현재처럼 얇은 bottom border 정도면 충분하다.
+
+---
+
+# 38. Search status 문구 조정
+
+현재:
+
+```text
+7개의 검색 결과
+```
+
+만 표시하는 구조는 filter UI와 함께 자연스럽게 조정한다.
+
+전체 total은 계속 알 수 있어야 한다.
+
+예:
+
+```text
+127 results
+```
+
+또는 사이트의 기존 한국어 문맥을 유지한다면:
+
+```text
+127개의 검색 결과
+```
+
+도 가능하다.
+
+단 filter/section label은 사용자의 결정대로 영어:
+
+```text
+All
+Posts
+Series
+Categories
+Tags
+Authors
+Archive
+```
+
+로 한다.
+
+---
+
+# 39. Search 0-result 처리
+
+전체 결과가 0이면:
+
+* filter counts 모두 0
+* section 없음
+* 기존 “검색 결과가 없습니다.” 메시지 표시
+
+특정 filter의 count가 0이면 상단 filter는 disabled하거나 눌러도 empty state를 정상 표시한다.
+
+권장하는 쪽은 **0 count filter는 disabled**다.
+
+---
+
+# 40. 테스트 추가/수정
+
+최소 다음을 자동 테스트한다.
+
+## ArticleProse
+
+Markdown에서:
+
+* heading
+* paragraph
+* link
+* list
+* blockquote
+* code
+* table
+* figure
+* details
+
+스타일 구조가 유지되는지 build/browser 수준에서 주요 class/레이아웃을 검사한다.
+
+CSS 세부 pixel 값 전체를 테스트하지 않는다.
+
+## not-prose
+
+MDX의 `.not-prose` 안에 있는 component/markup이 ArticleProse prose selector에 의해 의도치 않게 변형되지 않는 구조인지 검증한다.
+
+최소 실제 LinkPreview가 정상 보이는지 확인한다.
+
+---
+
+# 41. Search kind 테스트
+
+검색 document가 다음 kind를 정상적으로 갖는지 테스트한다.
+
+```text
+post
+series
+category
+tag
+author
+archive
+```
+
+---
+
+# 42. Search corpus 의미 테스트
+
+예를 들어 `Markdown` 게시물이 `개발` category에 있다고 해서:
+
+```text
+검색어: Markdown
+```
+
+때문에 `개발` Category 결과가 단지 하위 글 제목 때문에 매치되어서는 안 된다.
+
+마찬가지로:
+
+* unrelated tag
+* archive year
+* series
+
+가 해당 게시물 title을 포함한다는 이유만으로 검색되지 않아야 한다.
+
+Post는 계속 full-text 검색되어야 한다.
+
+---
+
+# 43. All summary 테스트
+
+결과가 충분히 많다는 synthetic/unit fixture 기준으로:
+
+* 각 section 최대 10개
+* 10개 이하 section은 More 없음
+* 11개 이상 section은 More 표시
+* pagination 없음
+
+을 검증한다.
+
+---
+
+# 44. Filter 테스트
+
+예를 들어 Tags filter 클릭:
+
+```text
+All
+→ Tags
+```
+
+후:
+
+* Tag section만 보임
+* 다른 section 숨김
+* reload 발생하지 않음
+* URL type=tag
+* page 1
+
+확인.
+
+---
+
+# 45. More 테스트
+
+Tags section의 More를 클릭하면 상단 Tags filter를 클릭한 것과 완전히 같은 결과가 되어야 한다.
+
+중복 구현을 만들지 않는다.
+
+---
+
+# 46. Pagination 테스트
+
+PAGE_SIZE = 20을 검증한다.
+
+충분한 synthetic result를 통해 47페이지가 있다고 가정할 수 있는 unit test를 작성해도 된다.
+
+최소 pagination 계산 함수를 pure function으로 분리하는 것을 권장한다.
+
+예:
+
+```ts
+getPaginationState({
+  currentPage,
+  totalItems,
+  pageSize: 20,
+  blockSize: 10,
+});
+```
+
+정확한 이름은 자유.
+
+---
+
+# 47. Pagination block 테스트
+
+반드시 다음 case를 검증한다.
+
+## page 5 / total 47 pages
+
+```text
+1 2 3 4 5 6 7 8 9 10
+```
+
+## page 13
+
+```text
+11 12 13 14 15 16 17 18 19 20
+```
+
+## page 27
+
+```text
+21 22 23 24 25 26 27 28 29 30
+```
+
+## page 47
+
+```text
+41 42 43 44 45 46 47
+```
+
+---
+
+# 48. `<` / `>` page-group navigation 테스트
+
+반드시 다음을 검증한다.
+
+```text
+page 13
+< → page 10
+```
+
+```text
+page 13
+> → page 21
+```
+
+```text
+page 27
+< → page 20
+```
+
+```text
+page 27
+> → page 31
+```
+
+첫 block에서 `<` disabled.
+
+마지막 block에서 `>` disabled.
+
+---
+
+# 49. `<<` / `>>` 테스트
+
+```text
+page 27
+<< → page 1
+```
+
+```text
+page 27
+>> → page 47
+```
+
+---
+
+# 50. URL/History 테스트
+
+다음 direct navigation을 검증한다.
+
+```text
+/search/?q=markdown&type=tag&page=2
+```
+
+* query 입력값 복원
+* Tags active
+* page 2 active
+
+그리고 browser Back/Forward도 최소 한 case 검증한다.
+
+---
+
+# 51. Search Worker 제한 검증
+
+검색 결과가 50개를 넘어도 정확한:
+
+```text
+total count
+filter count
+pagination
+```
+
+이 계산되는지 unit/browser 수준에서 확인한다.
+
+현재 `limit: 50`이 남아 있으면 안 된다.
+
+---
+
+# 52. 기존 Search 성능 특성 유지
+
+다음 특성은 유지한다.
+
+* FlexSearch는 Search page에만 로드
+* Search Worker 사용
+* non-search pages에서 search corpus 로드 안 함
+* 첫 검색 전 불필요한 corpus fetch 안 함
+* search-data 초기화 실패 후 retry 가능
+* HTML implementation noise 제외
+* substring search 유지
+* `down → Markdown` 유지
+* 한글 substring 유지
+
+---
+
+# 53. 문서 갱신
+
+다음 문서를 실제 변경과 일치시키라.
+
+```text
+README.md
+docs/CONTENT_GUIDE.md
+docs/MAINTENANCE.md
+docs/IMPLEMENTATION_REPORT.md
+docs/REQUIREMENTS.md
+```
+
+필요한 부분만 수정한다.
+
+특히:
+
+## Styling
+
+ArticleProse만 scoped CSS를 사용하는 이유 설명.
+
+```text
+일반 Astro UI → Tailwind
+Markdown/MDX prose → ArticleProse scoped CSS
+```
+
+## MDX
+
+`.not-prose` 사용법 예제.
+
+```mdx
+<div class="not-prose">
+  <LinkPreview ... />
+</div>
+```
+
+## Search
+
+다음을 설명.
+
+```text
+All summary = kind별 최대 10개
+More = 해당 filter
+individual filter = 20개 pagination
+pagination = 10-page fixed block
+```
+
+---
+
+# 54. 기존 정상 구조는 건드리지 않는다
+
+이번 작업으로 다음을 다시 바꾸지 마라.
+
+* Astro version
+* Tailwind version
+* MD/MDX collection 구조
+* `astro-embed`
+* FlexSearch
+* Search Worker architecture
+* Content Collection schema
+* SEO
+* RSS
+* Sitemap
+* image pipeline
+* Sidebar 구조
+* List/Grid
+* article/TOC layout
+* Husky
+* ESLint
+* Prettier
+* CI
+* GitHub Pages deployment
+
+필요 최소 범위의 파일만 수정한다.
+
+---
+
+# 55. 예상 수정 파일
+
+실제 구조를 확인한 뒤 판단하되 대략 다음 범위일 가능성이 높다.
+
+```text
+src/components/ArticleProse.astro
+
+src/lib/search.ts
+src/lib/search-text.ts
+src/lib/search-pagination.ts        # 필요하면 추가
+
+src/pages/search-data.astro
+src/pages/search.astro
+
+src/workers/search.worker.ts
+
+src/content/posts/.../index.mdx     # 샘플 not-prose / iframe 예제 필요 시
+
+tests/unit/search*.test.ts
+tests/browser/site.test.ts
+tests/build/output.test.ts           # 필요한 경우만
+
+README.md
+docs/...
+```
+
+pagination logic이 충분히 복잡하므로 pure function을 `src/lib/search-pagination.ts` 정도로 분리하는 것은 허용하며 오히려 권장한다.
+
+하지만 검색 UI 전체를 component framework처럼 쪼개지는 마라.
+
+---
+
+# 56. 전체 검증
+
+작업 완료 후 반드시 실행:
+
+```sh
+pnpm format:check
+pnpm lint
+pnpm check
+pnpm test
+pnpm build
+pnpm test:build
+pnpm test:browser
+```
+
+Chromium, Firefox, WebKit 모두 성공해야 한다.
+
+---
+
+# 57. 최종 수동 확인
+
+최소 다음을 실제 preview에서 확인한다.
+
+### Markdown Post
+
+* prose 스타일 기존 디자인 유지
+* 코드
+* 표
+* blockquote
+* details
+* 이미지
+
+### MDX Post
+
+* LinkPreview 정상
+* `.not-prose` 정상
+* YouTube iframe 정상
+
+### Search
+
+검색어 예:
+
+```text
+kdo
+down
+Markdown
+```
+
+확인:
+
+* 관련 없는 Category/Tag/Archive가 하위 게시물 제목 때문에 따라 나오지 않음
+* All 화면 section 분리
+* 각 section 최대 10개
+* More 정상
+* filter 정상
+* individual view 20개
+* pagination 정상
+* fixed 10-page block
+* `<` / `>`는 1페이지 이동이 아니라 **이전/다음 10페이지 block 이동**
+* `<<` / `>>`는 first/last
+* URL state 정상
+* Back/Forward 정상
+
+---
+
+# 58. 완료 조건 체크리스트
+
+```text
+[ ] Tailwind 전체 구조 유지
+[ ] SCSS 미도입
+[ ] @tailwindcss/typography 미도입
+
+[ ] ArticleProse giant Tailwind descendant class 제거
+[ ] ArticleProse scoped CSS 사용
+[ ] Tailwind @theme CSS variables 공유
+[ ] Markdown semantic elements 스타일 유지
+[ ] .not-prose 지원
+[ ] MDX component 스타일 격리 가능
+[ ] LinkPreview 정상
+[ ] iframe 정책 유지
+
+[ ] SearchDocument에 kind 추가
+
+[ ] Filter:
+    All
+    Posts
+    Series
+    Categories
+    Tags
+    Authors
+    Archive
+
+[ ] filter별 count 표시
+
+[ ] Post는 full text 검색
+[ ] Series는 title/description
+[ ] Category는 category 자체
+[ ] Tag는 tag 자체
+[ ] Author는 name/bio
+[ ] Archive는 archive 자체
+[ ] Index 계열에 하위 post title 중복 색인 없음
+
+[ ] All = summary view
+[ ] All 각 section 최대 10개
+[ ] All에 pagination 없음
+[ ] >10 결과 section에만 More
+[ ] More = 해당 filter 전환
+
+[ ] individual filter = 해당 section만
+[ ] individual filter = 20개/page
+
+[ ] page number = 고정 10-page block
+
+[ ] << = first page
+[ ] <  = previous 10-page block
+[ ] >  = next 10-page block
+[ ] >> = last page
+
+[ ] page 13에서 < → page 10
+[ ] page 13에서 > → page 21
+
+[ ] Search Worker 50개 제한 제거
+[ ] 모든 실제 match pagination 가능
+
+[ ] URL q/type/page 동기화
+[ ] reload 없이 filter 전환
+[ ] direct URL 복원
+[ ] Back/Forward 지원
+
+[ ] substring 검색 유지
+[ ] down → Markdown 유지
+[ ] 한글 substring 유지
+
+[ ] Search non-page asset isolation 유지
+[ ] 초기화 실패 retry 유지
+
+[ ] 문서 갱신
+[ ] format 성공
+[ ] lint 성공
+[ ] Astro check 성공
+[ ] unit test 성공
+[ ] build 성공
+[ ] build test 성공
+[ ] Chromium 성공
+[ ] Firefox 성공
+[ ] WebKit 성공
+```
