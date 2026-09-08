@@ -1,7 +1,7 @@
 name: Verify and deploy
 on:
   push:
-    branches: [main, dev, 'feature/**', 'hotfix/**', 'content/**']
+    branches: [main, dev, 'feature/**', 'fix/**', 'hotfix/**', 'content/**']
   pull_request:
   workflow_dispatch:
 permissions:

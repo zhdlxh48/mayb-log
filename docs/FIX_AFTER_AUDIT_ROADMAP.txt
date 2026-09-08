@@ -1,0 +1,1305 @@
+# mayb-log 리팩터링 후 감사 결과 기반 수정 작업 지시문
+
+대상 저장소:
+
+`https://github.com/zhdlxh48/mayb-log`
+
+감사 기준 `main` HEAD:
+
+`e854fcdc4019cdffa49c25d52e89dafb6f9736c2`
+
+현재 이 커밋의 GitHub Actions `Verify and deploy`는 성공했고 GitHub Pages 배포도 완료된 상태이다.
+
+이번 작업은 이전 리팩터링을 다시 하는 것이 아니다.
+
+이미 정상적으로 완료된 다음 작업은 유지한다.
+
+* Tailwind 중심 스타일링
+* 최소화된 `global.css`
+* `.md` + `.mdx` 동시 지원
+* `@astrojs/mdx`
+* custom directive 제거
+* `remark-directive` 제거
+* 직접 공식 iframe/embed 사용
+* `astro-embed`의 `LinkPreview`
+* Pagefind 제거
+* FlexSearch `tokenize: full`
+* Search Web Worker
+* root `scripts/` 제거
+* `tests/**/*.test.ts`
+* ESLint
+* Prettier
+* Husky
+* lint-staged
+* GitHub Pages CI/deploy
+* 기존 SEO 및 이미지 최적화
+
+**이미 정상인 구조를 불필요하게 다시 설계하지 말고 아래 감사에서 발견된 문제만 수정하라.**
+
+작업 시작 전에 최신 `main`을 다시 확인하고, 감사 기준 커밋 이후 새로운 변경이 있다면 먼저 diff를 확인한 뒤 충돌 없이 반영하라.
+
+---
+
+# 1. 최우선: 초광폭 화면에서도 게시물 + TOC 전체가 실제 content 영역 가운데에 오도록 수정
+
+현재 `PostLayout.astro` 자체에는:
+
+```astro
+<article class="mx-auto max-w-[936px]">
+```
+
+가 있어서 article 내부에서는 가운데 정렬된 것처럼 보인다.
+
+그러나 부모인 `BaseLayout.astro`의 content wrapper와 `main`에는 max-width만 있고 실제 centering이 없다.
+
+현재 구조의 핵심 문제는 다음이다.
+
+```astro
+<div class="w-full ... max-w-[1280px] ...">
+  <main class="... max-w-[1160px]">
+```
+
+이 wrapper들이 넓은 화면에서 grid column의 왼쪽에 붙는다.
+
+1440px에서는 우연히 거의 문제가 드러나지 않지만 1920px, 2560px 같은 초광폭 화면에서는 article+TOC 전체가 화면의 content 영역 기준으로 왼쪽에 쏠린다.
+
+## 요구사항
+
+다음 계층을 다시 검토하라.
+
+```text
+viewport
+└─ sidebar
+   └─ content column
+      └─ content wrapper
+         └─ main
+            └─ article + TOC
+```
+
+목표는 다음과 같다.
+
+```text
+sidebar |          available content area
+        |
+        |      ┌──── article + TOC ────┐
+        |      │                        │
+        |      └────────────────────────┘
+```
+
+`article + TOC` 컨테이너가 단지 `main` 안에서 가운데인 것이 아니라 **sidebar를 제외한 실제 content area 기준으로 시각적으로 가운데**여야 한다.
+
+`BaseLayout`의 content wrapper 또는 `main`에 적절한 `mx-auto`, width/max-width 구조를 적용하여 해결한다.
+
+단순히 기존 `article`에 또 `mx-auto`를 추가하는 식으로 해결하지 마라.
+
+## 기존 디자인 유지
+
+다음은 바꾸지 않는다.
+
+* sidebar 폭
+* article 본문 약 720px
+* TOC 폭
+* desktop sticky TOC
+* 모바일 one-column 구조
+* 현재 미니멀 디자인
+
+## 테스트 수정
+
+현재의 1440px 테스트:
+
+```ts
+article center === main center
+```
+
+만으로는 부모 전체가 왼쪽으로 치우친 문제를 잡을 수 없다.
+
+테스트를 수정하여 다음 폭을 포함한다.
+
+```text
+375
+768
+1024
+1440
+1920
+2560
+```
+
+특히 1920과 2560에서는 article 또는 article+TOC container의 중심이 **실제 sidebar 제외 content 영역 중심**에서 허용 오차 내에 있는지 검사하라.
+
+단지 `article`과 `main`의 center가 같은지 검사해서는 안 된다.
+
+horizontal overflow도 모든 폭에서 계속 검사한다.
+
+---
+
+# 2. 검색 corpus가 최종 요구한 모든 게시물 텍스트를 포함하도록 수정
+
+현재 FlexSearch engine 자체는 정상이다.
+
+다음 설정은 유지한다.
+
+```ts
+new Index({
+  tokenize: 'full',
+  cache: 100,
+});
+```
+
+NFKC normalization과 lowercase도 유지한다.
+
+문제는 검색 엔진이 아니라 **게시물별 검색 text 구성**이다.
+
+현재 `search-data.astro`의 게시물 문서에는 대략:
+
+```text
+title
+subtitle
+categories
+tags
+rendered body
+```
+
+만 들어간다.
+
+최종 요구사항에서는 게시물의 검색 대상에 최소한 다음을 포함하기로 했다.
+
+```text
+title
+subtitle
+description
+rendered body text
+tags
+categories
+series title
+author names
+기타 실제 사용자에게 보이는 주요 콘텐츠 관련 텍스트
+```
+
+현재 빠져 있는 최소 항목은:
+
+* `description`
+* series title
+* author name
+
+이다.
+
+게시물 화면에 실제로 표시되는 publication date도 검색 text에 포함하는 것이 자연스럽다면 포함하되, implementation noise를 넣지는 마라.
+
+## 수정 방향
+
+`search-data.astro`에서 게시물의 검색용 문서를 만들 때 필요한 author/series 데이터를 resolve하여 실제 검색 corpus에 넣어라.
+
+예를 들어 개념적으로:
+
+```text
+title
+subtitle
+description
+author names
+series title
+categories
+tags
+published date
+rendered visible body
+```
+
+가 하나의 검색 가능한 문서 text가 되어야 한다.
+
+검색 결과 화면에 표시하는 `description` property와 **검색 가능한 text**를 혼동하지 마라.
+
+`description`이 결과 UI에 저장되어 있다는 이유로 실제 FlexSearch index에 포함됐다고 간주하면 안 된다.
+
+---
+
+# 3. 검색 text 생성 로직을 테스트 가능한 형태로 분리
+
+현재 unit test에서는 fixture의 `text`를 테스트 코드가 직접 만들어 넣기 때문에 실제 production corpus 구성 오류를 발견하지 못한다.
+
+예:
+
+```ts
+{
+  title: 'Markdown 안내',
+  description: '...',
+  text: 'Markdown 안내 ...'
+}
+```
+
+처럼 테스트가 이미 완성된 `text`를 공급하면 `search-data.astro`가 description/author/series를 빼먹는 문제를 검증할 수 없다.
+
+## 요구사항
+
+검색 text 조합 로직 중 재사용 가능한 순수 로직은 `src/lib/search.ts` 또는 적절한 search module로 분리한다.
+
+예를 들면 개념적으로:
+
+```ts
+buildSearchText({
+  title,
+  subtitle,
+  description,
+  authors,
+  series,
+  categories,
+  tags,
+  visibleBody,
+});
+```
+
+같은 순수 로직을 둘 수 있다.
+
+정확한 API 이름은 자연스럽게 정해도 된다.
+
+중요한 것은 **실제 production이 사용하는 text composition과 unit test가 같은 로직을 사용해야 한다는 점**이다.
+
+---
+
+# 4. 검색 회귀 테스트를 더 정확하게 추가
+
+최초 문제였던 exact case를 반드시 테스트에 고정한다.
+
+```text
+원문: Markdown
+검색: down
+결과: 검색 성공
+```
+
+현재 `"ark"` 테스트만으로 대신하지 마라.
+
+최소한 다음을 테스트한다.
+
+```text
+Markdown → down
+Markdown → ark
+
+한국어 문장 → 내부 한글 substring
+
+description에만 존재하는 문자열 → 해당 post 검색됨
+
+author 이름에만 존재하는 문자열 → 해당 post 검색됨
+
+series 제목에만 존재하는 문자열 → 해당 post 검색됨
+
+본문에만 존재하는 문자열 → 해당 post 검색됨
+```
+
+browser test와 unit test의 역할을 구분한다.
+
+* FlexSearch tokenizer 동작 자체 → unit
+* 실제 production corpus에서 metadata/body가 포함되는지 → build/browser/integration
+
+---
+
+# 5. 검색 corpus에 implementation noise가 섞이지 않도록 방어
+
+현재 검색 text는 렌더링된 HTML의:
+
+```ts
+element.textContent
+```
+
+를 기반으로 한다.
+
+현재 샘플에서는 문제없지만 MDX에서 앞으로 공식 embed가 다음을 포함할 수 있다.
+
+```text
+script
+style
+template
+noscript
+third-party bootstrap markup
+```
+
+이런 구현 텍스트가 검색 결과에 들어가서는 안 된다.
+
+## 요구사항
+
+검색용 DOM에서 visible text를 추출하기 전에 implementation-only element를 제외하라.
+
+최소한:
+
+```text
+script
+style
+template
+noscript
+```
+
+를 제거하거나 검색 extraction 대상에서 제외한다.
+
+필요하다면 기타 명백히 비가시적인 implementation element도 추가할 수 있다.
+
+그러나 정상적으로 사용자에게 보이는:
+
+* heading
+* paragraph
+* link text
+* image alt
+* LinkPreview의 title/description
+
+등은 유지한다.
+
+MDX source code 자체:
+
+```text
+import
+JSX attributes
+component code
+iframe attributes
+script source
+```
+
+가 검색되어서는 안 된다.
+
+---
+
+# 6. Search Worker 초기화 실패 후 새로고침 없이 재시도 가능하게 수정
+
+현재 구조는 대략:
+
+```ts
+let workerPromise;
+
+workerPromise ??= initializeWorker();
+```
+
+이다.
+
+첫 초기화 과정에서:
+
+* `/search-data/` fetch 실패
+* Worker 생성 실패
+* Worker initialize 실패
+
+등이 발생하면 rejected Promise가 `workerPromise`에 그대로 저장된다.
+
+따라서 이후 같은 페이지에서 다시 검색해도 실패한 Promise를 계속 재사용하고, 사용자가 새로고침하기 전에는 검색이 복구되지 않는다.
+
+## 수정
+
+초기화 실패 시 반드시 cache를 초기화한다.
+
+개념적으로:
+
+```ts
+try {
+  ...
+} catch (error) {
+  workerPromise = undefined;
+  throw error;
+}
+```
+
+와 같은 구조가 필요하다.
+
+첫 요청이 실패한 뒤 network가 복구되면 **같은 Search 페이지에서 다시 입력하여 정상 검색할 수 있어야 한다.**
+
+## 테스트 추가
+
+브라우저 테스트에서:
+
+1. 첫 `search-data` 요청 실패
+2. 오류 메시지 확인
+3. route failure 제거
+4. 다시 검색 입력
+5. 정상 결과 확인
+
+까지 검증한다.
+
+단순히 오류 문구가 표시되는지만 검사하지 마라.
+
+---
+
+# 7. Search main-thread 처리 문제는 과도하게 복잡하게 해결하지 마라
+
+현재 first input 때 다음이 main thread에서 수행된다.
+
+```text
+search-data HTML fetch
+DOMParser
+DOM traversal
+textContent extraction
+SearchDocument 배열 생성
+```
+
+그리고 FlexSearch index 생성/검색만 Worker에서 수행한다.
+
+현재 배포 corpus는 매우 작기 때문에 당장 심각한 성능 문제는 아니다.
+
+따라서 이 문제를 고치기 위해:
+
+* 새로운 서버
+* post-build script
+* custom search pipeline
+* 자체 HTML parser
+* 복잡한 build plugin
+
+을 만들지 마라.
+
+## 이번 작업에서 할 일
+
+가능하면 search extraction 코드를 단순하고 효율적으로 정리하되 기존 구조를 유지해도 된다.
+
+중요한 것은:
+
+* 일반 페이지에 Search 자산이 실리지 않을 것
+* 첫 검색 전 corpus를 가져오지 않을 것
+* FlexSearch index 생성/검색은 Worker에서 수행할 것
+* 불필요한 DOM traversal을 줄일 것
+
+이다.
+
+현재 구조보다 확실히 단순하고 안전한 JSON corpus를 **Astro-native 방식만으로** 만들 수 있다면 고려해도 되지만, 그 때문에 architecture가 복잡해진다면 이번 작업에서는 하지 마라.
+
+---
+
+# 8. 모든 iframe에 `aspect-video`를 강제하지 마라
+
+현재 `ArticleProse.astro`에서 모든 iframe에:
+
+```text
+aspect-video
+w-full
+```
+
+을 일괄 적용한다.
+
+이것은 YouTube에는 적합하지만 최종 결정과 맞지 않는다.
+
+우리는 다음 원칙을 정했다.
+
+> 서비스가 제공하는 공식 iframe/embed를 MDX에서 직접 사용한다.
+
+모든 공식 iframe이 16:9인 것은 아니다.
+
+향후:
+
+* 세로 embed
+* 정사각 embed
+* 높이가 고정된 widget
+* 서비스 자체 비율이 다른 iframe
+
+이 들어올 수 있다.
+
+## 수정 방향
+
+공통 ArticleProse에서는 iframe에 최소한의 안전한 스타일만 적용한다.
+
+예:
+
+```text
+display block
+max-width: 100%
+적절한 margin
+border 제거
+```
+
+모든 iframe에 강제로:
+
+```text
+aspect-ratio: 16 / 9
+```
+
+를 부여하지 않는다.
+
+YouTube처럼 16:9 video가 필요한 경우에는 **해당 MDX iframe 자체에 Tailwind class를 명시**한다.
+
+예:
+
+```mdx
+<iframe
+  class="aspect-video w-full"
+  ...
+/>
+```
+
+이것은 provider abstraction이 아니다.
+
+MDX 작성자가 해당 official embed에 필요한 layout class만 추가하는 것이다.
+
+## 문서
+
+CONTENT_GUIDE의 YouTube/iframe 예제에도 필요한 responsive class를 명시한다.
+
+---
+
+# 9. 작성자 상세 페이지의 홈페이지 링크 Tailwind 스타일 누락 수정
+
+`src/pages/authors/[author].astro`의 homepage 링크가 현재:
+
+```astro
+<a href={author.data.homepage}>홈페이지 ↗</a>
+```
+
+처럼 class 없이 남아 있다.
+
+기존 global anchor CSS가 제거되었으므로 이 링크만 다른 site link와 스타일이 일치하지 않는다.
+
+## 수정
+
+현재 프로젝트의 link style과 일관되도록 Tailwind class를 지정한다.
+
+예:
+
+```text
+text-accent
+hover:underline
+```
+
+필요한 경우 underline offset 등 기존 디자인 시스템과 맞춘다.
+
+불필요하게 새로운 Link component를 만들지는 마라.
+
+---
+
+# 10. lint-staged에 CSS formatting 추가
+
+현재 lint-staged:
+
+```js
+'*.{js,mjs,ts,astro}': ['prettier --write', 'eslint --fix'],
+'*.{json,md,mdx,yaml,yml}': 'prettier --write',
+```
+
+에는 CSS가 없다.
+
+그러므로 `src/styles/global.css`를 수정하고 commit하면 pre-commit에서는 포맷하지 않지만 CI의:
+
+```text
+pnpm format:check
+```
+
+에서는 실패할 가능성이 있다.
+
+## 수정
+
+CSS를 Prettier 대상에 포함한다.
+
+예:
+
+```js
+'*.{json,css,md,mdx,yaml,yml}': 'prettier --write'
+```
+
+또는 더 명확한 구조로 정리해도 된다.
+
+ESLint를 CSS에 실행하지 마라.
+
+Husky hook 자체는 기존처럼 단순하게 유지한다.
+
+```sh
+pnpm exec lint-staged
+```
+
+---
+
+# 11. 500KB Search corpus hard limit 제거 또는 합리적으로 변경
+
+현재 build test에:
+
+```ts
+assert.ok(searchData.size < 500_000)
+```
+
+와 같은 hard-coded limit이 있다.
+
+검색은 **모든 본문 텍스트를 대상으로 하는 기능**이므로 콘텐츠가 정상적으로 증가하면 언젠가 500KB를 초과할 수 있다.
+
+500KB 자체에는 현재 명확한 근거가 없다.
+
+정상적인 블로그 콘텐츠 증가 때문에 CI가 실패하면 안 된다.
+
+## 수정
+
+이 검사를 다음 방향 중 가장 단순한 방식으로 변경한다.
+
+권장:
+
+* search corpus raw size를 로그에 출력
+* gzip size도 가능하면 계산하여 출력
+* 현재 production 수치를 확인 가능하게 함
+* 임의의 500KB hard failure는 제거
+
+정말 budget을 유지하고 싶다면:
+
+* 근거를 문서화하고
+* configurable constant로 만들고
+* 정상적인 콘텐츠 증가를 막지 않을 만큼 현실적인 수치를 사용
+
+해야 한다.
+
+단, 별도의 성능 측정 script를 다시 만들지 마라.
+
+`tests/build/*.test.ts` 내부에서 처리할 수 있는 범위만 사용한다.
+
+---
+
+# 12. 샘플 콘텐츠에 강하게 결합된 테스트 제거
+
+현재 테스트가 다음 sample ID/path에 직접 의존한다.
+
+예:
+
+```text
+first-note
+markdown-notes
+archive-note
+blog-notes
+tags/astro
+archive/2026/09
+```
+
+또한:
+
+```ts
+expect(postList).toHaveCount(3)
+```
+
+처럼 sample 글 개수를 직접 고정한다.
+
+README에서는 사용자가 sample 글을 삭제해도 된다고 설명하고 있다.
+
+따라서 실제 사용자가 sample 글을 제거하는 순간 사이트는 정상인데 테스트가 실패하는 구조이다.
+
+이 결합을 제거하라.
+
+## 중요한 제약
+
+이 문제를 해결하기 위해 과거에 제거했던 다음 구조를 다시 만들면 안 된다.
+
+```text
+scripts/test-content.mjs
+scripts/seed-test-content.mjs
+임시 프로젝트 복사
+Astro build를 수차례 spawn하는 자체 test runner
+```
+
+root `scripts/` 또는 다른 이름의 custom runner를 만들지 마라.
+
+## browser test 수정 원칙
+
+가능한 경우 현재 production output에서 동적으로 route를 찾는다.
+
+예:
+
+* posts 목록에서 첫 번째 게시물 링크 가져오기
+* taxonomy 목록에서 실제 존재하는 첫 entry 사용
+* archive에서 실제 존재하는 첫 entry 사용
+
+정확한 sample ID를 hard-code하지 않는다.
+
+글이 0개인 경우에는:
+
+* posts empty state
+* taxonomy empty state
+
+를 정상적으로 처리해야 하며, sample이 없다는 이유로 테스트가 실패하면 안 된다.
+
+## MDX-specific test
+
+MDX integration 자체의 검증은 production sample인 `markdown-notes`에 영구 의존하지 않도록 한다.
+
+가능하다면:
+
+```text
+tests/fixtures/
+```
+
+의 정적 `.mdx` fixture를 unit/integration test에서 직접 사용한다.
+
+단:
+
+* fixture project 전체를 만들지 말 것
+* custom build runner를 만들지 말 것
+* production site에 test route를 노출하지 말 것
+
+Astro/MDX가 제공하는 공식 compile/render API 범위에서 간단히 테스트할 수 있으면 그렇게 한다.
+
+그 방법이 현재 Astro API에서 지나치게 복잡하다면 억지로 만들지 말고, production content와 결합도가 가장 낮은 현실적인 테스트 구조를 선택한 뒤 이유를 보고한다.
+
+---
+
+# 13. sample 개수에 의존하는 navigation test 수정
+
+현재:
+
+```ts
+expect(page.locator('.post-list > li')).toHaveCount(3);
+```
+
+같은 assertion은 삭제한다.
+
+대신:
+
+```text
+글이 있으면 실제 렌더링된 글 개수와 표시 count가 일치
+글이 없으면 empty-state가 정상 표시
+```
+
+같이 데이터에 독립적인 assertion으로 변경한다.
+
+Sidebar의 total count와 PostList count가 서로 일치하는지 검사하는 방식도 가능하다.
+
+---
+
+# 14. build test의 `first-note`, `markdown-notes` hard coding 제거
+
+현재 build-output test가 특정 sample HTML:
+
+```text
+dist/posts/first-note/index.html
+dist/posts/markdown-notes/index.html
+```
+
+을 직접 연다.
+
+이 구조를 제거한다.
+
+SEO metadata 검증은 **생성된 실제 article 페이지 전체 또는 첫 번째 article**을 대상으로 일반화한다.
+
+예:
+
+```text
+모든 post page:
+- canonical
+- BlogPosting JSON-LD
+- article:published_time
+- twitter:card
+```
+
+등을 확인한다.
+
+MDX 전용 기능을 production sample에 의존하지 않고 검증할 수 있다면 fixture/unit test로 옮긴다.
+
+---
+
+# 15. 남아 있는 불필요 dependency 확인 및 제거
+
+현재 `@types/mdast`가 devDependency에 남아 있는데 source에서 직접 사용하는 곳이 없는 것으로 보인다.
+
+전체 저장소를 다시 검색하라.
+
+직접 사용되지 않는다면 제거한다.
+
+```text
+@types/mdast
+```
+
+제거 후 `pnpm-lock.yaml` 갱신.
+
+다른 package가 transitive dependency로 사용하는 것은 package.json에 직접 둘 이유가 아니다.
+
+반대로 실제 코드에서 계속 필요한:
+
+* `@types/hast`
+* `unist-util-visit`
+* `sharp`
+
+등은 삭제하지 마라.
+
+---
+
+# 16. About `.mdx` 지원과 오류 메시지를 일치시켜라
+
+`pages` collection은:
+
+```text
+*.{md,mdx}
+```
+
+를 지원한다.
+
+그런데 `src/pages/index.astro`에는:
+
+```ts
+throw new Error('src/content/pages/about.md가 필요합니다.');
+```
+
+라는 메시지가 남아 있다.
+
+실제로는:
+
+```text
+about.md
+또는
+about.mdx
+```
+
+둘 다 유효하다.
+
+`search-data.astro`와 동일하게 오류 메시지를 수정한다.
+
+예:
+
+```text
+src/content/pages/about.md 또는 about.mdx가 필요합니다.
+```
+
+---
+
+# 17. iframe, LinkPreview 및 MDX 테스트 조정
+
+기존 테스트에서 다음은 유지한다.
+
+* `LinkPreview`가 실제 렌더됨
+* iframe에 `loading="lazy"`
+* iframe에 의미 있는 `title`
+* local MDX image가 Astro image pipeline을 통과함
+
+그러나 다음 assertion은 수정한다.
+
+> 모든 iframe이 `aspect-video`여야 한다
+
+는 가정을 만들지 않는다.
+
+대신 YouTube sample/fixture처럼 video iframe에 명시적으로 `aspect-video` class를 넣고 그것만 검사한다.
+
+다른 iframe이 자유로운 aspect ratio를 가질 수 있는 구조여야 한다.
+
+---
+
+# 18. 문서도 실제 수정과 맞추어 갱신
+
+다음을 확인한다.
+
+```text
+README.md
+docs/CONTENT_GUIDE.md
+docs/MAINTENANCE.md
+docs/IMPLEMENTATION_REPORT.md
+docs/REQUIREMENTS.md
+```
+
+특히 다음 내용을 수정한다.
+
+## 테스트
+
+sample 세 글을 삭제할 때 test path도 직접 고쳐야 한다는 안내가 있다면, 테스트가 content-independent하게 수정된 후 해당 안내를 제거하거나 갱신한다.
+
+## iframe
+
+모든 iframe이 자동 16:9라는 인상을 주지 않는다.
+
+영상 iframe 예제에서는:
+
+```mdx
+class="aspect-video w-full"
+```
+
+같이 영상에 필요한 layout을 명시한다.
+
+## Search
+
+검색 대상이 다음을 포함한다고 정확히 설명한다.
+
+```text
+title
+subtitle
+description
+author
+series
+category
+tag
+rendered body
+```
+
+실제 구현과 문서가 일치해야 한다.
+
+---
+
+# 19. 기존 정상 기능은 회귀시키지 마라
+
+이번 수정 때문에 다음을 망가뜨리면 안 된다.
+
+* `.md`
+* `.mdx`
+* local Markdown/MDX image processing
+* Shiki
+* GFM
+* GitHub Pages `/mayb-log/` base
+* category/tag Unicode routes
+* Series
+* Archive
+* Asia/Seoul 날짜
+* draft 제외
+* noindex Sitemap 제외
+* RSS
+* canonical
+* BlogPosting JSON-LD
+* Twitter Card
+* Open Graph
+* responsive image
+* image width/height
+* no horizontal overflow
+* accessibility
+* List/Grid
+* localStorage 실패 fallback
+* mobile navigation
+* Search failure UI
+* Search Web Worker
+* non-search page에서 Search dependency 미로드
+* Chromium/Firefox/WebKit
+
+---
+
+# 20. 추가 테스트 acceptance criteria
+
+수정 완료 후 최소한 다음을 자동 검증하라.
+
+## Layout
+
+```text
+375
+768
+1024
+1440
+1920
+2560
+```
+
+각 width에서:
+
+* horizontal overflow 없음
+* article + TOC가 실제 content 영역에 가운데
+* 모바일 layout 정상
+* desktop TOC 정상
+
+## Search
+
+다음이 모두 동작:
+
+```text
+down → Markdown
+description-only phrase
+author-only phrase
+series-only phrase
+body-only substring
+Korean infix
+없는 검색어
+```
+
+그리고:
+
+```text
+첫 search-data fetch 실패
+→ 오류 표시
+→ network 복구
+→ 같은 페이지에서 다시 검색
+→ 정상 결과
+```
+
+## Search isolation
+
+About와 일반 Post page에서는 다음 network 자산이 없어야 한다.
+
+```text
+search-data
+search worker
+FlexSearch
+```
+
+## Content independence
+
+sample 글 ID/개수에 의존하지 않아야 한다.
+
+sample 글 3개를 사용자가 삭제하거나 바꾸더라도 **테스트 코드 자체를 매번 수정해야 하는 구조여서는 안 된다.**
+
+---
+
+# 21. 테스트 구조 제약
+
+최종적으로 유지할 테스트 entry는:
+
+```text
+tests/**/*.test.ts
+```
+
+뿐이다.
+
+다음을 새로 만들지 마라.
+
+```text
+*.spec.ts
+scripts/*.mjs
+tools/test-*.mjs
+custom test runner
+temporary project generator
+```
+
+Node test와 Playwright의 표준 기능 안에서 해결한다.
+
+---
+
+# 22. CI
+
+현재 성공 중인 CI 흐름은 유지한다.
+
+```text
+pnpm install --frozen-lockfile
+pnpm format:check
+pnpm lint
+pnpm check
+pnpm test
+pnpm build
+pnpm test:build
+pnpm exec playwright install --with-deps chromium firefox webkit
+pnpm test:browser
+```
+
+main deploy 정책도 유지한다.
+
+이번 수정 후 branch CI와 main CI가 모두 성공해야 한다.
+
+---
+
+# 23. 작업 범위를 벗어난 리팩터링 금지
+
+다음을 이번 작업에서 하지 마라.
+
+* 또 다른 CSS architecture 변경
+* Tailwind 제거
+* MDX 제거
+* Astro Embed 제거
+* FlexSearch 교체
+* UI 전면 redesign
+* 새로운 Embed provider framework
+* 새로운 component library
+* 새로운 server/API
+* 검색용 proxy
+* post-build custom script
+* 새로운 custom test framework
+* 과도한 abstraction
+
+문제를 해결하는 데 필요한 최소 범위로 수정한다.
+
+---
+
+# 24. 작업 완료 전에 전체 저장소 검색
+
+완료 전 다음 hard-coded sample/reference가 test code에 남아 있는지 확인한다.
+
+```text
+first-note
+markdown-notes
+archive-note
+blog-notes
+toHaveCount(3)
+```
+
+문서에서 sample 예시로 설명하는 것은 허용한다.
+
+**테스트의 동작 전제**로 남아 있으면 안 된다.
+
+또한 다음을 확인한다.
+
+```text
+@types/mdast
+aspect-video
+workerPromise
+500_000
+about.md가 필요합니다
+```
+
+각 검색 결과가 의도된 것인지 검토한다.
+
+`aspect-video` 자체를 프로젝트에서 전부 제거하라는 의미는 아니다. YouTube와 같은 video iframe에 명시적으로 존재하는 것은 정상이다.
+
+---
+
+# 25. 최종 검증
+
+반드시 clean 상태에서 다음을 실행한다.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm format:check
+pnpm lint
+pnpm check
+pnpm test
+pnpm build
+pnpm test:build
+pnpm exec playwright install chromium firefox webkit
+pnpm test:browser
+```
+
+Linux CI가 필요하면 Playwright install에 `--with-deps`를 사용한다.
+
+그리고 실제 production preview에서 최소한 다음을 직접 확인한다.
+
+```text
+/
+posts/
+한 개 이상의 post
+search/
+authors/*
+```
+
+가능한 경우 1920px과 2560px browser screenshot도 직접 확인한다.
+
+---
+
+# 26. Git 작업
+
+가능하면 최신 `main`에서 새 수정 branch를 만든다.
+
+예:
+
+```text
+fix/post-refactor-audit
+```
+
+작업 완료 후:
+
+1. 전체 검증
+2. diff 검토
+3. commit
+4. push
+5. branch CI 확인
+6. main merge
+7. main CI 확인
+8. GitHub Pages deploy 확인
+
+force push나 history rewrite는 하지 않는다.
+
+---
+
+# 27. 최종 보고서에 반드시 포함할 내용
+
+작업 완료 후 다음을 정확히 보고한다.
+
+## 수정한 문제
+
+각 감사 항목별로:
+
+```text
+문제
+원인
+수정 방법
+검증 방법
+```
+
+을 설명한다.
+
+## Layout
+
+1920px/2560px에서 어떤 기준으로 center를 검증했는지 설명한다.
+
+## Search corpus
+
+최종 검색 대상 필드를 정확히 나열한다.
+
+특히:
+
+```text
+description
+author
+series
+```
+
+가 실제 index text에 들어가는지 설명한다.
+
+## Search retry
+
+초기화 실패 후 어떻게 재시도 가능한지 설명한다.
+
+## Tests
+
+sample 콘텐츠 hard coding을 어떻게 제거했는지 설명한다.
+
+## iframe
+
+왜 모든 iframe에 `aspect-video`를 더 이상 강제하지 않는지 설명한다.
+
+## Search size
+
+production build의 실제:
+
+```text
+search corpus raw size
+가능하면 gzip size
+worker bundle size
+```
+
+를 보고한다.
+
+500KB hard limit을 어떻게 처리했는지도 설명한다.
+
+## Dependency
+
+`@types/mdast` 유지/제거 여부와 이유를 설명한다.
+
+## 검증
+
+실제로 실행한 명령과 성공 여부.
+
+## Git
+
+```text
+branch
+commit SHA
+branch CI
+main merge SHA
+main CI
+Pages deploy
+```
+
+상태를 정확하게 기록한다.
+
+수행하지 않은 작업을 수행했다고 보고하지 마라.
+
+---
+
+# 최종 완료 조건
+
+다음이 전부 만족되어야 이번 감사 수정 작업 완료로 판단한다.
+
+```text
+[ ] 1920px에서도 article + TOC가 content 영역 가운데
+[ ] 2560px에서도 article + TOC가 content 영역 가운데
+[ ] 기존 375/768/1024/1440 responsive 정상
+
+[ ] Markdown → down 검색 성공
+[ ] description 검색 가능
+[ ] author 이름 검색 가능
+[ ] series 제목 검색 가능
+[ ] body substring 검색 가능
+[ ] 한국어 substring 검색 가능
+
+[ ] search corpus에서 script/style 등의 구현 텍스트 제외
+[ ] Search 초기화 실패 후 same-page retry 가능
+
+[ ] 모든 iframe에 aspect-video 강제하지 않음
+[ ] YouTube video iframe은 필요 시 MDX에서 명시적으로 aspect-video 적용
+
+[ ] author homepage link 스타일 정상
+
+[ ] lint-staged가 CSS도 Prettier 처리
+
+[ ] 500KB 임의 search corpus hard limit 제거/합리화
+
+[ ] 테스트가 first-note에 의존하지 않음
+[ ] 테스트가 markdown-notes에 의존하지 않음
+[ ] 테스트가 archive-note에 의존하지 않음
+[ ] 테스트가 blog-notes에 의존하지 않음
+[ ] 테스트가 post count 3에 의존하지 않음
+
+[ ] custom test runner 없음
+[ ] root scripts/ 없음
+[ ] tests/**/*.test.ts 유지
+
+[ ] 불필요한 @types/mdast 제거 여부 확인
+[ ] about.md/about.mdx 오류 메시지 일치
+
+[ ] format 성공
+[ ] lint 성공
+[ ] Astro check 성공
+[ ] unit tests 성공
+[ ] build 성공
+[ ] build tests 성공
+[ ] Chromium 성공
+[ ] Firefox 성공
+[ ] WebKit 성공
+[ ] branch CI 성공
+[ ] main CI 성공
+[ ] Pages deploy 성공
+```

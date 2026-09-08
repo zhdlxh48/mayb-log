@@ -25,46 +25,55 @@ const posts = await Promise.all(
     <main>
       <article
         data-search-document
+        data-kind="about"
         data-url={url()}
         data-title={about.data.title}
         data-description={about.data.description}
       >
-        <h1>{about.data.title}</h1>
-        <AboutContent />
+        <div data-search-body><AboutContent /></div>
       </article>
 
       {
-        posts.map(({ post, rendered }) => (
-          <article
-            data-search-document
-            data-url={url(`posts/${post.id}`)}
-            data-title={post.data.title}
-            data-description={post.data.description}
-          >
-            <h1>{post.data.title}</h1>
-            {post.data.subtitle && <p>{post.data.subtitle}</p>}
-            <p>
-              {post.data.categories.join(' ')} {post.data.tags.join(' ')}
-            </p>
-            <rendered.Content />
-          </article>
-        ))
+        posts.map(({ post, rendered }) => {
+          const authors = post.data.authors.map(
+            (reference) => data.authors.find((author) => author.id === reference.id)!.data.name,
+          );
+          const series = data.series.find((entry) => entry.id === post.data.series?.id)?.data.title;
+          return (
+            <article
+              data-search-document
+              data-kind="post"
+              data-url={url(`posts/${post.id}`)}
+              data-title={post.data.title}
+              data-subtitle={post.data.subtitle}
+              data-description={post.data.description}
+              data-authors={JSON.stringify(authors)}
+              data-series={series}
+              data-categories={JSON.stringify(post.data.categories)}
+              data-tags={JSON.stringify(post.data.tags)}
+              data-published-at={post.data.publishedAt.toISOString()}
+              data-noindex={String(post.data.seo.noindex)}
+            >
+              <div data-search-body>
+                <rendered.Content />
+              </div>
+            </article>
+          );
+        })
       }
 
       {
         data.series.map((entry) => (
           <article
             data-search-document
+            data-kind="series"
             data-url={url(`series/${entry.id}`)}
             data-title={entry.data.title}
             data-description={
               entry.data.description ?? `${entry.count}개의 글이 이어지는 시리즈입니다.`
             }
           >
-            <>
-              <h1>{entry.data.title}</h1>
-              <p>{entry.data.description}</p>
-            </>
+            <div data-search-body>{entry.data.description}</div>
           </article>
         ))
       }
@@ -72,14 +81,12 @@ const posts = await Promise.all(
         data.categories.map((entry) => (
           <article
             data-search-document
+            data-kind="category"
             data-url={url(`categories/${entry.slug}`)}
             data-title={`${entry.name} 분류`}
             data-description={`${entry.name} 분류의 글 ${entry.count}개`}
           >
-            <>
-              <h1>{entry.name} 분류</h1>
-              <p>{entry.posts.map((post) => post.data.title).join(' ')}</p>
-            </>
+            <div data-search-body>{entry.posts.map((post) => post.data.title).join(' ')}</div>
           </article>
         ))
       }
@@ -87,14 +94,12 @@ const posts = await Promise.all(
         data.tags.map((entry) => (
           <article
             data-search-document
+            data-kind="tag"
             data-url={url(`tags/${entry.slug}`)}
             data-title={`${entry.name} 태그`}
             data-description={`${entry.name} 태그의 글 ${entry.count}개`}
           >
-            <>
-              <h1>{entry.name} 태그</h1>
-              <p>{entry.posts.map((post) => post.data.title).join(' ')}</p>
-            </>
+            <div data-search-body>{entry.posts.map((post) => post.data.title).join(' ')}</div>
           </article>
         ))
       }
@@ -102,14 +107,12 @@ const posts = await Promise.all(
         data.authors.map((author) => (
           <article
             data-search-document
+            data-kind="author"
             data-url={url(`authors/${author.id}`)}
             data-title={author.data.name}
             data-description={author.data.bio ?? `${author.data.name}의 글`}
           >
-            <>
-              <h1>{author.data.name}</h1>
-              <p>{author.data.bio}</p>
-            </>
+            <div data-search-body>{author.data.bio}</div>
           </article>
         ))
       }
@@ -117,14 +120,12 @@ const posts = await Promise.all(
         data.archive.map((entry) => (
           <article
             data-search-document
+            data-kind="archive"
             data-url={url(`archive/${entry.year}`)}
             data-title={`${entry.year}년 Archive`}
             data-description={`${entry.year}년에 작성한 글 ${entry.count}개`}
           >
-            <>
-              <h1>{entry.year}년 Archive</h1>
-              <p>{entry.posts.map((post) => post.data.title).join(' ')}</p>
-            </>
+            <div data-search-body>{entry.posts.map((post) => post.data.title).join(' ')}</div>
           </article>
         ))
       }
