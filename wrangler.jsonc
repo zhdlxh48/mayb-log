@@ -10,7 +10,7 @@
   },
   "vars": {
     "SITE_NAME": "mayb-log",
-    "SITE_ORIGIN": "https://mayb-log.zhdlxh48.workers.dev",
+    "SITE_ORIGIN": "https://mayb-log.mayb.workers.dev",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAEs16S9dT7tGuaVw",
   },
   "d1_databases": [
