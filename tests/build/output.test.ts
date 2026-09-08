@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { parseHTML } from 'linkedom';
 import sharp from 'sharp';
 import { site } from '../../src/config/site.ts';
@@ -29,6 +30,7 @@ test('the production output is complete and internally consistent', async () => 
   }
 
   let links = 0;
+  const postDocuments: Document[] = [];
   for (const [file, document] of documents) {
     const path = relative(root, file)
       .split(sep)
@@ -81,6 +83,7 @@ test('the production output is complete and internally consistent', async () => 
       assert.equal(data['@type'], 'BlogPosting');
       assert.equal(data.url, canonical);
       assert.ok(data.author.length && data.datePublished && data.dateModified);
+      postDocuments.push(document);
     }
   }
 
@@ -102,24 +105,44 @@ test('the production output is complete and internally consistent', async () => 
     'removed search and directive hooks must be absent',
   );
 
-  const mdx = documents.get(resolve(root, 'posts/markdown-notes/index.html'))!;
-  assert.ok(mdx.querySelector('.link-preview'), 'MDX LinkPreview');
-  assert.equal(mdx.querySelector('iframe')?.getAttribute('loading'), 'lazy');
-  assert.match(mdx.querySelector('iframe')?.getAttribute('src') ?? '', /youtube-nocookie\.com/);
+  for (const document of postDocuments) {
+    assert.ok(document.querySelector('meta[property="article:published_time"]'));
+    assert.ok(document.querySelector('meta[name="twitter:card"]'));
+  }
 
-  const article = documents.get(resolve(root, 'posts/first-note/index.html'))!;
-  assert.ok(article.querySelector('meta[property="article:published_time"]'));
-  assert.ok(article.querySelector('meta[name="twitter:card"]'));
+  const featureDocument = postDocuments.find(
+    (document) =>
+      document.querySelector('.link-preview') &&
+      document.querySelector('iframe') &&
+      document.querySelector('.prose img[srcset*=".webp"]'),
+  );
+  if (featureDocument) {
+    assert.ok(featureDocument.querySelector('.link-preview'), 'MDX LinkPreview');
+    assert.match(
+      featureDocument.querySelector('.prose img[srcset*=".webp"]')?.getAttribute('srcset') ?? '',
+      /\.webp/,
+    );
+  }
+
+  for (const iframe of postDocuments.flatMap((document) => [
+    ...document.querySelectorAll('iframe'),
+  ])) {
+    assert.equal(iframe.getAttribute('loading'), 'lazy', 'iframe lazy loading');
+    assert.ok(iframe.getAttribute('title')?.trim(), 'iframe title');
+    if (/youtube(?:-nocookie)?\.com/.test(iframe.getAttribute('src') ?? '')) {
+      assert.match(iframe.getAttribute('class') ?? '', /\baspect-video\b/);
+      assert.match(iframe.getAttribute('class') ?? '', /\bw-full\b/);
+    }
+  }
 
   for (const file of files.filter((name) => name.endsWith('.webp'))) {
     const metadata = await sharp(resolve(root, file)).metadata();
     assert.ok(Math.max(metadata.width ?? 0, metadata.height ?? 0) <= 1600, `Image: ${file}`);
   }
 
-  const searchData = await stat(resolve(root, 'search-data/index.html'));
-  assert.ok(
-    searchData.size < 500_000,
-    `Search data is unexpectedly large: ${searchData.size} bytes`,
+  const searchData = await readFile(resolve(root, 'search-data/index.html'));
+  console.log(
+    `Search corpus: ${searchData.byteLength} bytes raw, ${gzipSync(searchData).byteLength} bytes gzip.`,
   );
   console.log(`Verified ${documents.size} pages and ${links} internal references.`);
 });

@@ -42,6 +42,7 @@ seo:
 - `seo.noindex: true`는 공개 목록·검색·RSS에는 포함되고 Sitemap에서는 빠집니다.
 - 미래 날짜도 `draft: false`이면 바로 공개됩니다.
 - 날짜 표시와 Archive 그룹은 Asia/Seoul 기준입니다.
+- 검색은 제목, 부제목, description, 렌더링된 본문, 태그, 카테고리, 시리즈 제목, 작성자 이름을 대상으로 합니다.
 
 ## 작성자와 분류
 
@@ -93,10 +94,11 @@ import { LinkPreview } from 'astro-embed';
 <LinkPreview id="https://astro.build/" />
 ```
 
-영상은 제공자가 안내하는 iframe을 직접 넣고 `title`과 `loading="lazy"`를 지정합니다.
+영상은 제공자가 안내하는 iframe을 직접 넣고 `title`과 `loading="lazy"`를 지정합니다. 공통 본문 스타일은 iframe의 비율과 너비를 강제하지 않습니다. YouTube처럼 반응형 16:9 영상이 필요하면 아래처럼 `aspect-video w-full`을 글에 명시합니다.
 
 ```mdx
 <iframe
+  class="aspect-video w-full"
   src="https://www.youtube-nocookie.com/embed/VIDEO_ID"
   title="영상 제목"
   loading="lazy"
@@ -105,7 +107,7 @@ import { LinkPreview } from 'astro-embed';
 />
 ```
 
-MDX도 Markdown과 같은 내부 링크·로컬 이미지 처리 설정을 상속합니다. 별도 클라이언트 hydration 지시자는 필요하지 않습니다.
+다른 지도·차트·위젯은 제공자가 요구하는 `width`, `height` 또는 클래스를 그대로 지정할 수 있습니다. MDX도 Markdown과 같은 내부 링크·로컬 이미지 처리 설정을 상속합니다. 별도 클라이언트 hydration 지시자는 필요하지 않습니다.
 
 ## 이미지
 
