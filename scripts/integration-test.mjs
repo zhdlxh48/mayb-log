@@ -30,7 +30,7 @@ const login = async (username = "testuser", password = "test-password-1234") => 
   return { cookie: `${session.split(";")[0]}; ${csrf.split(";")[0]}`, csrf: csrf.match(/^csrf=([^;]+)/)[1] };
 };
 
-sql("DELETE FROM sessions; DELETE FROM posts WHERE id > 2; DELETE FROM users WHERE username='seconduser'; DELETE FROM series WHERE title='Integration Series'; DELETE FROM categories WHERE name='Integration Category'; UPDATE users SET display_name='MayB' WHERE username='testuser'");
+sql("DELETE FROM sessions; DELETE FROM posts WHERE id > 2; DELETE FROM users WHERE username IN ('seconduser', 'signupuser'); DELETE FROM series WHERE title='Integration Series'; DELETE FROM categories WHERE name='Integration Category'; UPDATE users SET display_name='MayB' WHERE username='testuser'");
 const worker = spawn(process.execPath, [wrangler, "dev", "--local", "--port", String(port)], { stdio: ["ignore", "pipe", "pipe"] });
 let output = "";
 worker.stdout.on("data", (chunk) => { output += chunk; });
@@ -67,6 +67,9 @@ try {
   assert.match(await (await fetch(`${origin}/rss.xml`)).text(), /서울 시간/);
 
   assert.equal((await fetch(`${origin}/login`, { method: "POST", redirect: "manual", headers: { Origin: "https://evil.example", "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ username: "testuser", password: "test-password-1234", "cf-turnstile-response": "x" }) })).status, 403);
+  const signup = await encodedPost("/signup", { username: "signupuser", display_name: "Signup", password: "signup-password-1234", "cf-turnstile-response": "XXXX.DUMMY.TOKEN.XXXX" });
+  assert.equal(signup.status, 303, await signup.text());
+  assert.deepEqual(sql("SELECT status, password_iterations FROM users WHERE username='signupuser'")[0], { status: "pending", password_iterations: 100_000 });
   const auth = await login();
   assert.equal((await fetch(`${origin}/profile`, { headers: { Cookie: auth.cookie } })).status, 200);
   assert.equal((await encodedPost("/series/create", { csrf: "wrong", title: "Bad" }, auth.cookie)).status, 403);

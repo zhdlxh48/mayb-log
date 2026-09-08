@@ -1,6 +1,6 @@
 import { SESSION_SECONDS } from "../lib.js";
 
-export const PASSWORD_ITERATIONS = 600_000;
+export const PASSWORD_ITERATIONS = 100_000;
 const encoder = new TextEncoder();
 const base64 = (bytes) => btoa(String.fromCharCode(...bytes));
 const bytes = (text) => Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
