@@ -1,92 +1,3 @@
-export const SESSION_SECONDS = 7 * 24 * 60 * 60;
-
-export function escapeHtml(value = "") {
-  return String(value).replace(
-    /[&<>"']/g,
-    (char) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        char
-      ],
-  );
-}
-
-export function normalizeText(value = "") {
-  return String(value).normalize("NFKC").toLocaleLowerCase("ko-KR").trim();
-}
-
-export function slugify(value = "") {
-  return normalizeText(value)
-    .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
-    .replace(/^-|-$/g, "");
-}
-
-export function parseList(value = "") {
-  return [
-    ...new Set(
-      String(value)
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    ),
-  ];
-}
-
-export function parseJsonList(value) {
-  try {
-    return Array.isArray(value) ? value : JSON.parse(value || "[]");
-  } catch {
-    return [];
-  }
-}
-
-export function dateTime(epoch) {
-  if (!epoch) return "";
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    dateStyle: "medium",
-  }).format(new Date(epoch * 1000));
-}
-
-export function kstParts(epoch) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-  }).formatToParts(new Date(epoch * 1000));
-  return Object.fromEntries(
-    parts
-      .filter(({ type }) => type !== "literal")
-      .map(({ type, value }) => [type, value]),
-  );
-}
-
-export function form(request) {
-  const type = request.headers.get("content-type") || "";
-  if (
-    !type.includes("application/x-www-form-urlencoded") &&
-    !type.includes("multipart/form-data")
-  )
-    throw new HttpError(415, "지원하지 않는 요청 형식입니다.");
-  const length = Number(request.headers.get("content-length") || 0);
-  if (length > 6_000_000) throw new HttpError(413, "요청이 너무 큽니다.");
-  return request.formData();
-}
-
-export function html(body, status = 200, headers = {}) {
-  return new Response(body, {
-    status,
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-      "x-content-type-options": "nosniff",
-      ...headers,
-    },
-  });
-}
-
-export function redirect(location, headers = {}) {
-  return new Response(null, { status: 303, headers: { location, ...headers } });
-}
-
 export class HttpError extends Error {
   constructor(status, message) {
     super(message);
@@ -94,20 +5,67 @@ export class HttpError extends Error {
   }
 }
 
-export function route(pathname, pattern) {
-  const keys = [];
-  const source = pattern.replace(/:[^/]+/g, (part) => {
-    keys.push(part.slice(1));
-    return "([^/]+)";
-  });
-  const match = pathname.match(new RegExp(`^${source}/?$`));
-  return match
-    ? Object.fromEntries(
-        keys.map((key, index) => [key, decodeURIComponent(match[index + 1])]),
-      )
-    : null;
+export const SESSION_SECONDS = 7 * 24 * 60 * 60;
+export const PAGE_SIZE = 20;
+
+export function cookies(header = "") {
+  return Object.fromEntries(
+    header.split(";").map((part) => part.trim().split(/=(.*)/s)).filter(([key]) => key),
+  );
 }
 
-export function absoluteUrl(env, path) {
-  return new URL(path, env.SITE_ORIGIN).href;
+export function values(value) {
+  return value == null ? [] : Array.isArray(value) ? value : [value];
+}
+
+export function uniqueText(value) {
+  return [...new Set(values(value).flatMap((item) => String(item).split(",")).map((item) => item.trim()).filter(Boolean))];
+}
+
+export function positiveIds(value) {
+  return [...new Set(values(value).map(Number).filter(Number.isSafeInteger).filter((id) => id > 0))];
+}
+
+export function integer(value, fallback = 1) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : fallback;
+}
+
+export function dateEpoch(value) {
+  if (!value) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new HttpError(400, "날짜 형식이 올바르지 않습니다.");
+  const epoch = Date.parse(`${value}T00:00:00+09:00`);
+  if (!Number.isFinite(epoch) || new Date(epoch + 9 * 3600_000).toISOString().slice(0, 10) !== value)
+    throw new HttpError(400, "존재하지 않는 날짜입니다.");
+  return Math.floor(epoch / 1000);
+}
+
+export function formatDate(epoch) {
+  if (!epoch) return "";
+  return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "medium" }).format(epoch * 1000);
+}
+
+export function pageBlock(page, total) {
+  const last = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const current = Math.min(Math.max(1, page), last);
+  const start = Math.floor((current - 1) / 10) * 10 + 1;
+  return {
+    current,
+    last,
+    pages: Array.from({ length: Math.min(10, last - start + 1) }, (_, index) => start + index),
+    previous: start > 1 ? start - 1 : null,
+    next: start + 10 <= last ? start + 10 : null,
+  };
+}
+
+export function json(value, fallback = []) {
+  try { return JSON.parse(value); } catch { return fallback; }
+}
+
+export function safeJson(value) {
+  return JSON.stringify(value).replaceAll("<", "\\u003c");
+}
+
+export function escapeXml(value) {
+  return String(value ?? "").replace(/[<>&'\"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[char]);
 }

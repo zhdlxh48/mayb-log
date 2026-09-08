@@ -1,66 +1,43 @@
 # 유지보수 가이드
 
-## 구조
+## 요청 흐름
 
-```text
-src/
-  index.js            요청 진입점, 오류와 R2 응답
-  routes-public.js    공개 페이지, 검색, RSS, Sitemap
-  routes-auth.js      회원가입, 로그인, 로그아웃, 계정
-  routes-admin.js     글 편집, 사용자 관리, 이미지 업로드
-  auth.js             PBKDF2, 세션, CSRF, Turnstile, rate limit
-  data.js             D1 공개 조회와 검색
-  markdown.js         Marked 저장 시 변환
-  views.js            공통 semantic HTML
-  lib.js              짧은 공통 함수
-  vendor/             Worker용 Marked
-public/                CSS와 브라우저 vendor/script
-migrations/            순서대로 적용하는 D1 schema/data
-seed/media/            기존 샘플 R2 파일
+`src/worker.js`가 Express를 Workers `node:http` handler에 연결합니다. `src/app.js`는 공통 보안 헤더와 라우트를 조립합니다. 각 `src/routes/*.js`에서 입력과 응답 흐름을 읽을 수 있고, 실제 SQL은 `src/db/*.js`에 그대로 있습니다. `src/render.js`는 Wrangler가 text module로 포함한 실제 `views/*.ejs`를 시작 시 한 번 컴파일합니다.
+
+공개 GET 라우트에는 session middleware를 연결하지 않습니다. Navigation의 Login/Profile은 session cookie 존재 여부만 봅니다. `/profile`, 작성·편집 화면과 모든 변경 POST에서만 D1 session과 active 상태를 검증합니다.
+
+## 데이터
+
+- `posts.id`: 공개 URL과 관계 키
+- `posts.uuid`: `posts/{post_uuid}/` R2 namespace
+- `post_fts`: 저장할 때 명시적으로 동기화하는 파생 검색 인덱스
+- Series: 글 하나에 0개 또는 1개
+- Categories: `post_categories`로 여러 개
+- Tags: `posts.tags` JSON 배열
+
+스키마를 바꿀 때 기존 migration 파일을 수정하지 말고 새 번호의 SQL을 추가합니다. 로컬에서 `pnpm db:local`과 통합 테스트를 먼저 통과시킨 뒤 `main` 배포가 remote migration을 적용하게 합니다.
+
+## 검색
+
+`src/db/search.js`가 검색의 단일 기준입니다. 3글자 이상은 contentless trigram FTS5, 1~2글자는 escaped LIKE를 사용합니다. 반복 Series는 OR, 반복 Category와 Tag는 각각 AND이며 그룹 사이는 AND입니다. 필터·정렬·20개 pagination은 전부 SQL에서 처리합니다.
+
+## 계정과 보안
+
+가입 계정은 기본 `pending`입니다. 활성화와 비활성화는 D1 Console에서 처리합니다.
+
+```sql
+UPDATE users SET status = 'active', updated_at = unixepoch() WHERE username = 'mayb';
+UPDATE users SET status = 'inactive', updated_at = unixepoch() WHERE username = 'mayb';
 ```
 
-요청은 `index.js`에서 로그인 세션과 상단 메뉴 데이터를 읽은 뒤 해당 route로 전달됩니다. 공개 글 route는 Markdown을 변환하지 않고 D1의 `body_html`을 출력합니다. 저장 route만 `markdown.js`를 호출합니다.
-
-## 변경 위치
-
-- 공개 URL이나 목록: `routes-public.js`
-- 로그인 정책: `auth.js`, `routes-auth.js`
-- 글 필드·권한: `routes-admin.js`, 새 D1 migration
-- 공통 문서 구조: `views.js`
-- 스타일: `public/site.css`
-- 검색 대상: `data.js`의 `searchData`
-- DB schema: 기존 파일 수정 대신 `migrations/0003_설명.sql`처럼 추가
-
-Category와 Tag는 콘텐츠 JSON 배열로 유지합니다. 데이터가 커져 실제 측정에서 부분 문자열 검색이 느려질 때 D1 FTS5를 검토하세요. 그 전에는 검색 추상화나 cache invalidation 계층을 추가할 필요가 없습니다.
-
-## Git 작업 예
-
-```bash
-git switch main
-git pull --ff-only
-git switch -c feature/example
-# 구현, 검사, commit
-git switch dev
-git merge --no-ff feature/example
-# 통합 검사
-git switch feature/example
-git merge main
-git switch main
-git merge --no-ff feature/example
-```
-
-hotfix는 최신 `main`에서 `hotfix/*`로 만들고 `main`과 `dev`에 각각 병합합니다. 글·분류 수정은 `content/*`에서 검증한 뒤 `main`에 직접 병합합니다.
-
-## 의존성과 vendor 갱신
-
-Wrangler와 Playwright만 개발 의존성입니다. 버전을 바꾼 뒤 전체 검사를 실행합니다. 브라우저 라이브러리는 npm 의존성으로 추가하지 말고 공식 release tarball의 배포 파일을 교체한 뒤 [VENDOR.md](VENDOR.md)의 버전과 라이선스를 갱신합니다. Worker Marked와 브라우저 Marked는 항상 같은 정확한 버전이어야 합니다.
+모든 active 사용자는 같은 편집 권한을 가집니다. `author_user_id`는 최초 작성자 표시에만 쓰며 편집해도 바뀌지 않습니다. 세션 raw token은 HttpOnly cookie에만 있고 D1에는 SHA-256 hash가 저장됩니다. 변경 POST는 active session, CSRF token, 정확한 Origin을 모두 확인합니다.
 
 ## 장애 확인
 
-1. GitHub Actions의 `verify`에서 처음 실패한 명령을 로컬에서 재현합니다.
-2. D1 오류는 `wrangler d1 migrations list mayb-log --remote`와 `wrangler tail`을 확인합니다.
-3. 배포 오류는 API token의 Worker/D1/R2 권한과 account ID를 확인합니다.
-4. 로그인 오류는 Turnstile hostname/action, secret, 사용자 `status`를 확인합니다. 비밀번호·세션 원문·CSRF·secret은 로그에 남기지 않습니다.
-5. 잘못된 배포는 이전 정상 Git commit을 새 hotfix branch에서 되돌려 동일한 검사를 거쳐 배포합니다. D1 migration은 역방향 SQL을 새 migration으로 작성합니다.
+1. GitHub Actions의 verify 실패 단계부터 확인합니다.
+2. migration 실패면 D1 migration 상태와 해당 SQL을 확인합니다.
+3. 이미지 문제면 R2의 `posts/{post_uuid}/` prefix와 Markdown URL을 비교합니다.
+4. 검색 누락이면 `posts`와 `post_fts`의 같은 rowid를 확인합니다.
+5. 배포 실패면 Cloudflare API token의 Workers Scripts, D1, R2 권한과 Worker secret을 확인합니다.
 
-PBKDF2 정책은 OWASP 기준인 HMAC-SHA-256 600,000회입니다. 로그인 CPU 시간이 Cloudflare 계정 한도를 넘으면 먼저 Workers 유료 플랜과 실제 CPU 측정을 확인하세요. iteration을 임의로 낮추지 않습니다.
+의존성은 한 번에 하나씩 갱신하고 전체 검사를 다시 실행합니다. 새 기능은 기존 route, DB 함수, EJS 화면 중 실제로 필요한 위치에만 추가합니다.

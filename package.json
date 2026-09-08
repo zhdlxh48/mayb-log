@@ -14,14 +14,19 @@
     "test:integration": "node scripts/integration-test.mjs",
     "test:browser": "playwright test",
     "build": "wrangler deploy --dry-run --outdir dist",
-    "db:local": "wrangler d1 migrations apply mayb-log --local",
-    "db:remote": "wrangler d1 migrations apply mayb-log --remote",
-    "seed:media:local": "node scripts/seed-media.mjs --local",
-    "seed:media:remote": "node scripts/seed-media.mjs --remote",
+    "db:local": "wrangler d1 migrations apply mayb-log-final --local",
+    "db:remote": "wrangler d1 migrations apply mayb-log-final --remote",
+    "seed:local": "node scripts/seed.mjs",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
     "wrangler": "4.129.1"
+  },
+  "dependencies": {
+    "ejs": "6.0.1",
+    "express": "5.2.1",
+    "marked": "18.0.12",
+    "multer": "2.3.0"
   }
 }

@@ -1,0 +1,13 @@
+<article class="document post-detail">
+  <header>
+    <h1><%= post.title %></h1>
+    <% if (post.subtitle) { %><p class="subtitle"><%= post.subtitle %></p><% } %>
+    <p class="meta"><time datetime="<%= new Date(post.published_at * 1000).toISOString() %>"><%= formatDate(post.published_at) %></time> · <%= post.author_name %></p>
+    <p class="actions"><a href="/posts/<%= post.id %>/edit">Edit</a> <button type="button" class="link-button" data-delete-post="<%= post.id %>">X</button></p>
+    <% if (post.series_title) { %><p>Series: <a href="/search?series=<%= post.series_id %>"><%= post.series_title %></a></p><% } %>
+    <% const categories = json(post.categories_json); const tags = json(post.tags); %>
+    <% if (categories.length) { %><p>Categories: <% for (const category of categories) { %><a href="/search?category=<%= category.id %>"><%= category.name %></a> <% } %></p><% } %>
+    <% if (tags.length) { %><p>Tags: <% for (const tag of tags) { const params = new URLSearchParams({ tag }); %><a href="/search?<%= params %>">#<%= tag %></a> <% } %></p><% } %>
+  </header>
+  <div class="prose"><%- post.body_html %></div>
+</article>
