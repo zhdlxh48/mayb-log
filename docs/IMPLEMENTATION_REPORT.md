@@ -26,6 +26,21 @@
 - Astro의 이전 콘텐츠 이미지 캐시가 삭제한 샘플 경로를 참조하지 않도록 표준 build 명령은 `astro build --force`로 콘텐츠 캐시를 먼저 갱신합니다.
 - 사용하지 않는 직접 개발 의존성 `@types/mdast`를 제거하고 lint-staged의 Prettier 대상에 CSS를 추가했습니다.
 
+## 추가 본문 스타일·검색 개선
+
+2026-09-08에 `FIX_ADDITIONAL_ROADMAP.txt`를 반영했습니다.
+
+- `ArticleProse.astro`의 긴 Tailwind descendant class를 컴포넌트 scoped CSS로 옮겼습니다. 본문 수치와 테마 변수는 유지하고, Markdown 요소별 규칙과 `.not-prose` 제외 조건을 한 파일에서 읽을 수 있게 정리했습니다.
+- 샘플 `LinkPreview`를 `.not-prose`로 감싸 독립 컴포넌트 내부 링크·문단·이미지에 본문 CSS가 들어가지 않도록 했습니다. iframe 공통 규칙은 여백·테두리·최대 너비만 유지합니다.
+- 검색 문서에 About·Post·Series·Category·Tag·Author·Archive 종류를 추가하고, 인덱스 문서가 하위 게시글 제목을 검색 문자열에 복사하던 중복을 제거했습니다. Archive에는 연도와 월 문서를 각각 제공합니다.
+- All은 종류별 최대 10개를 보여 주는 요약이며 결과가 더 있을 때만 More를 표시합니다. 개별 필터는 20개씩 나누고 페이지 번호는 고정 10페이지 블록을 사용합니다.
+- 검색 결과 50개 제한을 없애고 한 번 받은 relevance 순서를 필터와 페이지에서 그대로 재사용합니다. `q`, `type`, `page` URL 상태와 직접 진입, 뒤로가기·앞으로가기를 지원합니다.
+- 검색 집계와 페이지 계산은 `search-view.ts`의 작은 순수 함수로 분리해 UI와 단위 테스트가 같은 규칙을 사용합니다.
+
+추가 변경의 로컬 검증에서는 format·lint·Astro check, 단위 테스트 18개, 25페이지 production build와 build test가 통과했습니다. Chromium과 WebKit에서 각각 13개씩 총 26개 시나리오가 통과했으며 여섯 화면 폭의 수평 overflow와 axe WCAG 검사를 포함합니다. 82개 합성 검색 결과와 65개 동일 종류 결과로 요약·필터·URL History를 확인하고, 순수 함수에서는 총 47페이지의 고정 블록 이동을 검사했습니다.
+
+현재 검색 말뭉치는 13,905 bytes이고 gzip으로 4,488 bytes입니다. Search 페이지 스크립트는 60,007 bytes, Worker는 50,687 bytes, ArticleProse CSS는 4,173 bytes이며 이미지 파생 파일을 포함한 `dist/` 전체는 643,602 bytes입니다. 로컬 Firefox는 기존 Windows 환경의 `spawn UNKNOWN` 오류로 실행 파일이 시작되지 않아, Linux GitHub Actions 결과로 최종 판정합니다. 실제 Safari 장비 대신 Playwright WebKit을 사용했습니다.
+
 ## 검증
 
 로컬에서 다음을 확인했습니다.

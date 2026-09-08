@@ -1,7 +1,24 @@
 import { Index } from 'flexsearch';
 
+export const SEARCH_KINDS = [
+  'about',
+  'post',
+  'series',
+  'category',
+  'tag',
+  'author',
+  'archive',
+] as const;
+
+export type SearchKind = (typeof SEARCH_KINDS)[number];
+
+export function isSearchKind(value: string | undefined): value is SearchKind {
+  return SEARCH_KINDS.some((kind) => kind === value);
+}
+
 export interface SearchDocument {
   id: number;
+  kind: SearchKind;
   url: string;
   title: string;
   description: string;
@@ -18,4 +35,13 @@ export function createSearchIndex(documents: SearchDocument[]) {
     index.add(document.id, normalizeSearchText(document.text));
   }
   return index;
+}
+
+export function searchDocuments(
+  index: ReturnType<typeof createSearchIndex>,
+  documents: SearchDocument[],
+  query: string,
+) {
+  const ids = index.search(normalizeSearchText(query), { limit: documents.length });
+  return ids.map((id) => documents[Number(id)]).filter((document) => document !== undefined);
 }

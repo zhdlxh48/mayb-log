@@ -13,7 +13,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-개발 서버가 표시하는 `/mayb-log/` 주소를 엽니다. 검색은 제목·설명·본문·분류·시리즈·작성자 정보를 담은 정적 말뭉치와 Web Worker를 사용하므로 `pnpm build` 후 `pnpm preview`에서 최종 동작을 확인합니다.
+개발 서버가 표시하는 `/mayb-log/` 주소를 엽니다. 검색은 정적 말뭉치와 Web Worker를 사용합니다. All 화면은 결과 종류별 요약을 보여 주고, 각 필터는 20개씩 페이지를 나눕니다. 검색어·필터·페이지가 URL에 저장되므로 `pnpm build` 후 `pnpm preview`에서 직접 URL 진입과 뒤로가기도 확인할 수 있습니다.
 
 ## 명령
 
@@ -65,4 +65,5 @@ draft: false
 - [요구사항 대조표](docs/REQUIREMENTS.md)
 - [현재 리팩터링 기준](docs/REFACTORING_ROADMAP.txt)
 - [감사 후 수정 기준](docs/FIX_AFTER_AUDIT_ROADMAP.txt)
+- [추가 검색·본문 스타일 개선 기준](docs/FIX_ADDITIONAL_ROADMAP.txt)
 - [초기 개발 로드맵(역사 문서)](docs/DEVELOPMENT_ROADMAP.txt)

@@ -72,9 +72,7 @@ const posts = await Promise.all(
             data-description={
               entry.data.description ?? `${entry.count}개의 글이 이어지는 시리즈입니다.`
             }
-          >
-            <div data-search-body>{entry.data.description}</div>
-          </article>
+          />
         ))
       }
       {
@@ -83,11 +81,10 @@ const posts = await Promise.all(
             data-search-document
             data-kind="category"
             data-url={url(`categories/${entry.slug}`)}
+            data-name={entry.name}
             data-title={`${entry.name} 분류`}
             data-description={`${entry.name} 분류의 글 ${entry.count}개`}
-          >
-            <div data-search-body>{entry.posts.map((post) => post.data.title).join(' ')}</div>
-          </article>
+          />
         ))
       }
       {
@@ -96,11 +93,10 @@ const posts = await Promise.all(
             data-search-document
             data-kind="tag"
             data-url={url(`tags/${entry.slug}`)}
+            data-name={entry.name}
             data-title={`${entry.name} 태그`}
             data-description={`${entry.name} 태그의 글 ${entry.count}개`}
-          >
-            <div data-search-body>{entry.posts.map((post) => post.data.title).join(' ')}</div>
-          </article>
+          />
         ))
       }
       {
@@ -111,9 +107,7 @@ const posts = await Promise.all(
             data-url={url(`authors/${author.id}`)}
             data-title={author.data.name}
             data-description={author.data.bio ?? `${author.data.name}의 글`}
-          >
-            <div data-search-body>{author.data.bio}</div>
-          </article>
+          />
         ))
       }
       {
@@ -124,10 +118,21 @@ const posts = await Promise.all(
             data-url={url(`archive/${entry.year}`)}
             data-title={`${entry.year}년 Archive`}
             data-description={`${entry.year}년에 작성한 글 ${entry.count}개`}
-          >
-            <div data-search-body>{entry.posts.map((post) => post.data.title).join(' ')}</div>
-          </article>
+          />
         ))
+      }
+      {
+        data.archive.flatMap((entry) =>
+          entry.months.map((month) => (
+            <article
+              data-search-document
+              data-kind="archive"
+              data-url={url(`archive/${entry.year}/${month.month}`)}
+              data-title={`${entry.year}년 ${month.month}월 Archive`}
+              data-description={`${entry.year}년 ${month.month}월에 작성한 글 ${month.count}개`}
+            />
+          )),
+        )
       }
     </main>
   </body>

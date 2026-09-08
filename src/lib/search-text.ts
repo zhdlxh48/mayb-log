@@ -1,5 +1,8 @@
+import type { SearchKind } from './search.ts';
+
 export interface SearchTextFields {
   title: string;
+  name?: string;
   subtitle?: string;
   description?: string;
   body?: string;
@@ -29,6 +32,21 @@ export function buildSearchText(fields: SearchTextFields) {
     .map(clean)
     .filter(Boolean)
     .join(' ');
+}
+
+export function buildSearchDocumentText(kind: SearchKind, fields: SearchTextFields) {
+  if (kind === 'post') return buildSearchText(fields);
+  if (kind === 'about')
+    return buildSearchText({
+      title: fields.title,
+      description: fields.description,
+      body: fields.body,
+    });
+  if (kind === 'series')
+    return buildSearchText({ title: fields.title, description: fields.description });
+  if (kind === 'author')
+    return buildSearchText({ title: fields.title, description: fields.description });
+  return buildSearchText({ title: fields.name ?? fields.title });
 }
 
 export function extractVisibleText(element: Element | null) {
