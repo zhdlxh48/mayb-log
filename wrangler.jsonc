@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mayb-log",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-08",
+  "workers_dev": true,
+  "preview_urls": true,
+  "assets": {
+    "directory": "./public",
+  },
+  "vars": {
+    "SITE_NAME": "mayb-log",
+    "SITE_ORIGIN": "https://mayb-log.zhdlxh48.workers.dev",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAEs16S9dT7tGuaVw",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mayb-log",
+      "database_id": "f429e531-8485-4981-a0e9-0545cba677a8",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "mayb-log-media",
+    },
+  ],
+  "ratelimits": [
+    {
+      "name": "AUTH_RATE_LIMIT",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 8,
+        "period": 60,
+      },
+    },
+  ],
+}
