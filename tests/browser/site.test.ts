@@ -174,6 +174,9 @@ test('available MDX features keep previews, iframe metadata and processed images
 });
 
 test('navigation and available details work without JavaScript', async ({ browser, baseURL }) => {
+  const discoveryPage = await browser.newPage();
+  const posts = await getCorpus(discoveryPage);
+  await discoveryPage.close();
   const context = await browser.newContext({
     javaScriptEnabled: false,
     viewport: { width: 375, height: 812 },
@@ -192,7 +195,6 @@ test('navigation and available details work without JavaScript', async ({ browse
     await expect(page.locator('main h1')).toBeVisible();
   }
 
-  const posts = await getCorpus(page);
   for (const post of posts) {
     await page.goto(post.url);
     const authorLink = page.locator('a[rel="author"]').first();
