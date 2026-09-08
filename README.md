@@ -1,69 +1,64 @@
 # mayb-log
 
-Astro와 Markdown/MDX로 만든 정적 개인 블로그입니다. About 홈과 Series·Category·Tag·Archive 인덱스를 제공하며, GitHub Pages 주소는 <https://zhdlxh48.github.io/mayb-log/>입니다.
+Cloudflare Workers가 HTML을 만들고 D1에 글과 사용자를 저장하는 작은 개인 블로그입니다. 글은 Markdown으로 작성하며 저장할 때 안전한 HTML과 검색 텍스트로 변환됩니다. 공개 요청에서는 저장된 HTML을 바로 사용합니다.
 
-## 시작하기
+## 로컬 실행
 
-Node **24.20.0**, pnpm **11.25.0**을 사용합니다.
+Node.js 24.20.0과 pnpm 11.25.0을 사용합니다.
 
-```sh
-git clone https://github.com/zhdlxh48/mayb-log.git
-cd mayb-log
+```bash
 pnpm install --frozen-lockfile
+copy .dev.vars.example .dev.vars
+pnpm db:local
+pnpm seed:media:local
 pnpm dev
 ```
 
-개발 서버가 표시하는 `/mayb-log/` 주소를 엽니다. 검색은 정적 말뭉치와 Web Worker를 사용합니다. All 화면은 결과 종류별 요약을 보여 주고, 각 필터는 20개씩 페이지를 나눕니다. 검색어·필터·페이지가 URL에 저장되므로 `pnpm build` 후 `pnpm preview`에서 직접 URL 진입과 뒤로가기도 확인할 수 있습니다.
+Wrangler가 표시한 로컬 주소를 엽니다. `.dev.vars.example`의 키는 Cloudflare 공식 테스트 키이며 운영에 사용하면 안 됩니다.
 
-## 명령
+## 검사
 
-| 명령                                | 용도                              |
-| ----------------------------------- | --------------------------------- |
-| `pnpm dev`                          | 개발 서버 실행                    |
-| `pnpm format` / `pnpm format:check` | Prettier 적용 / 검사              |
-| `pnpm lint` / `pnpm lint:fix`       | ESLint 검사 / 자동 수정           |
-| `pnpm check`                        | Astro와 TypeScript 검사           |
-| `pnpm test`                         | 핵심 로직 단위 테스트             |
-| `pnpm build`                        | `dist/` 정적 빌드                 |
-| `pnpm test:build`                   | 링크·이미지·SEO·검색 산출물 검사  |
-| `pnpm preview`                      | 빌드 결과 미리 보기               |
-| `pnpm test:browser`                 | Chromium·Firefox·WebKit 회귀 검사 |
-
-브라우저 바이너리는 최초 한 번 `pnpm exec playwright install chromium firefox webkit`으로 설치합니다. Linux CI와 같은 시스템 의존성이 필요하면 `--with-deps`를 추가합니다. 커밋할 때 Husky와 lint-staged가 변경 파일에 Prettier와 ESLint 자동 수정을 실행합니다.
-
-## 콘텐츠 작성
-
-글은 `src/content/posts/<id>/index.md` 또는 `index.mdx`로 만듭니다. 폴더 이름이 URL ID입니다.
-
-```md
----
-title: 나의 첫 기록
-description: 글을 소개하는 한두 문장
-authors: [owner]
-publishedAt: 2026-09-07T18:00:00+09:00
-tags: [기록]
-categories: [일상]
-draft: false
----
-
-본문입니다.
+```bash
+pnpm check
+pnpm test
+pnpm test:integration
+pnpm build
+pnpm test:browser
 ```
 
-일반 글은 Markdown을 권장합니다. 컴포넌트, `LinkPreview`, iframe이 필요할 때만 MDX를 사용합니다. iframe은 크기를 자동으로 강제하지 않으므로 YouTube 같은 영상에는 콘텐츠에서 `aspect-video w-full` 클래스를 지정합니다. 상세한 필드·이미지·MDX 예제는 [콘텐츠 가이드](docs/CONTENT_GUIDE.md)를 참고하세요.
+`test:integration`은 로컬 Worker와 D1을 사용해 인증·CSRF·권한을 검사합니다. 브라우저 검사는 Chromium, Firefox, WebKit에서 실행됩니다.
 
-사이트 이름과 주소는 `src/config/site.ts`, 소개는 `src/content/pages/about.md`, 작성자는 `src/content/authors/owner.yml`에서 수정합니다. 샘플 글 세 폴더와 사용하지 않는 `src/content/series/blog-notes.yml`은 자신의 글을 준비한 뒤 삭제할 수 있습니다. 글이 0개여도 빌드됩니다.
+## 첫 관리자 만들기
 
-## 배포
+자동 관리자나 초기 비밀번호는 없습니다.
 
-`main` push와 수동 실행은 GitHub Actions에서 검사 순서를 모두 통과한 `dist/`를 Pages에 배포합니다. 기능 브랜치와 `dev`는 검증만 수행합니다. Settings → Pages → Source는 **GitHub Actions**로 둡니다. 상태는 [Actions](https://github.com/zhdlxh48/mayb-log/actions)에서 확인합니다.
+1. `/signup`에서 일반 회원가입을 합니다. 계정은 `pending/author`로 생성됩니다.
+2. 로컬에서는 다음 명령으로 최초 관리자만 활성화합니다.
 
-## 문서
+```bash
+pnpm exec wrangler d1 execute mayb-log --local --command "UPDATE users SET status='active', role='admin' WHERE username='내아이디'"
+```
 
-- [콘텐츠 가이드](docs/CONTENT_GUIDE.md)
-- [유지보수 가이드](docs/MAINTENANCE.md)
-- [리팩터링 완료 보고서](docs/IMPLEMENTATION_REPORT.md)
-- [요구사항 대조표](docs/REQUIREMENTS.md)
-- [현재 리팩터링 기준](docs/REFACTORING_ROADMAP.txt)
-- [감사 후 수정 기준](docs/FIX_AFTER_AUDIT_ROADMAP.txt)
-- [추가 검색·본문 스타일 개선 기준](docs/FIX_ADDITIONAL_ROADMAP.txt)
-- [초기 개발 로드맵(역사 문서)](docs/DEVELOPMENT_ROADMAP.txt)
+3. 운영에서는 `--local`을 `--remote`로 바꿉니다.
+4. 이후 가입 승인은 `/admin/users`에서 처리합니다.
+
+## Cloudflare 최초 설정
+
+```bash
+pnpm exec wrangler login
+pnpm exec wrangler d1 create mayb-log
+pnpm exec wrangler r2 bucket create mayb-log-media
+pnpm exec wrangler secret put TURNSTILE_SECRET_KEY
+```
+
+D1 생성 결과의 `database_id`를 `wrangler.jsonc`에 넣습니다. Cloudflare Turnstile에서 위젯을 만들고 사이트 키를 `TURNSTILE_SITE_KEY`, 허용 hostname과 실제 주소를 `SITE_ORIGIN`에 설정합니다. 그런 다음 실행합니다.
+
+```bash
+pnpm db:remote
+pnpm seed:media:remote
+pnpm deploy
+```
+
+GitHub Actions 자동 배포에는 저장소 Actions secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `TURNSTILE_SECRET_KEY`가 필요합니다. API token에는 Worker 배포, D1 편집, R2 편집 권한을 부여합니다. 현재 workflow는 Wrangler secret 값을 GitHub에서 원격으로 만들지 않으므로 최초 한 번은 위 `wrangler secret put`을 실행해야 합니다.
+
+자세한 글 작성법은 [콘텐츠 가이드](docs/CONTENT_GUIDE.md), 구조와 장애 대응은 [유지보수 가이드](docs/MAINTENANCE.md)를 참고하세요.

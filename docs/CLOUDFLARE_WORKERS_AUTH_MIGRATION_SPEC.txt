@@ -1,0 +1,2078 @@
+mayb-log Cloudflare Workers 전환 및 사용자/회원가입/작성자 연동 구현 작업 지시서
+================================================================================
+
+대상 저장소
+-----------
+https://github.com/zhdlxh48/mayb-log
+
+기준 main HEAD
+--------------
+a68a05145c3ea5ff4628b32ceab3c922a7067370
+(작업 시작 시 반드시 최신 main을 다시 확인하고, 이 기준 이후 변경이 있으면 먼저 diff를 검토한 뒤 적용한다.)
+
+문서 목적
+---------
+현재 Astro + Tailwind + 정적 Markdown 빌드 기반 블로그를 다음 철학과 구조로 재설계한다.
+
+핵심 철학:
+- HTML이 데이터와 문서 구조를 설명한다.
+- CSS는 의미 있는 class 이름을 기준으로 최소한의 표현만 담당한다.
+- JavaScript는 필요한 상호작용에만 사용한다.
+- 콘텐츠 변경은 애플리케이션 전체 rebuild/deploy와 분리한다.
+- Markdown이 작성/수정의 canonical source다.
+- 글 저장 시 Markdown을 HTML과 검색용 plain text로 변환해서 D1에 저장한다.
+- 공개 페이지 요청 시 Markdown parser를 실행하지 않고 저장된 HTML을 즉시 렌더링한다.
+- 서버는 Cloudflare Workers 자체를 사용하며 Express/Fastify/Koa/ASP.NET/Go 별도 서버를 두지 않는다.
+- 데이터는 Cloudflare D1, 이미지/업로드 파일은 R2, CSS/JS/vendor 파일은 Workers Static Assets에 둔다.
+- 가능한 한 framework와 runtime dependency를 줄이고, 브라우저 표준과 Cloudflare primitive를 우선한다.
+- public 사이트는 옛 문서형 웹의 raw HTML 감각과 현대적인 데이터 구조를 결합한다.
+- Grid view와 LinkPreview는 제거한다.
+- Sidebar를 제거하고 상단 navigation을 사용한다.
+- Series / Categories / Tags / Archive는 상단 메뉴에서 native HTML Popover API를 우선 사용해 펼쳐볼 수 있게 한다.
+
+이번 전환에서 확정한 주요 기술
+-----------------------------
+Runtime:
+- Cloudflare Workers
+
+Database:
+- Cloudflare D1
+
+Images / user uploaded media:
+- Cloudflare R2
+
+Static assets:
+- Workers Static Assets
+
+Frontend:
+- semantic HTML
+- plain CSS
+- vanilla JavaScript
+- htmx
+
+Markdown:
+- Marked
+- Markdown 원본 저장
+- 저장 시 Worker가 HTML + plain text 생성
+
+Code highlighting:
+- Prism
+- fenced code block의 language identifier를 그대로 Prism language class와 연결
+- 예: ```js -> <pre><code class="language-js">
+
+Image compression in admin:
+- browser-image-compression
+- Compressor.js는 사용하지 않는다.
+
+Authentication:
+- users table
+- 회원가입 기능
+- username/password 로그인
+- user status: pending / active / inactive
+- pending가 가입 시 기본값
+- active만 로그인 가능
+- inactive 로그인 불가
+- JWT 사용하지 않음
+- D1 기반 opaque server-side session
+- HttpOnly Secure cookie
+- CSRF token
+- Cloudflare Turnstile
+- 로그인/회원가입 rate limit
+- post와 author user를 foreign key로 연동
+
+권한:
+- role: admin / author
+- 회원가입 기본 role은 author
+- admin만 user status / role을 관리
+- author는 자기 글만 작성/수정
+- admin은 모든 글을 작성/수정/관리 가능
+
+--------------------------------------------------------------------------------
+1. 기존 Astro 기반 구조를 런타임 구조로 전환
+--------------------------------------------------------------------------------
+
+최종 public 요청 구조:
+
+Browser
+  |
+  v
+Cloudflare Worker
+  |
+  +-- D1: users / sessions / content / series
+  |
+  +-- R2: uploaded images
+  |
+  +-- Workers Static Assets:
+        site.css
+        site.js
+        htmx
+        Prism
+        admin scripts
+        Marked browser preview bundle
+        browser-image-compression
+
+별도의:
+- Express
+- Fastify
+- Koa
+- ASP.NET server
+- Go HTTP server
+- Astro SSR
+를 추가하지 않는다.
+
+Cloudflare Worker의 fetch(request, env) handler가 HTTP server다.
+
+정적 파일 요청은 Workers Static Assets로 처리하고, DB가 필요한 dynamic route만 Worker가 처리한다.
+
+--------------------------------------------------------------------------------
+2. Astro / Tailwind / MDX / 기존 search stack 제거
+--------------------------------------------------------------------------------
+
+최종 전환이 완료되면 현재 public runtime/build에서 다음을 제거한다.
+
+- Astro
+- @astrojs/*
+- Tailwind CSS
+- @tailwindcss/*
+- MDX
+- astro-embed
+- LinkPreview
+- FlexSearch
+- Pagefind 관련 잔재
+- remark/rehype 기반 Markdown pipeline
+- sharp 기반 build-time image pipeline
+- grid/list view switching
+- localStorage post-view 상태
+- Astro Content Collections
+- Astro layouts/components/pages 구조
+
+단, 기존 구현에서 가치 있는 다음 로직/동작은 새 구조로 재구현한다.
+
+- Series
+- Categories
+- Tags
+- Archive
+- Search
+- RSS
+- Sitemap
+- canonical
+- noindex
+- JSON-LD BlogPosting
+- OG/Twitter metadata
+- image alt
+- published/updated dates
+- draft
+- author
+- responsive layout
+- accessibility
+- GitHub Actions validation/deploy
+
+기존 코드를 단순히 삭제하기 전에 현재 동작과 데이터를 확인하고 새 구조로 이전한 뒤 제거한다.
+
+--------------------------------------------------------------------------------
+3. repository 구조
+--------------------------------------------------------------------------------
+
+최종 구조 예시:
+
+mayb-log/
+  src/
+    index.js
+    router.js
+
+    routes/
+      public.js
+      search.js
+      auth.js
+      admin.js
+      media.js
+      feeds.js
+
+    db/
+      users.js
+      sessions.js
+      content.js
+      series.js
+
+    auth/
+      password.js
+      session.js
+      csrf.js
+      turnstile.js
+      authorization.js
+
+    markdown/
+      render.js
+      text.js
+
+    html/
+      layout.js
+      navigation.js
+      posts.js
+      indexes.js
+      search.js
+      auth.js
+      admin.js
+      errors.js
+
+    lib/
+      escape.js
+      urls.js
+      dates.js
+      pagination.js
+      validation.js
+      response.js
+
+    vendor/
+      marked.esm.js
+
+  public/
+    site.css
+    site.js
+
+    admin/
+      admin.js
+      editor.js
+      image.js
+
+    vendor/
+      htmx.min.js
+      prism.min.js
+      prism.css
+      marked.esm.js
+      browser-image-compression.js
+
+    favicon.svg
+
+  migrations/
+    0001_initial.sql
+    0002_...sql
+
+  tests/
+    *.test.js
+    ...
+
+  wrangler.jsonc
+  package.json
+  README.md
+  docs/
+
+정확한 파일 분리는 구현 중 더 단순한 구성이 있으면 조정 가능하다.
+단, 거대한 단일 파일이나 과도한 abstraction 양쪽 모두 피한다.
+
+--------------------------------------------------------------------------------
+4. npm / vendor 정책
+--------------------------------------------------------------------------------
+
+public runtime용 library는 npm import/bundling에 의존하지 않는다.
+
+다음 라이브러리는 version을 고정해서 vendoring한다.
+
+- htmx
+- Prism
+- Marked
+- browser-image-compression
+
+규칙:
+- official release/distribution file만 사용
+- 정확한 version을 문서에 기록
+- 해당 LICENSE를 보존하거나 vendor notice 문서에 출처/라이선스를 기록
+- runtime CDN dependency를 만들지 않는다.
+- 예외: Cloudflare Turnstile client script는 Cloudflare 공식 endpoint에서 로드한다.
+- Wrangler는 개발/CI/deploy 도구로 pin된 devDependency를 사용하는 것을 허용한다.
+- 사이트 production runtime에서 Node.js server를 실행하지 않는다.
+
+--------------------------------------------------------------------------------
+5. Plain CSS 전환
+--------------------------------------------------------------------------------
+
+Tailwind utility를 전부 제거한다.
+
+HTML class는 스타일 값이 아니라 의미/역할을 나타낸다.
+
+예:
+
+좋음:
+- site-header
+- site-nav
+- nav-menu
+- post-list
+- post-item
+- post-title
+- post-summary
+- post-meta
+- taxonomy-list
+- taxonomy-count
+- article
+- article-header
+- article-body
+- article-toc
+- search-form
+- search-filters
+- search-section
+- search-results
+- pagination
+- admin-editor
+- form-field
+
+피할 것:
+- flex-row
+- text-sm
+- gap-4
+- muted-box
+- card
+- group/browser
+- arbitrary selector utility 나열
+
+상태는 data-* attribute를 사용한다.
+
+예:
+<div class="search-results" data-filter="tags">
+
+CSS는 이를 읽을 수 있게 한다.
+
+가능하면 public/site.css 하나를 다음 section으로 정리한다.
+- tokens
+- reset/base
+- typography
+- links/forms
+- layout
+- header/navigation
+- lists/indexes
+- article
+- search
+- pagination
+- admin
+- responsive
+
+SCSS는 사용하지 않는다.
+
+--------------------------------------------------------------------------------
+6. 디자인 방향
+--------------------------------------------------------------------------------
+
+목표:
+"90년대~2000년대 문서형 웹의 직접적인 HTML 감각을 유지하되,
+Series·Category·Tag·Archive·Authors 같은 현대적 데이터 모델을
+명확한 semantic HTML과 최소한의 CSS로 정렬한 개인 아카이브."
+
+참고 철학:
+- Hacker News: 반복 가능한 text record
+- GeekNews: title + description + metadata
+- OpenBSD / suckless: 문서 index와 hierarchy
+- SourceHut: information-forward
+- Dan Luu: archive/list 중심
+- Wiby / 5ch: control과 데이터를 숨기지 않는 raw함
+
+금지:
+- 카드 중심 디자인
+- shadow
+- gradient
+- 과한 radius
+- SaaS dashboard 느낌
+- oversized typography
+- pill 중심 filter
+- Grid
+- LinkPreview card
+
+링크는 링크답게 보이게 한다.
+visited link 표현도 고려한다.
+
+--------------------------------------------------------------------------------
+7. Sidebar 제거 / Top navigation
+--------------------------------------------------------------------------------
+
+Sidebar를 제거한다.
+
+상단:
+mayb-log | About | Posts | Series | Categories | Tags | Archive | Search
+
+로그인 상태면 추가:
+Write | Account
+admin이면:
+Admin
+
+Series / Categories / Tags / Archive는 native Popover API를 우선 사용한다.
+
+예:
+<button popovertarget="categories-menu">Categories</button>
+<div id="categories-menu" popover>...</div>
+
+Popover 지원이 어려운 환경에서도 각 button/label과 별도로 전체 index route:
+- /series
+- /categories
+- /tags
+- /archive
+를 반드시 제공한다.
+
+JS framework로 menu를 만들지 않는다.
+
+--------------------------------------------------------------------------------
+8. Post list
+--------------------------------------------------------------------------------
+
+Grid view를 완전히 제거한다.
+
+List only.
+
+권장 record:
+title
+description/subtitle
+date · author · series · categories · tags
+
+모든 post가 동일 schema를 반복하도록 한다.
+
+thumbnail은 기본 list 구조를 망치지 않는 범위에서만 optional하게 지원하거나,
+이번 전환의 초기 버전에서는 post list thumbnail을 제거해도 된다.
+최종 판단은 현재 콘텐츠와 사용성을 보고 단순한 쪽을 선택한다.
+
+--------------------------------------------------------------------------------
+9. LinkPreview 제거
+--------------------------------------------------------------------------------
+
+astro-embed LinkPreview를 완전히 제거한다.
+
+Markdown link는 일반 link다.
+
+[Cloudflare](https://cloudflare.com/)
+
+는 일반 <a>로 렌더한다.
+
+별도 preview card, OG fetcher, metadata DB를 만들지 않는다.
+
+--------------------------------------------------------------------------------
+10. Markdown canonical storage
+--------------------------------------------------------------------------------
+
+글 작성/수정 기준은 Markdown이다.
+
+DB에 최소:
+- body_markdown
+- body_html
+- body_text
+
+를 저장한다.
+
+body_markdown:
+- canonical source
+- 수정 화면 textarea에 다시 로드
+
+body_html:
+- Worker가 저장 시 Marked로 생성
+- 공개 page에서는 이것을 그대로 사용
+- 공개 request 시 Markdown parse하지 않음
+
+body_text:
+- 검색용 plain text
+- 저장 시 HTML/Markdown에서 생성
+- normalize해서 검색에 사용
+
+브라우저의 preview HTML을 server가 신뢰하지 않는다.
+
+Admin browser:
+Markdown -> Marked -> preview
+
+Save:
+Markdown -> Worker
+Worker -> Marked -> canonical body_html
+Worker -> plain text -> body_text
+Worker -> D1 INSERT/UPDATE
+
+--------------------------------------------------------------------------------
+11. Marked
+--------------------------------------------------------------------------------
+
+Marked를 사용한다.
+
+동일 major/exact version을:
+- Worker server renderer
+- admin browser preview
+에 맞춘다.
+
+Markdown fence:
+
+```js
+const x = 1;
+```
+
+Marked가 다음과 같이 출력하는 구조를 유지한다.
+
+<pre><code class="language-js">...</code></pre>
+
+이 class를 Prism이 사용한다.
+
+다음 language alias는 최소 검증:
+- js / javascript
+- ts / typescript
+- html / markup
+- css
+- json
+- bash / shell
+- sql
+- csharp
+- go
+- markdown
+- yaml
+
+필요하지 않은 custom Markdown directive는 만들지 않는다.
+
+--------------------------------------------------------------------------------
+12. Raw HTML in Markdown 보안 정책
+--------------------------------------------------------------------------------
+
+회원가입/다중 user가 생기므로 모든 active user가 arbitrary <script>를 public article에 삽입할 수 있게 하면 안 된다.
+
+초기 구현 원칙:
+- 일반 author role의 Markdown에서는 raw HTML을 escape/비활성 처리한다.
+- Markdown 표준 기능만으로 글을 작성하게 한다.
+- 일반 link/image/code/table/blockquote/details 등 필요한 기능은 Markdown 또는 안전한 별도 문법으로 처리한다.
+- arbitrary script/event handler/javascript: URL을 허용하지 않는다.
+
+admin-only raw HTML이 정말 필요하다면 추후 별도 명시 기능으로 추가한다.
+이번 v1에서 regex sanitizer를 직접 만들지 않는다.
+
+공개 article body에 user-provided arbitrary script가 실행되도록 구현하지 않는다.
+
+--------------------------------------------------------------------------------
+13. Prism
+--------------------------------------------------------------------------------
+
+Prism은 public post page에서만 필요할 때 로드할 수 있다.
+
+목표:
+Markdown:
+```js
+...
+
+-> Marked:
+<pre><code class="language-js">
+
+-> Prism:
+JavaScript highlight
+
+필요한 language component만 포함한 build를 vendoring한다.
+
+public page navigation은 기본 full document navigation으로 유지해도 된다.
+따라서 article code highlight를 위해 복잡한 htmx lifecycle를 추가하지 않는다.
+
+--------------------------------------------------------------------------------
+14. browser-image-compression
+--------------------------------------------------------------------------------
+
+Compressor.js는 사용하지 않는다.
+
+admin image upload에서 browser-image-compression 사용.
+
+목표 설정 예:
+- maxWidthOrHeight: 1600
+- useWebWorker: true
+- output: WebP 가능 시 WebP
+- initial quality 약 0.80~0.85
+- 과도한 maxSizeMB 반복 압축으로 품질을 심하게 훼손하지 않는다.
+
+정확한 quality/max size는 실제 sample을 측정해서 결정한다.
+
+Admin UX:
+원본 size/dimensions
+-> compress progress
+-> 결과 size/dimensions
+-> Upload
+
+이미지는 압축 후 R2에 업로드.
+
+self-hosted UMD build를 사용하고 Web Worker library URL이 필요하면 같은 self-hosted path를 명시한다.
+
+--------------------------------------------------------------------------------
+15. D1 schema 원칙
+--------------------------------------------------------------------------------
+
+불필요한 normalization을 피하되,
+user/auth/post-author 관계는 foreign key로 명확하게 유지한다.
+
+초기 core table:
+- users
+- sessions
+- content
+- series
+
+Category/Tag는 별도 junction table을 만들지 않고 content JSON array로 유지한다.
+
+--------------------------------------------------------------------------------
+16. users table
+--------------------------------------------------------------------------------
+
+예시:
+
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  username TEXT NOT NULL UNIQUE,
+  display_name TEXT NOT NULL,
+
+  password_hash TEXT NOT NULL,
+  password_salt TEXT NOT NULL,
+  password_iterations INTEGER NOT NULL,
+
+  role TEXT NOT NULL DEFAULT 'author'
+    CHECK (role IN ('admin', 'author')),
+
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'active', 'inactive')),
+
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+규칙:
+- username은 login ID
+- username은 가입 후 immutable하게 유지하는 것을 권장
+- username은 URL/account identifier로 사용 가능
+- display_name은 public author name
+- password plaintext 저장 금지
+- pending이 default
+- active만 login 가능
+- inactive 로그인 불가
+- role default author
+
+username 제안 validation:
+- 3~32 chars
+- lowercase ASCII
+- [a-z0-9_-]
+- 입력은 trim + lowercase normalize
+- display_name은 Unicode 허용
+
+password:
+- 최소 12자 권장
+- 최대 128자 정도로 제한해 abuse 방지
+- arbitrary "대문자 1개, 기호 1개" 규칙은 강제하지 않는다.
+
+--------------------------------------------------------------------------------
+17. user status 동작
+--------------------------------------------------------------------------------
+
+상태 의미:
+
+pending:
+- signup 직후 기본
+- 로그인 불가
+- admin 승인 대기
+
+active:
+- 로그인 가능
+- role에 따라 작성/관리 가능
+
+inactive:
+- 로그인 불가
+- 기존 session 즉시 revoke
+- 작성한 public post는 삭제하지 않음
+
+admin user 관리 화면:
+- /admin/users
+- Pending
+- Active
+- Inactive
+분류
+- status 변경
+- 필요하면 role 변경
+
+status 변경은 admin만 가능.
+
+active -> inactive:
+- 해당 user의 모든 sessions 즉시 삭제
+
+inactive -> active:
+- 다시 login 가능
+- 기존 session은 복원하지 않음
+- 새 login 필요
+
+pending -> active:
+- 승인
+
+pending -> inactive:
+- 거절/차단 용도
+
+login 실패 메시지는:
+"ID 또는 비밀번호가 올바르지 않거나 로그인할 수 없는 계정입니다."
+처럼 status를 외부에 구체적으로 노출하지 않는다.
+
+--------------------------------------------------------------------------------
+18. role / authorization
+--------------------------------------------------------------------------------
+
+role:
+admin
+author
+
+author:
+- 새 post 작성
+- 자기 post 수정
+- 자기 draft 관리
+- 이미지 업로드
+- 자기 account 기본 정보 확인
+
+admin:
+- author 기능 전부
+- 모든 post 수정/관리
+- users status 변경
+- users role 변경
+- pending 승인
+- inactive 처리
+
+모든 write route는:
+1. session
+2. user status active
+3. authorization
+을 매 요청에서 확인한다.
+
+session 생성 시 active였더라도
+DB user status가 inactive가 되면 이후 요청에서 즉시 차단되어야 한다.
+
+최적화를 위해 user status를 session에만 영구 cache해서는 안 된다.
+
+--------------------------------------------------------------------------------
+19. first admin bootstrap
+--------------------------------------------------------------------------------
+
+공개 "첫 가입자는 자동 admin" 기능을 만들지 않는다.
+
+권장 bootstrap:
+
+1. 사이트 deploy
+2. 첫 계정을 정상 signup
+3. 계정은 pending으로 생성됨
+4. Cloudflare D1 dashboard 또는 wrangler d1 execute로 1회:
+   UPDATE users
+   SET status = 'active', role = 'admin', updated_at = ...
+   WHERE username = '...';
+5. 이후 admin UI에서 다른 user 승인
+
+이 절차를 README에 정확히 기록한다.
+
+별도의 permanent bootstrap password endpoint를 만들지 않는다.
+
+--------------------------------------------------------------------------------
+20. password hashing
+--------------------------------------------------------------------------------
+
+D1에 plaintext password 저장 금지.
+
+Cloudflare Workers Web Crypto를 사용한다.
+
+기본 방식:
+PBKDF2-HMAC-SHA-256
++ user별 cryptographically random salt
++ 충분한 iteration count
+
+password_salt:
+- 최소 16 bytes random
+- DB에는 base64/base64url encoding
+
+password_hash:
+- derived bits
+- DB에는 base64/base64url
+
+password_iterations:
+- row에 저장
+- 향후 work factor 증가 시 기존 user도 검증 가능
+
+정확한 iteration 수는 구현 당시 Workers 환경에서 benchmark하고 문서화한다.
+너무 낮은 값을 임의로 사용하지 말고,
+보안 권고 수준과 Worker 응답/CPU 제한 사이를 측정해 결정한다.
+
+login 성공 후 기존 iteration 수가 current policy보다 낮으면
+가능한 경우 password를 current work factor로 재hash한다.
+
+hash compare는 timing-safe comparison을 사용한다.
+
+--------------------------------------------------------------------------------
+21. signup
+--------------------------------------------------------------------------------
+
+Routes:
+GET /signup
+POST /signup
+
+Form:
+- username
+- display_name
+- password
+- password_confirmation
+- Turnstile
+
+POST 순서:
+1. request method/content-type/size validation
+2. rate limit
+3. Turnstile server-side verification
+4. username validation/normalization
+5. display_name validation
+6. password validation
+7. password confirmation
+8. unique username 확인
+9. PBKDF2 hash
+10. users INSERT with:
+    status='pending'
+    role='author'
+11. 성공 화면:
+    "가입 요청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다."
+
+회원가입 직후 session을 발급하지 않는다.
+pending user는 login 불가.
+
+Turnstile client widget만 확인하고 통과 처리하면 안 된다.
+Worker가 Cloudflare Siteverify API로 token을 반드시 server-side validation 해야 한다.
+
+Turnstile token의 재사용/만료 실패도 정상 처리한다.
+
+--------------------------------------------------------------------------------
+22. Turnstile
+--------------------------------------------------------------------------------
+
+Turnstile 적용 route:
+- signup
+- login
+
+인증된 admin의 post save/image upload에 Turnstile을 매번 요구하지 않는다.
+그곳은 session + CSRF + authorization으로 보호한다.
+
+환경:
+TURNSTILE_SITE_KEY
+TURNSTILE_SECRET_KEY (Worker Secret)
+
+Client:
+Cloudflare official Turnstile script 사용.
+
+Server:
+POST Siteverify endpoint validation 필수.
+
+검증:
+- success
+- expected hostname (설정 가능)
+- expected action을 사용하는 경우 action
+을 검증한다.
+
+테스트:
+Cloudflare official Turnstile test keys 또는 verify function mock/stub 사용.
+production secret을 test에 사용하지 않는다.
+
+--------------------------------------------------------------------------------
+23. login
+--------------------------------------------------------------------------------
+
+Routes:
+GET /login
+POST /login
+
+Form:
+- username
+- password
+- Turnstile
+
+POST:
+1. rate limit
+2. Turnstile validation
+3. username normalize
+4. user fetch
+5. generic credential validation
+6. password hash verify
+7. status === active 확인
+8. new session 생성
+9. secure cookie
+10. redirect
+
+pending/inactive:
+- session 생성 금지
+- 외부에는 generic login failure
+
+username 존재 여부/status/password 중 무엇이 틀렸는지 상세히 노출하지 않는다.
+
+--------------------------------------------------------------------------------
+24. rate limit
+--------------------------------------------------------------------------------
+
+Cloudflare Workers Rate Limiting binding을 사용한다.
+
+적용:
+- POST /login
+- POST /signup
+
+Turnstile과 rate limit 둘 다 사용.
+
+단순히 IP 하나에만 의존한 rate limit은 피한다.
+
+login:
+- normalized username 기반 key
+- 필요하면 IP/route 기반 보조 limit
+
+signup:
+- route + client 특성 기반
+
+429 response와 retry UX를 제공한다.
+
+rate limiter는 정확한 보안 accounting DB로 사용하지 않는다.
+
+--------------------------------------------------------------------------------
+25. sessions table
+--------------------------------------------------------------------------------
+
+권장 SQL:
+
+CREATE TABLE sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  csrf_token TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+
+CREATE INDEX sessions_user_id_idx ON sessions(user_id);
+CREATE INDEX sessions_expires_at_idx ON sessions(expires_at);
+
+session raw token:
+- crypto.getRandomValues()
+- 최소 256-bit entropy
+
+Browser cookie:
+raw session token
+
+D1:
+SHA-256(raw session token)
+
+DB dump만으로 즉시 session hijack이 어렵도록 raw token을 DB에 저장하지 않는다.
+
+--------------------------------------------------------------------------------
+26. session cookie
+--------------------------------------------------------------------------------
+
+예:
+
+Set-Cookie:
+mayb_session=...;
+HttpOnly;
+Secure;
+SameSite=Strict;
+Path=/;
+Max-Age=604800
+
+초기 expiration 제안:
+7 days fixed lifetime
+
+login 시 새 token 생성.
+
+logout:
+- DB session DELETE
+- cookie expire
+
+session fixation 방지:
+- login 성공 시 기존 session을 재사용하지 않고 새 session 발급
+
+expired session:
+- 인정하지 않음
+- 필요 시 요청 중 opportunistic cleanup
+- cron을 처음부터 추가하지 않는다.
+
+--------------------------------------------------------------------------------
+27. CSRF
+--------------------------------------------------------------------------------
+
+authenticated state-changing route:
+- POST
+- PUT/PATCH를 쓴다면 해당 method
+- DELETE
+에서 CSRF 검증.
+
+session마다 random csrf_token.
+
+server-rendered admin form:
+<input type="hidden" name="_csrf" value="...">
+
+Worker:
+- session lookup
+- form/header token compare
+- expected Origin 확인
+
+SameSite=Strict cookie와 함께 사용.
+
+htmx form도 hidden csrf input을 그대로 전송하게 한다.
+
+CSRF failure:
+403
+
+--------------------------------------------------------------------------------
+28. users/status/session 보안 동작
+--------------------------------------------------------------------------------
+
+admin이 user status를 inactive로 바꾸는 처리에서:
+- users UPDATE
+- sessions DELETE WHERE user_id = ?
+를 함께 수행한다.
+
+최소한 논리적으로 atomic하게 처리한다.
+
+last active admin 보호:
+- 마지막 active admin을 inactive로 만들지 못하게 한다.
+- 마지막 active admin의 role을 author로 내리지 못하게 한다.
+
+self-lockout도 고려한다.
+
+hard DELETE user 기능은 초기 버전에서 만들지 않는다.
+inactive로 비활성화한다.
+
+이유:
+- posts author FK 보존
+- audit/history 보존
+
+--------------------------------------------------------------------------------
+29. content table
+--------------------------------------------------------------------------------
+
+예:
+
+CREATE TABLE content (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+  kind TEXT NOT NULL DEFAULT 'post'
+    CHECK (kind IN ('post', 'page')),
+
+  slug TEXT NOT NULL UNIQUE,
+
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  description TEXT NOT NULL,
+
+  body_markdown TEXT NOT NULL,
+  body_html TEXT NOT NULL,
+  body_text TEXT NOT NULL,
+  search_text TEXT NOT NULL,
+
+  author_user_id INTEGER
+    REFERENCES users(id) ON DELETE RESTRICT,
+
+  categories TEXT NOT NULL DEFAULT '[]',
+  tags TEXT NOT NULL DEFAULT '[]',
+
+  series_id TEXT
+    REFERENCES series(slug) ON DELETE SET NULL,
+
+  series_order INTEGER,
+
+  image_key TEXT,
+  image_alt TEXT,
+
+  published_at INTEGER,
+  updated_at INTEGER NOT NULL,
+
+  draft INTEGER NOT NULL DEFAULT 1
+    CHECK (draft IN (0, 1)),
+
+  noindex INTEGER NOT NULL DEFAULT 0
+    CHECK (noindex IN (0, 1))
+);
+
+Post:
+author_user_id NOT NULL를 application validation으로 강제하거나,
+post/page를 분리하지 않는 단순 schema를 유지한다면 저장 시 반드시 검증한다.
+
+Page(예: About)는 author를 optional하게 둘 수 있다.
+
+index 최소:
+- slug
+- kind,draft,published_at
+- author_user_id
+- series_id
+
+실제 query plan을 측정해 필요한 index만 추가한다.
+
+--------------------------------------------------------------------------------
+30. 글 작성자 user 연동
+--------------------------------------------------------------------------------
+
+authenticated author가 POST /admin/posts/new:
+author_user_id = current session user.id
+
+client form에서 author_user_id를 자유롭게 지정하게 하지 않는다.
+
+일반 author:
+- 자기 user.id로만 작성
+- 기존 글 수정 시 content.author_user_id === current user.id 확인
+
+admin:
+- 모든 글 수정 가능
+- 필요하면 작성자 변경 기능은 admin-only로 별도 제공 가능
+- 초기 버전에서는 작성자 변경 없이 원 author를 유지해도 된다.
+
+public post:
+author display:
+users.display_name
+
+필요하면:
+<a href="/authors/{username}">{display_name}</a>
+
+username은 public URL identifier로 쓸 수 있으므로 immutable 권장.
+
+inactive author의 기존 published posts는 계속 공개한다.
+
+--------------------------------------------------------------------------------
+31. Authors
+--------------------------------------------------------------------------------
+
+이제 실제 users가 authors가 되므로 author index가 의미를 가진다.
+
+Public:
+GET /authors/{username}
+
+표시:
+- display_name
+- 해당 user가 작성한 public post 목록
+
+pending user:
+public author page 없음
+
+active/inactive:
+이미 published content가 있으면 author page를 유지할 수 있다.
+status 자체를 public에 표시하지 않는다.
+
+사용자가 inactive되었다고 과거 글을 숨기지 않는다.
+
+--------------------------------------------------------------------------------
+32. series table
+--------------------------------------------------------------------------------
+
+CREATE TABLE series (
+  slug TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+Series metadata가 있으므로 별도 table 유지.
+
+Category/Tag는 content JSON array에서 파생.
+
+--------------------------------------------------------------------------------
+33. categories / tags
+--------------------------------------------------------------------------------
+
+content.categories:
+JSON string array
+
+content.tags:
+JSON string array
+
+예:
+["Development","Web"]
+
+D1 SQLite json_each()를 사용.
+
+초기 개인 블로그 규모에서:
+categories
+tags
+post_categories
+post_tags
+를 별도 table로 과도하게 normalize하지 않는다.
+
+저장 시:
+- trim
+- empty 제거
+- 중복 제거
+- consistent display form
+- URL slug collision 검증
+
+--------------------------------------------------------------------------------
+34. Archive
+--------------------------------------------------------------------------------
+
+published_at은 UTC epoch integer.
+
+Archive는 Asia/Seoul 기준.
+
+Asia/Seoul은 현재 DST가 없으므로 SQL에서 필요 시 +9 hours 기준 strftime을 사용하거나,
+Worker helper에서 KST year/month boundary를 정확히 계산한다.
+
+URL:
+- /archive
+- /archive/2026
+- /archive/2026/09
+
+--------------------------------------------------------------------------------
+35. Search
+--------------------------------------------------------------------------------
+
+FlexSearch/search-data/worker를 제거한다.
+
+D1 server-side search.
+
+Post 저장 시:
+search_text = normalized combination:
+- title
+- subtitle
+- description
+- body_text
+- author display name
+- series
+- categories
+- tags
+- published representation
+
+NFKC + lowercase normalize.
+
+검색 query도 같은 normalize.
+
+초기 규모에서는 literal substring:
+LIKE '%' || escaped_query || '%'
+를 사용해도 된다.
+
+SQL LIKE wildcard:
+% _
+를 user query에서 literal 취급할 수 있게 escaping을 올바르게 구현한다.
+
+추후 실제 데이터 규모/성능 측정 후 D1 FTS5를 도입할 수 있다.
+처음부터 FTS abstraction을 만들지 않는다.
+
+--------------------------------------------------------------------------------
+36. Search UX
+--------------------------------------------------------------------------------
+
+기존 확정 UX를 유지한다.
+
+Filter 영어:
+All
+Posts
+Series
+Categories
+Tags
+Authors
+Archive
+
+All:
+- kind별 section
+- 각 section 최대 10개
+- pagination 없음
+- 10개 초과면 More
+
+More:
+- 해당 filter로 전환
+- reload 없는 htmx progressive enhancement 가능
+- 일반 link fallback 반드시 동작
+
+Individual filter:
+- 해당 type만
+- 20개/page
+- pagination 표시
+
+고정 10-page block:
+1-10
+11-20
+21-30
+...
+
+<< = first page
+<  = previous 10-page block
+>  = next 10-page block
+>> = last page
+
+중요:
+< >는 이전/다음 한 페이지가 아니라 page group 이동.
+
+예:
+page 13:
+< -> page 10
+> -> page 21
+
+URL query state:
+?q=markdown
+?q=markdown&type=tag
+?q=markdown&type=tag&page=3
+
+htmx:
+- search result 영역만 교체 가능
+- hx-push-url 사용 가능
+- JS 끄면 일반 GET navigation으로 동작해야 함.
+
+--------------------------------------------------------------------------------
+37. htmx 사용 원칙
+--------------------------------------------------------------------------------
+
+htmx는 progressive enhancement다.
+
+우선 HTML link/form이 완전히 동작해야 한다.
+
+htmx 사용 적합:
+- Search filter
+- Search More
+- Search pagination
+- admin save status
+- admin user status update
+- 일부 admin list refresh
+
+htmx로 하지 않아도 되는 것:
+- post article navigation
+- 일반 top nav
+- SEO-critical document navigation
+
+JSON API를 먼저 만들고 client rendering하는 구조를 피한다.
+서버는 HTML/HTML fragment를 반환한다.
+
+--------------------------------------------------------------------------------
+38. Admin routes
+--------------------------------------------------------------------------------
+
+예:
+
+GET  /admin
+GET  /admin/posts
+GET  /admin/posts/new
+POST /admin/posts
+GET  /admin/posts/:id/edit
+POST /admin/posts/:id
+POST /admin/posts/:id/publish
+POST /admin/posts/:id/unpublish
+
+GET  /admin/users
+POST /admin/users/:id/status
+POST /admin/users/:id/role
+
+POST /admin/images
+
+GET  /account
+POST /logout
+
+초기 버전에서는 REST purity보다 HTML form 친화적인 route를 우선해도 된다.
+
+모든 mutation:
+- auth
+- active status
+- authorization
+- CSRF
+- validation
+
+--------------------------------------------------------------------------------
+39. Admin Markdown editor
+--------------------------------------------------------------------------------
+
+기본:
+<textarea>
+
+복잡한 WYSIWYG editor 추가하지 않는다.
+
+기능:
+- Markdown textarea
+- preview
+- save
+- publish/draft
+- metadata fields
+- image upload
+
+Marked browser bundle은 preview에서만 사용.
+
+Save 후 server canonical conversion.
+
+--------------------------------------------------------------------------------
+40. Image upload / R2
+--------------------------------------------------------------------------------
+
+authenticated active author/admin만 가능.
+
+Flow:
+file input
+-> browser-image-compression
+-> preview compression result
+-> POST multipart
+-> Worker auth/CSRF
+-> type/size validation
+-> R2 PUT
+-> Markdown용 URL/snippet 반환
+
+R2 key:
+예:
+media/{user_id}/{yyyy}/{uuid}.webp
+
+원본 user filename을 key로 그대로 신뢰하지 않는다.
+
+허용 type:
+JPEG
+PNG
+WebP
+필요하면 GIF/SVG 정책을 별도 결정.
+초기에는 SVG upload를 막는 것이 안전하다.
+
+server는 client MIME만 믿지 않는다.
+가능한 범위에서 magic bytes/type validation.
+
+공개 URL:
+- /media/{key}
+또는
+- R2 custom domain
+중 단순한 방법 선택.
+
+--------------------------------------------------------------------------------
+41. RSS / Sitemap / SEO
+--------------------------------------------------------------------------------
+
+Astro plugin 없이 Worker route로 직접 생성.
+
+GET /rss.xml
+GET /sitemap.xml
+GET /robots.txt
+
+Post HTML:
+- title
+- description
+- canonical
+- OG
+- Twitter
+- article published/modified
+- BlogPosting JSON-LD
+- author
+- noindex
+
+draft:
+public route 제외
+
+noindex:
+page는 공개 가능
+robots noindex
+sitemap 제외
+
+RSS:
+published post only
+
+--------------------------------------------------------------------------------
+42. Public caching
+--------------------------------------------------------------------------------
+
+처음부터 복잡한 cache layer를 만들지 않는다.
+
+Static Assets:
+Cloudflare가 처리
+
+R2 media:
+긴 cache-control
+
+Dynamic HTML:
+처음에는 D1 query 후 응답
+
+실제 성능을 측정한 뒤에만 Cache API 도입.
+
+글 저장 시 cache invalidation system을 먼저 만들지 않는다.
+
+--------------------------------------------------------------------------------
+43. Turnstile 및 auth form에서 htmx
+--------------------------------------------------------------------------------
+
+signup/login은 일반 form POST를 우선한다.
+
+Turnstile token은 single-use/expiration 특성이 있으므로
+로그인/회원가입에서 htmx를 억지로 사용해 token lifecycle를 복잡하게 만들 필요 없다.
+
+normal form:
+GET login/signup
+POST
+redirect/message
+
+authenticated admin 내부에서 htmx를 사용한다.
+
+--------------------------------------------------------------------------------
+44. Account enumeration 방지
+--------------------------------------------------------------------------------
+
+Login:
+username 없음
+password 틀림
+pending
+inactive
+상태를 외부 오류 메시지로 구분하지 않는다.
+
+Signup:
+이미 사용 중인 username은 가입 UX상 알려도 되지만,
+rate limit/Turnstile을 적용한다.
+
+Admin user list에서만 실제 status를 표시한다.
+
+--------------------------------------------------------------------------------
+45. Password 변경/초기화 범위
+--------------------------------------------------------------------------------
+
+v1 필수 아님.
+
+이번 작업 우선:
+- signup
+- approval
+- login
+- logout
+- session
+- status
+- role
+- post author linkage
+
+Password reset/email verification은 이번 범위 밖으로 둔다.
+
+Password change가 간단히 구현 가능하면:
+- active authenticated user
+- current password 확인
+- 새 password hash
+- 기존 sessions 전부 revoke
+정도로 구현 가능.
+
+하지만 전체 migration을 늦출 정도면 defer한다.
+
+--------------------------------------------------------------------------------
+46. Error handling
+--------------------------------------------------------------------------------
+
+Public:
+404
+500
+DB unavailable
+
+Auth:
+400 validation
+401 login/session
+403 CSRF/authorization/inactive
+429 rate limit
+
+관리자 page에 내부 stack/secret/SQL error 노출 금지.
+
+로그에도:
+- plaintext password
+- session raw token
+- CSRF token
+- Turnstile secret
+를 기록하지 않는다.
+
+--------------------------------------------------------------------------------
+47. Tests - users/auth
+--------------------------------------------------------------------------------
+
+반드시 테스트:
+
+Signup:
+- valid signup -> pending
+- duplicate username
+- invalid username
+- weak/too short password
+- password confirmation mismatch
+- Turnstile failure
+- rate limit path
+
+Login:
+- pending cannot login
+- active can login
+- inactive cannot login
+- wrong password
+- nonexistent user
+- generic failure message
+- valid session cookie attributes
+
+Sessions:
+- token raw not stored in D1
+- expiry
+- logout revoke
+- inactive user revoke
+- expired session denied
+- session user active status recheck
+
+CSRF:
+- missing token -> 403
+- wrong token -> 403
+- wrong Origin -> reject
+- valid -> accept
+
+Authorization:
+- author creates post as self
+- client cannot forge author_user_id
+- author edits own post
+- author cannot edit other's post
+- admin can edit all
+- author cannot manage users
+- admin can manage users
+
+Status:
+- pending -> active
+- active -> inactive revokes sessions
+- inactive -> active needs new login
+- last active admin cannot be disabled/demoted
+
+--------------------------------------------------------------------------------
+48. Tests - Markdown/Prism
+--------------------------------------------------------------------------------
+
+Marked:
+- Markdown -> body_html
+- body_markdown preserved
+- body_text generated
+- browser preview output and server output compatible
+
+Fence:
+```js
+...
+-> language-js
+
+```ts
+-> language-ts
+
+Prism:
+required languages vendored
+public output contains correct class
+
+Non-admin arbitrary raw HTML:
+- script not executable
+- unsafe raw HTML policy enforced
+
+--------------------------------------------------------------------------------
+49. Tests - Search
+--------------------------------------------------------------------------------
+
+- Markdown -> down substring
+- Korean substring
+- author name
+- category
+- tag
+- series
+- body-only text
+- literal %/_ query escaping
+- draft exclusion
+- noindex internal search policy explicitly tested
+
+All:
+- 10 summary
+- More only >10
+- no pagination
+
+Filter:
+- 20/page
+- fixed 10-page block
+- << / < / > / >> semantics
+
+htmx:
+- fragment response
+- normal full-page fallback
+- push URL semantics
+
+--------------------------------------------------------------------------------
+50. Tests - UI/accessibility
+--------------------------------------------------------------------------------
+
+- semantic landmarks
+- heading hierarchy
+- keyboard nav
+- focus visible
+- Popover keyboard dismissal
+- top nav mobile behavior
+- no horizontal overflow
+- forms have label
+- validation errors associated with fields
+- pagination aria-current
+- disabled controls semantic
+- links recognizable
+- CSS disabled 상태에서도 logical document order
+
+--------------------------------------------------------------------------------
+51. Migration of existing content
+--------------------------------------------------------------------------------
+
+현재 Astro content를 D1로 이전.
+
+반드시 보존 검토:
+- title
+- subtitle
+- description
+- slug/id
+- body Markdown
+- tags
+- categories
+- series
+- series order
+- publishedAt
+- updatedAt
+- draft
+- noindex
+- image alt
+- author 의미
+
+기존 sample content만 있다면 migration 후 sample임을 명시하고
+실제 운영 콘텐츠와 분리.
+
+기존 MDX/LinkPreview:
+- 일반 Markdown link로 변환
+- MDX-only syntax 제거
+
+기존 custom embed:
+- plain link 또는 안전한 지원 범위로 변환
+
+기존 URL:
+가능한 한 /posts/{slug} 형태를 유지.
+
+--------------------------------------------------------------------------------
+52. GitHub Pages -> Cloudflare Workers
+--------------------------------------------------------------------------------
+
+최종 배포 대상은 Cloudflare Workers.
+
+GitHub Pages workflow는 제거/교체한다.
+
+CI:
+- lint/format가 필요하면 가벼운 도구만
+- unit tests
+- Worker/static validation
+- D1 migration validation
+- deploy on main
+
+Wrangler:
+- exact/pinned version
+- D1 binding
+- R2 binding
+- Static Assets
+- Turnstile vars/secrets
+- Rate Limiting binding
+
+Production secret은 repository에 commit하지 않는다.
+
+--------------------------------------------------------------------------------
+53. Environment / secrets
+--------------------------------------------------------------------------------
+
+예:
+
+public/non-secret:
+SITE_ORIGIN
+SITE_NAME
+TURNSTILE_SITE_KEY
+
+Worker Secrets:
+TURNSTILE_SECRET_KEY
+
+필요 시:
+SESSION 관련 secret은 opaque random token + SHA-256 DB hash만으로 충분하므로
+불필요한 JWT signing secret은 만들지 않는다.
+
+JWT 사용 금지.
+
+local:
+.dev.vars / local secrets
+gitignore 필수
+
+--------------------------------------------------------------------------------
+54. D1 migration
+--------------------------------------------------------------------------------
+
+migration에서 foreign key를 명확하게 사용한다.
+
+D1은 foreign key enforcement를 지원하므로:
+sessions.user_id -> users.id
+content.author_user_id -> users.id
+content.series_id -> series.slug
+를 실제 constraint로 정의한다.
+
+user hard delete는 초기 UI에 제공하지 않는다.
+
+schema 변경은 numbered migration.
+
+--------------------------------------------------------------------------------
+55. Performance 목표
+--------------------------------------------------------------------------------
+
+목표:
+- public page JS 최소
+- article page JS는 Prism이 필요한 경우 정도
+- htmx는 필요한 page에서만
+- admin library는 admin에서만
+- D1 query 단순
+- unnecessary joins/queries 최소
+- static CSS/JS cache
+- image R2 cache
+- build-time site regeneration 없음
+- Markdown parse only on save
+- public article rendering은 stored HTML
+- no client-side search corpus
+
+--------------------------------------------------------------------------------
+56. 구현 순서
+--------------------------------------------------------------------------------
+
+Phase 1: 새 Worker skeleton
+- Wrangler
+- Static Assets
+- router
+- plain CSS
+- public HTML shell
+
+Phase 2: D1 schema
+- users
+- sessions
+- content
+- series
+
+Phase 3: auth
+- Turnstile
+- signup pending
+- PBKDF2
+- login active only
+- session
+- CSRF
+- logout
+- admin user approval
+
+Phase 4: content
+- Markdown editor
+- Marked server rendering
+- post CRUD
+- author user FK
+- draft/publish
+
+Phase 5: R2
+- browser-image-compression
+- upload
+- media serving
+
+Phase 6: public indexes
+- Posts
+- Series
+- Categories
+- Tags
+- Authors
+- Archive
+- top Popover navigation
+
+Phase 7: Search
+- D1 substring
+- htmx
+- summary/filter/pagination
+
+Phase 8: SEO
+- RSS
+- sitemap
+- metadata
+- JSON-LD
+
+Phase 9: migrate existing content
+- verify URLs/data
+
+Phase 10: remove Astro/Tailwind old architecture
+
+Phase 11: full tests and deploy
+
+이 순서를 권장하며, Astro를 먼저 삭제하고 새 site가 동작하지 않는 중간 상태를 오래 만들지 않는다.
+
+--------------------------------------------------------------------------------
+57. 하지 말아야 할 것
+--------------------------------------------------------------------------------
+
+- React/Vue/Svelte 추가
+- Astro를 SSR 형태로 남김
+- Tailwind 유지
+- SCSS 도입
+- Express/Fastify/Koa server 추가
+- JWT 도입
+- user plaintext password 저장
+- first signup auto-admin
+- pending user login 허용
+- inactive user session 유지
+- client-provided author id 신뢰
+- public author arbitrary script 실행 허용
+- Turnstile client widget만 검사하고 server verify 생략
+- raw session token DB 저장
+- state-changing route CSRF 미검증
+- 모든 기능을 JSON API + client rendering으로 전환
+- Grid 재도입
+- LinkPreview 재도입
+- Category/Tag junction table을 필요 없이 과도하게 설계
+- cache layer를 성능 측정 전에 추가
+
+--------------------------------------------------------------------------------
+58. 최종 acceptance checklist
+--------------------------------------------------------------------------------
+
+Architecture:
+[ ] Cloudflare Worker가 HTTP server
+[ ] D1
+[ ] R2
+[ ] Static Assets
+[ ] Astro 제거
+[ ] Tailwind 제거
+[ ] no separate Node server
+[ ] no JWT
+
+Frontend:
+[ ] semantic HTML
+[ ] meaningful CSS class
+[ ] top navigation
+[ ] no sidebar
+[ ] no grid
+[ ] no LinkPreview
+[ ] raw/document-focused design
+[ ] htmx progressive enhancement
+
+Markdown:
+[ ] canonical body_markdown
+[ ] save-time Marked conversion
+[ ] stored body_html
+[ ] stored body_text
+[ ] public request no Markdown parsing
+[ ] ```js -> language-js
+[ ] Prism works
+
+Images:
+[ ] browser-image-compression
+[ ] Web Worker compression
+[ ] R2
+[ ] authenticated upload
+
+Users:
+[ ] users table
+[ ] username
+[ ] display_name
+[ ] PBKDF2 hash + salt
+[ ] role admin/author
+[ ] status pending default
+[ ] pending cannot login
+[ ] active can login
+[ ] inactive cannot login
+[ ] signup Turnstile
+[ ] login Turnstile
+[ ] login/signup rate limit
+
+Sessions:
+[ ] opaque random token
+[ ] DB stores token hash only
+[ ] HttpOnly
+[ ] Secure
+[ ] SameSite
+[ ] expiry
+[ ] logout revoke
+[ ] CSRF
+[ ] Origin check
+
+Admin:
+[ ] pending approval
+[ ] activate
+[ ] deactivate
+[ ] inactive session revoke
+[ ] reactivate
+[ ] role management
+[ ] last active admin protection
+
+Posts:
+[ ] author_user_id FK
+[ ] new post author=current user
+[ ] author can edit own only
+[ ] admin can edit all
+[ ] inactive author's published posts remain
+[ ] author public page
+
+Search:
+[ ] D1 server-side
+[ ] substring
+[ ] All 10 each
+[ ] More
+[ ] filter 20/page
+[ ] fixed 10-page groups
+[ ] htmx
+[ ] normal GET fallback
+
+SEO:
+[ ] canonical
+[ ] OG
+[ ] Twitter
+[ ] BlogPosting
+[ ] RSS
+[ ] Sitemap
+[ ] noindex/draft
+
+Testing:
+[ ] signup pending
+[ ] active/inactive login
+[ ] Turnstile failure
+[ ] session expiry/revoke
+[ ] CSRF
+[ ] authorization
+[ ] author linkage
+[ ] search
+[ ] pagination
+[ ] mobile
+[ ] accessibility
+[ ] CSS disabled logical order
+
+Deployment:
+[ ] Cloudflare Worker deploy
+[ ] D1 migrations
+[ ] R2 binding
+[ ] Static Assets
+[ ] secrets not committed
+[ ] main CI passes
+[ ] production smoke test
+
+--------------------------------------------------------------------------------
+59. 최종 보고서 요구
+--------------------------------------------------------------------------------
+
+Codex는 완료 후 다음을 반드시 보고한다.
+
+1. 기준 commit / 작업 branch / final commit SHA
+2. 제거한 기존 Astro/Tailwind dependency
+3. 최종 repository tree
+4. D1 schema 전체
+5. user status/role transition
+6. first admin bootstrap 절차
+7. password hashing algorithm과 실제 iteration 정책/benchmark
+8. Turnstile client/server 검증
+9. session/cookie/CSRF 설계
+10. post author authorization
+11. Marked/Prism integration
+12. browser-image-compression 설정과 sample 결과
+13. R2 업로드 구조
+14. Search SQL/UX
+15. 실행한 테스트 및 결과
+16. D1 migration 결과
+17. Cloudflare deploy URL/status
+18. 실제로 수행하지 못한 작업은 명확하게 미완료로 표시
+
+"구현했다", "검증했다", "배포했다"는 표현은 실제 수행한 경우에만 사용한다.
+
+================================================================================
+보안 구현 참고 메모
+================================================================================
+
+- Cloudflare Turnstile은 client widget만으로 완료되는 기능이 아니다.
+  signup/login POST에서 Worker가 Siteverify API를 반드시 호출한다.
+- Turnstile token은 짧은 유효기간 및 single-use 특성이 있으므로 재시도 UX를 고려한다.
+- D1은 foreign key constraint를 지원하므로 user/post/session 관계를 실제 FK로 정의한다.
+- Workers Web Crypto의 PBKDF2, SHA-256, crypto.getRandomValues, timing-safe comparison을 우선한다.
+- 비밀번호, raw session token, Turnstile secret을 로그에 남기지 않는다.
+- approved active author의 콘텐츠라도 arbitrary script execution을 기본 허용하지 않는다.
+
+================================================================================
+최종 핵심 요약
+================================================================================
+
+이 프로젝트의 최종 방향은 "정적 사이트 생성기 기반 블로그"가 아니라
+"Cloudflare가 서빙하는 작은 동적 문서 시스템"이다.
+
+콘텐츠:
+Markdown -> Save -> HTML/Text -> D1
+
+공개 요청:
+D1 -> stored HTML -> semantic HTML response
+
+회원:
+Signup + Turnstile -> pending
+Admin approval -> active
+inactive -> login/session 차단
+
+작성자:
+logged-in user.id -> content.author_user_id
+
+인증:
+Password hash + D1 session + HttpOnly cookie + CSRF
+JWT 없음
+
+Frontend:
+HTML + CSS + htmx
+Marked/Prism/browser-image-compression는 필요한 route에만 사용
+
+서버:
+Cloudflare Workers
+별도 Express/Fastify/ASP.NET/Go 서버 없음
+
+데이터:
+최소 table 구조를 유지하되,
+users/sessions/content/series의 실제 관계는 D1 foreign key로 명확히 보장한다.
