@@ -1,199 +1,68 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { performance } from "node:perf_hooks";
 import { readFile } from "node:fs/promises";
-import {
-  enforceAuthRate,
-  passwordHash,
-  PASSWORD_ITERATIONS,
-  requireCsrf,
-  sessionCookie,
-  verifyPassword,
-  verifyTurnstile,
-} from "../src/auth.js";
-import { escapeLike } from "../src/data.js";
-import { detectImage } from "../src/routes-admin.js";
-import { searchResults } from "../src/routes-public.js";
-import { renderMarkdown } from "../src/markdown.js";
-import { normalizeText, slugify } from "../src/lib.js";
-import { pagination } from "../src/views.js";
+import { dateEpoch, pageBlock, positiveIds, uniqueText } from "../src/lib.js";
+import { escapeLike, ftsPhrase, parseSearch, searchQuery, searchParams } from "../src/db/search.js";
+import { renderMarkdown } from "../src/services/markdown.js";
+import { csrfCookie, passwordHash, sessionCookie, verifyPassword } from "../src/services/security.js";
+import { imageKey, validateImages } from "../src/services/images.js";
 
-test("Markdown is stored in canonical, safe forms with Prism language classes", () => {
-  const markdown =
-    "# 제목\n\n```ts\nconst x = 1;\n```\n\n<script>alert(1)</script>\n\n[x](javascript:alert(1))";
+test("Markdown escapes raw HTML and unsafe URLs while preserving Prism language classes", () => {
+  const markdown = "```js\nconst x = 1;\n```\n<script>alert(1)</script>\n[x](javascript:alert(1))";
   const result = renderMarkdown(markdown);
-  assert.equal(result.bodyMarkdown, markdown);
-  assert.match(result.bodyHtml, /class="language-ts"/);
+  assert.match(result.bodyHtml, /class="language-js"/);
   assert.doesNotMatch(result.bodyHtml, /<script>/);
   assert.match(result.bodyHtml, /&lt;script&gt;/);
   assert.match(result.bodyHtml, /href="#"/);
-  assert.match(result.bodyText, /제목/);
 });
 
-test("normalization, literal LIKE escaping and Korean slugs are deterministic", () => {
-  assert.equal(normalizeText(" ＭarkDown "), "markdown");
+test("search parser and SQL preserve the documented filter semantics", () => {
+  const filters = parseSearch({ q: "기록", series: ["3", "8"], category: ["2", "4"], tag: ["Cloudflare,D1", "D1", "js lang"], from: "2026-01-01", to: "2027-01-01", page: "13" });
+  assert.deepEqual(filters.series, [3, 8]);
+  assert.deepEqual(filters.categories, [2, 4]);
+  assert.deepEqual(filters.tags, ["Cloudflare", "D1", "js lang"]);
+  const query = searchQuery(filters);
+  assert.match(query.where, /series_id IN \(\?,\?\)/);
+  assert.match(query.where, /HAVING COUNT\(DISTINCT pc.category_id\) = \?/);
+  assert.equal((query.where.match(/json_each/g) || []).length, 3);
+  assert.match(query.where, /body_markdown LIKE/);
+  assert.equal(searchParams(filters, 13).getAll("tag").length, 3);
+});
+
+test("three-character text uses escaped FTS phrase and LIKE metacharacters stay literal", () => {
+  assert.match(searchQuery(parseSearch({ q: "worker" })).where, /post_fts MATCH/);
+  assert.equal(ftsPhrase('a"b'), '"a""b"');
   assert.equal(escapeLike("50%_done\\"), "50\\%\\_done\\\\");
-  assert.equal(slugify("개발 기록"), "개발-기록");
+  assert.equal(dateEpoch("2026-01-01"), 1767193200);
 });
 
-test("fixed ten-page pagination moves by groups", () => {
-  const html = pagination("x", "posts", 13, 500);
-  assert.match(html, /page=10">&lt;<\/a>/);
-  assert.match(html, /page=21">&gt;<\/a>/);
-  assert.match(
-    html,
-    /page=13" aria-current="page"|aria-current="page" href="[^"]*page=13/,
-  );
+test("ten-page blocks and input normalization are deterministic", () => {
+  assert.equal(pageBlock(13, 500).previous, 10);
+  assert.equal(pageBlock(13, 500).next, 21);
+  assert.deepEqual(positiveIds(["2", "2", "x", "-1"]), [2]);
+  assert.deepEqual(uniqueText(["a,b", "b", " c "]), ["a", "b", "c"]);
 });
 
-test("search All limits sections to ten and filtered results paginate by twenty", () => {
-  const posts = Array.from({ length: 21 }, (_, index) => ({
-    id: index,
-    slug: `p-${index}`,
-    title: `Post ${index}`,
-    description: "x",
-    published_at: 1,
-    username: "a",
-    display_name: "A",
-    categories: [],
-    tags: [],
-  }));
-  const data = {
-    posts,
-    series: [],
-    categories: [],
-    tags: [],
-    authors: [],
-    archive: [],
-  };
-  const summary = searchResults("post", "all", 1, data);
-  assert.equal((summary.match(/class="post-item"/g) || []).length, 10);
-  assert.match(summary, /type=posts">More/);
-  const filtered = searchResults("post", "posts", 2, data);
-  assert.equal((filtered.match(/class="post-item"/g) || []).length, 1);
-  assert.match(filtered, /aria-current="page"[^>]*page=2/);
+test("sessions use secure cookies and PBKDF2 verification", async () => {
+  assert.match(sessionCookie("raw"), /HttpOnly; Secure; SameSite=Strict/);
+  assert.doesNotMatch(csrfCookie("token"), /HttpOnly/);
+  const stored = await passwordHash("correct-horse-battery");
+  assert.equal(await verifyPassword("correct-horse-battery", { password_hash: stored.hash, password_salt: stored.salt, password_iterations: stored.iterations }), true);
+  assert.equal(await verifyPassword("wrong", { password_hash: stored.hash, password_salt: stored.salt, password_iterations: stored.iterations }), false);
 });
 
-test("PBKDF2 hashes and verifies without storing the password", async (t) => {
-  const started = performance.now();
-  const result = await passwordHash("correct-horse-battery");
-  t.diagnostic(
-    `PBKDF2-SHA256 ${PASSWORD_ITERATIONS} iterations: ${Math.round(performance.now() - started)} ms`,
-  );
-  assert.equal(result.iterations, 600_000);
-  assert.notEqual(result.hash, "correct-horse-battery");
-  assert.equal(
-    await verifyPassword("correct-horse-battery", {
-      password_hash: result.hash,
-      password_salt: result.salt,
-      password_iterations: result.iterations,
-    }),
-    true,
-  );
-  assert.equal(
-    await verifyPassword("wrong-password", {
-      password_hash: result.hash,
-      password_salt: result.salt,
-      password_iterations: result.iterations,
-    }),
-    false,
-  );
+test("image paths and WebP magic are validated", () => {
+  const post = "11111111-1111-4111-8111-111111111111";
+  const image = "22222222-2222-4222-8222-222222222222";
+  assert.equal(imageKey(post, image), `posts/${post}/${image}.webp`);
+  const buffer = Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBP")]);
+  assert.equal(validateImages(post, [{ originalname: `${image}.webp`, mimetype: "image/webp", buffer }], []).uploads.length, 1);
+  assert.throws(() => validateImages(post, [{ originalname: `${image}.svg`, mimetype: "image/svg+xml", buffer: Buffer.from("<svg") }], []), /WebP/);
 });
 
-test("cookie, CSRF, rate limit and Turnstile failures are enforced", async () => {
-  assert.equal(
-    sessionCookie("raw"),
-    "session=raw; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800",
-  );
-  const session = { csrf_token: "right" };
-  const data = new FormData();
-  data.set("csrf", "right");
-  assert.doesNotThrow(() =>
-    requireCsrf(
-      new Request("http://localhost/save", {
-        headers: { Origin: "http://localhost" },
-      }),
-      data,
-      session,
-      { SITE_ORIGIN: "https://example.com" },
-    ),
-  );
-  assert.throws(
-    () =>
-      requireCsrf(
-        new Request("https://example.com/save", {
-          headers: { Origin: "https://evil.example" },
-        }),
-        data,
-        session,
-        { SITE_ORIGIN: "https://example.com" },
-      ),
-    /요청을 확인/,
-  );
-  await assert.rejects(
-    () =>
-      enforceAuthRate(
-        new Request("https://example.com/login"),
-        { AUTH_RATE_LIMIT: { limit: async () => ({ success: false }) } },
-        "user",
-        "login",
-      ),
-    /요청이 너무 많/,
-  );
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () =>
-    new Response(JSON.stringify({ success: false }), {
-      headers: { "content-type": "application/json" },
-    });
-  await assert.rejects(
-    () =>
-      verifyTurnstile(
-        new Request("https://example.com/login"),
-        {
-          TURNSTILE_SECRET_KEY: "x",
-          TURNSTILE_SITE_KEY: "site",
-          SITE_ORIGIN: "https://example.com",
-        },
-        new FormData(),
-        "login",
-      ),
-    /사람인지 확인/,
-  );
-  globalThis.fetch = originalFetch;
-});
-
-test("image upload magic bytes allow JPEG, PNG and WebP only", () => {
-  assert.equal(detectImage(Uint8Array.from([0xff, 0xd8, 0xff])), "image/jpeg");
-  assert.equal(
-    detectImage(Uint8Array.from([0x89, 0x50, 0x4e, 0x47])),
-    "image/png",
-  );
-  assert.equal(
-    detectImage(new TextEncoder().encode("RIFFxxxxWEBP")),
-    "image/webp",
-  );
-  assert.equal(detectImage(new TextEncoder().encode("<svg>")), null);
-});
-
-test("vendored Prism contains every documented language and alias", async () => {
-  const prism = await readFile("public/vendor/prism.js", "utf8");
-  for (const language of [
-    "javascript",
-    "js",
-    "typescript",
-    "ts",
-    "markup",
-    "html",
-    "css",
-    "json",
-    "bash",
-    "shell",
-    "sql",
-    "csharp",
-    "go",
-    "markdown",
-    "yaml",
-  ]) {
-    assert.match(prism, new RegExp(`languages\\.${language}\\b`), language);
-  }
+test("schema contains contentless trigram FTS and excludes removed models", async () => {
+  const schema = await readFile("migrations/0001_initial.sql", "utf8");
+  assert.match(schema, /contentless_delete=1/);
+  assert.match(schema, /tokenize='trigram'/);
+  assert.doesNotMatch(schema, /\brole\b|post_images|CREATE TABLE tags|CREATE TABLE pages/);
 });

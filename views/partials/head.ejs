@@ -1,0 +1,16 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false}'>
+<title><%= title === site.name ? title : `${title} · ${site.name}` %></title>
+<meta name="description" content="<%= description %>">
+<% if (noindex) { %><meta name="robots" content="noindex,follow"><% } %>
+<% if (canonical) { %><link rel="canonical" href="<%= canonical %>"><% } %>
+<meta property="og:type" content="<%= jsonLd ? 'article' : 'website' %>">
+<meta property="og:title" content="<%= title %>">
+<meta property="og:description" content="<%= description %>">
+<% if (canonical) { %><meta property="og:url" content="<%= canonical %>"><% } %>
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/site.css">
+<% for (const href of styles) { %><link rel="stylesheet" href="<%= href %>"><% } %>
+<% if (jsonLd) { %><script type="application/ld+json"><%- jsonLd %></script><% } %>
+<% for (const src of scripts) { %><script src="<%= src %>" defer></script><% } %>
