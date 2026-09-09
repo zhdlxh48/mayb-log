@@ -1,0 +1,63 @@
+<h1>Search</h1>
+<form method="get" action="/search" hx-get="/search" hx-target="#search-results" hx-push-url="true">
+  <table class="form-table">
+    <tr>
+      <th><label for="q">Text</label></th>
+      <td><input id="q" name="q" value="<%= filters.q %>" /></td>
+    </tr>
+    <tr>
+      <th>Series</th>
+      <td>
+        <% for (const item of series) { %>
+        <label>
+          <% if (filters.series.includes(item.id)) { %>
+          <input type="checkbox" name="series" value="<%= item.id %>" checked />
+          <% } else { %>
+          <input type="checkbox" name="series" value="<%= item.id %>" />
+          <% } %>
+          <%= item.title %>
+        </label>
+        <br />
+        <% } %>
+      </td>
+    </tr>
+    <tr>
+      <th>Categories</th>
+      <td>
+        <% for (const item of categories) { %>
+        <label>
+          <% if (filters.categories.includes(item.id)) { %>
+          <input type="checkbox" name="category" value="<%= item.id %>" checked />
+          <% } else { %>
+          <input type="checkbox" name="category" value="<%= item.id %>" />
+          <% } %>
+          <%= item.name %>
+        </label>
+        <br />
+        <% } %>
+      </td>
+    </tr>
+    <tr>
+      <th><label for="tag">Tags</label></th>
+      <td>
+        <input
+          id="tag"
+          name="tag"
+          value="<%= filters.tags.join(', ') %>"
+          placeholder="Cloudflare, D1"
+        />
+      </td>
+    </tr>
+    <tr>
+      <th><label for="from">From</label></th>
+      <td><input id="from" type="date" name="from" value="<%= filters.from %>" /></td>
+    </tr>
+    <tr>
+      <th><label for="to">To</label></th>
+      <td><input id="to" type="date" name="to" value="<%= filters.to %>" /></td>
+    </tr>
+  </table>
+  <button type="submit">Search</button>
+</form>
+<p id="search-status" role="status" aria-live="polite"></p>
+<div id="search-results"><%- partial("search/results", { posts, total, pager, pageUrl }) %></div>

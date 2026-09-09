@@ -1,0 +1,20 @@
+<h1>Archive</h1>
+<% if (!years.length) { %>
+<p>아직 공개된 글이 없습니다.</p>
+<% } %>
+<% for (const year of years) { %>
+<details>
+  <summary>
+    <%= year.year %>
+    (<%= year.total %>)
+  </summary>
+  <ul>
+    <% for (const month of year.months) { %>
+    <li>
+      <a href="/search?from=<%= month.from %>&amp;to=<%= month.to %>"><%= month.month %>월</a>
+      (<%= month.post_count %>)
+    </li>
+    <% } %>
+  </ul>
+</details>
+<% } %>

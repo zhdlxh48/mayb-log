@@ -1,0 +1,2597 @@
+mayb-log 최종 감사 후 수정·정리 작업 지시서
+===========================================
+
+대상 저장소
+-----------
+https://github.com/zhdlxh48/mayb-log
+
+감사 기준 main
+--------------
+bc0ed7947e20096f90eb72bd66fc5980a9323879
+
+작업 시작 전 반드시 origin/main을 다시 확인한다.
+위 SHA 이후 변경이 있으면 먼저 diff를 확인한 뒤 이 문서와 충돌하는지 판단한다.
+이 문서는 기존 FINAL_REFACTOR_INSTRUCTIONS와 이후 대화에서 확정된 결정을 반영한 최신 지시서다.
+과거 문서/구현과 충돌하면 이 문서를 우선한다.
+
+중요:
+- 기존 Express + EJS + D1 + R2 구조는 유지한다.
+- 이번 작업은 최종 감사에서 발견된 버그/불일치 수정, 보안 구조 단순화,
+  테스트/뷰/SQL 구조 정리, 포맷/린트 자동화, 디자인 밀도 개선을 한 번에 마무리하는 작업이다.
+- 사용자가 변경하라고 하지 않은 기존 최종 결정사항은 유지한다.
+- 임의의 admin/role/owner/dashboard 구조를 다시 만들지 않는다.
+- 실제로 검증하지 않은 것을 완료했다고 보고하지 않는다.
+
+
+================================================================
+1. 최종 아키텍처 불변 사항
+================================================================
+
+유지:
+- Cloudflare Workers
+- Express
+- EJS
+- Cloudflare D1
+- Cloudflare R2
+- Workers Static Assets
+- semantic HTML
+- plain CSS
+- vanilla JavaScript
+- htmx는 Search progressive enhancement 용도로만 제한적 사용
+- Marked
+- Prism
+- browser-image-compression
+- Turnstile
+- opaque D1 session
+
+계속 금지:
+- Astro
+- Tailwind
+- MDX
+- React/Vue/Svelte
+- JWT
+- Cloudflare Access
+- /admin/*
+- /profile/posts/*
+- /profile/series
+- /profile/categories
+- /profile/users
+- role/admin/author 권한 구분
+- Users 관리 UI
+- pending 승인 UI
+- pages table
+- tags table
+- post_images table
+- Post slug
+- Tags navigation/index
+- Authors navigation/index/detail
+- navigation dropdown/popover
+- public GET에서 session DB lookup
+- SELECT *
+- 전체 Post corpus를 Worker에서 .filter() 하는 구조
+- DB 결과 전체를 Worker에서 slice() 하여 pagination 하는 구조
+- SPA
+- custom modal
+- 직접 만든 multipart parser
+- giant JavaScript HTML template literal
+
+
+================================================================
+2. User / 권한
+================================================================
+
+users는:
+1. 인증
+2. 게시글 최초 작성자 표시
+목적으로만 사용한다.
+
+모든 active user:
+- 모든 Post 작성/수정/삭제
+- 모든 Series 생성/수정/삭제
+- 모든 Category 생성/수정/삭제
+- 모든 게시글 이미지 업로드/삭제
+가능.
+
+author_user_id:
+- 최초 작성자 표시용
+- ownership 제어에 사용하지 않음
+- 다른 active user가 수정해도 변경하지 않음
+
+새 Post:
+author_user_id = 현재 로그인 user.id
+
+status:
+pending / active / inactive
+
+회원가입:
+pending
+
+pending -> active:
+D1 SQL로 수동 처리.
+웹 UI 없음.
+
+User 삭제:
+구현하지 않음.
+
+
+================================================================
+3. /profile 최종 구조
+================================================================
+
+/profile은 계정 페이지 하나뿐이다.
+
+GET  /profile
+POST /profile/update
+POST /logout
+
+Profile:
+- username 표시
+- display_name 수정
+- Logout
+
+그 외 기능 없음.
+
+
+================================================================
+4. Session / CSRF 구조 최종 변경
+================================================================
+
+중요한 최종 결정:
+
+CSRF cookie를 완전히 제거한다.
+
+브라우저 cookie는 session cookie 하나만 사용한다.
+
+session cookie:
+- HttpOnly
+- Secure
+- SameSite=Strict
+- Path=/
+- 7일
+- raw 256-bit opaque random token
+
+D1 sessions:
+- raw token 저장 금지
+- SHA-256 token hash 저장
+- csrf_token 저장
+- user_id
+- created_at
+- expires_at
+
+CSRF token:
+- cookie에 저장하지 않는다.
+- JavaScript가 document.cookie에서 읽지 않는다.
+- 보호된 GET에서 D1 session을 이미 읽으므로,
+  req.user/session의 csrf_token을 EJS hidden input으로 출력한다.
+
+예:
+
+<input type="hidden" name="csrf" value="<%= user.csrf_token %>">
+
+보호된 POST:
+1. session HttpOnly cookie 읽기
+2. D1 session hash lookup
+3. user.status === active 확인
+4. request body의 csrf와 D1 session.csrf_token 비교
+5. exact Origin 확인
+6. mutation 실행
+
+CSRF token은 인증 credential 자체는 아니지만
+URL/query/log 등에 흘리지 않는다.
+
+삭제할 코드:
+- csrfCookie()
+- Login 시 csrf Set-Cookie
+- Logout 시 csrf cookie clear
+- document.cookie에서 csrf 값을 읽는 frontend 코드
+
+Public GET:
+session DB read 0 유지.
+
+
+================================================================
+5. Post 상세 / 삭제 UX 최종 변경
+================================================================
+
+GET /posts/:id:
+
+로그인 여부와 무관하게
+Edit 링크만 항상 표시.
+
+삭제 X 버튼은 완전히 제거.
+
+즉 상세:
+
+Edit
+
+만 존재.
+
+제거:
+- detail의 X
+- data-delete-post
+- public/post-delete.js
+- public detail에서 CSRF를 읽거나 delete POST를 보내는 코드
+
+Post 삭제는:
+/posts/:id/edit
+페이지 안으로 이동.
+
+Post edit page 하단:
+
+Update/Save
+
+---
+Delete
+
+정도로 분리.
+
+Delete form:
+POST /posts/:id/delete
+
+hidden csrf 포함.
+
+Delete 클릭 시 native confirm().
+
+inline onsubmit JavaScript는 사용하지 않는다.
+CSP를 약화시키지 않는다.
+
+공통 외부 JS에서:
+
+<form data-confirm="이 게시글을 삭제하시겠습니까?">
+
+형태를 감지해 submit event에서 confirm()을 수행한다.
+
+삭제 취소:
+event.preventDefault()
+
+Post detail public GET은 여전히 session DB read 0.
+
+
+================================================================
+6. Series / Category 삭제 confirm CSP 문제 수정
+================================================================
+
+현재 inline:
+
+onsubmit="return confirm(...)"
+
+형태는 제거한다.
+
+CSP:
+unsafe-inline 추가 금지.
+
+Series edit:
+POST /series/:id/delete
+
+Category edit:
+POST /categories/:id/delete
+
+둘 다:
+- hidden csrf
+- data-confirm
+- 외부 JS confirm
+
+사용.
+
+공통 site.js 정도의 매우 작은 스크립트에서:
+
+document.addEventListener("submit", ...)
+
+으로 처리.
+
+custom modal 만들지 않는다.
+
+
+================================================================
+7. Invalid / expired session cookie 정리
+================================================================
+
+public GET에서는 session DB를 읽지 않는 기존 원칙 유지.
+
+하지만 protected route에서 loadSession을 수행했을 때:
+
+- session cookie가 존재함
+- D1 session이 없음 / 만료됨 / inactive user임
+
+이면:
+- session cookie를 즉시 expire
+- req.user = null
+
+GET protected page:
+Login으로 redirect 가능.
+
+POST protected request:
+401/403 등 기존 error 정책에 맞게 거부.
+
+핵심:
+한 번 protected route에서 invalid session임이 확인된 뒤에는
+브라우저에 stale session cookie가 계속 남아
+Navigation이 영구적으로 Profile을 표시하지 않게 한다.
+
+Navigation 자체는 여전히
+cookie 존재 여부만 보고 Login/Profile을 결정한다.
+public request에서 D1 조회 금지.
+
+
+================================================================
+8. PBKDF2 최종 정합성 수정
+================================================================
+
+Cloudflare Workers runtime에서 실제 동작하는 기준으로
+PBKDF2-HMAC-SHA-256 iteration은 100,000으로 통일한다.
+
+반드시 동일하게 수정:
+- src/services/security.js
+- development seed
+- test fixture
+- integration test expected value
+- README
+- docs/DECISIONS.md
+- docs/IMPLEMENTATION_REPORT.md
+- docs/MAINTENANCE.md
+- 기타 600,000이라고 적힌 현재 문서
+
+salt:
+user별 random 16 bytes 유지.
+
+password_iterations column:
+유지.
+
+기존 row별 iteration 값을 사용해 verify하는 구조도 유지.
+
+production에 password_iterations > 100000인 test/sample account가 존재하는지 확인한다.
+실제 사용자 데이터를 임의 삭제하지 않는다.
+test/sample 데이터라면 현재 운영 정책에 맞게 정리하고 보고한다.
+
+문서에서 600,000이라고 거짓으로 보고하지 않는다.
+
+
+================================================================
+9. Login timing 완화 복구
+================================================================
+
+없는 username에서 password verify를 생략해
+존재 여부에 따른 계산량 차이가 크게 나지 않게 한다.
+
+권장:
+- user가 없으면 고정 fake PBKDF2 record 사용
+- user가 있어도 pending/inactive여도 password verification 계산은 수행
+- 최종 성공 조건은
+  user 존재
+  AND user.status === active
+  AND password match
+
+외부 error:
+generic.
+
+username 존재/status/password 중 무엇이 틀렸는지 노출하지 않는다.
+
+
+================================================================
+10. Sign up 최종 변경
+================================================================
+
+Signup field:
+
+아이디
+닉네임
+비밀번호
+비밀번호 확인
+
+[ ] 비밀번호 표시
+
+Turnstile
+
+Sign up
+
+필드명:
+password
+password_confirmation
+
+Server:
+password === password_confirmation
+반드시 검사.
+
+Browser validation은 보조일 뿐이며
+server validation이 최종 기준.
+
+"비밀번호 표시" checkbox:
+- vanilla JS
+- 체크 시 password와 password_confirmation 둘 다 type="text"
+- 해제 시 둘 다 type="password"
+
+두 필드:
+autocomplete="new-password"
+
+Login은 기존 current-password 유지.
+
+
+================================================================
+11. Markdown 최종 정책
+================================================================
+
+일반 Markdown 링크:
+application-level URL regex 검사 제거.
+
+외부 링크:
+허용.
+
+상대 링크:
+허용.
+
+anchor:
+허용.
+
+Marked가 제공하는 일반 Markdown link rendering을 사용.
+
+현재 custom:
+safeUrl()
+/^(https?:|mailto:|\/)/
+같은 자체 URL 정규식 필터는 제거.
+
+Markdown 이미지:
+외부 이미지 포함 허용.
+
+별도의 application-level domain/scheme allowlist를 만들지 않는다.
+
+중요:
+브라우저 자체 mixed-content/security 정책은 그대로 적용될 수 있으나
+mayb-log이 별도 정규식으로 URL을 # 등으로 치환하지 않는다.
+
+
+================================================================
+12. Raw HTML / iframe 최종 정책
+================================================================
+
+서버 저장 결과의 raw HTML 정책:
+
+일반 raw HTML:
+실행하지 않는다.
+문자 그대로 표시.
+
+예 Markdown:
+
+<div>Test</div>
+
+공개 저장 결과에서는 실제 div element가 아니라
+사용자가 "<div>Test</div>"라는 문자열을 볼 수 있게 escape.
+
+<script> 등도 동일.
+
+예외:
+iframe만 실제 HTML element로 허용.
+
+서버 package:
+sanitize-html 사용.
+
+Marked raw HTML token을 처리할 때:
+- iframe raw HTML이면 sanitize-html
+- 그 외 raw HTML이면 escape
+
+sanitize-html iframe allowlist:
+
+allowed tag:
+iframe
+
+허용 attribute:
+- src
+- title
+- width
+- height
+- loading
+- allow
+- allowfullscreen
+- referrerpolicy
+- sandbox
+
+허용하지 않음:
+- srcdoc
+- onload
+- onclick
+- onerror
+- 모든 on* event attribute
+- 임의 style
+- 그 외 미승인 attribute
+
+iframe src:
+http / https만 허용.
+javascript: 등 실행형 scheme 금지.
+
+iframe domain allowlist는 만들지 않는다.
+YouTube/Vimeo에만 제한하지 않는다.
+
+sanitize-html은 서버에서 실행한다.
+client sanitizer가 보안 기준이 되어서는 안 된다.
+
+
+================================================================
+13. Markdown Preview 최종 정책
+================================================================
+
+Client Preview는 의도적으로 sanitize하지 않는다.
+
+현재 client editor의 raw HTML escape/custom URL renderer도 제거.
+
+Preview:
+
+preview.innerHTML = marked.parse(markdown)
+
+에 가까운 단순 구조.
+
+즉 Preview에서:
+
+<div>Test</div>
+
+는 실제 div로 렌더되어
+Test만 보일 수 있음.
+
+iframe도 그대로 preview.
+
+Preview raw HTML과
+실제 저장/public 서버 결과는 다를 수 있다.
+
+이 차이는 의도된 최종 결정.
+
+보안의 최종 기준은 서버 renderMarkdown()/sanitize-html.
+
+Preview:
+author 편의 기능일 뿐.
+
+Prism preview highlighting 유지.
+
+
+================================================================
+14. CSP 조정
+================================================================
+
+unsafe-inline을 추가하지 않는다.
+
+script-src:
+기존 self + Turnstile 공식 script 정책 유지.
+
+외부 Markdown 이미지가 실제 표시되도록
+img-src를 외부 image에 맞게 조정.
+
+domain allowlist를 두지 않는다.
+
+iframe이 표시되도록:
+frame-src에서 외부 http/https iframe을 허용.
+
+단:
+iframe raw HTML 자체는 server sanitize-html 검증을 통과해야 한다.
+
+frame-ancestors 등 기존 clickjacking 방지 정책은 유지.
+
+
+================================================================
+15. Pagination 최종 UX
+================================================================
+
+Pagination은 결과가 한 페이지뿐이어도 항상 표시.
+
+1페이지:
+
+<< < 1 > >>
+
+2~3페이지:
+
+<< < 1 2 3 > >>
+
+등.
+
+숨기지 않는다.
+
+의미:
+
+<<
+실제 첫 페이지.
+
+<
+이전 10-page block.
+
+숫자
+현재 block의 실제 page.
+
+>
+다음 10-page block.
+
+>>
+실제 마지막 페이지.
+
+10-page block 정의:
+
+1~10
+11~20
+21~30
+...
+
+예:
+현재 3페이지에서 > 클릭
+3 + 10 = 13으로 가는 것이 아님.
+
+11페이지로 이동.
+즉 11~20 block을 보여줌.
+
+현재 13페이지에서 < 클릭:
+10페이지로 이동.
+즉 이전 1~10 block으로 돌아감.
+
+현재 13페이지에서 > 클릭:
+21페이지.
+
+현재 27페이지이고 total 27:
+>>는 27.
+
+항상 표시하되 이동할 수 없는 control은
+링크를 숨기지 않는다.
+
+예 current=1, last=1:
+
+<< < 1 > >>
+
+<<, <, >, >>는 disabled representation.
+
+권장:
+<span aria-disabled="true">...</span>
+
+href="#" 사용 금지.
+
+현재 page:
+aria-current="page".
+
+Post pagination과 Search pagination 모두 동일 component 사용.
+
+
+================================================================
+16. Pagination invalid page 수정
+================================================================
+
+현재 /posts?page=999 같은 요청에서
+pager만 last로 clamp되고 DB OFFSET은 999 기준이 되는 문제 수정.
+
+Search도 동일.
+
+규칙:
+- page < 1 -> canonical page 1
+- page > actual last -> actual last로 303 redirect
+- last가 1이면 page=1 canonical
+- query filter는 redirect에서 그대로 유지
+
+Search:
+all current filters를 URLSearchParams로 보존.
+
+DB query와 pager가 서로 다른 page를 가리키지 않게 한다.
+
+정상 request의 query round-trip은 불필요하게 늘리지 않는다.
+
+
+================================================================
+17. Search 날짜 최종 semantics
+================================================================
+
+Search form의 To 날짜는 사용자가 보는 의미대로 inclusive.
+
+예:
+
+from=2026-12-01
+to=2026-12-31
+
+이면:
+12월 31일 전체 포함.
+
+내부 SQL:
+published_at >= 2026-12-01 00:00 KST
+published_at <  2027-01-01 00:00 KST
+
+즉 server에서 to 입력 날짜의 다음 날 00:00 KST를
+exclusive upper bound로 계산.
+
+Archive month link도 이 public semantics에 맞춘다.
+
+예 2026년 9월:
+
+/search?from=2026-09-01&to=2026-09-30
+
+처럼 실제 마지막 날짜를 canonical query로 사용.
+
+기존:
+to=다음 달 1일
+public 표현과 혼용하지 않는다.
+
+
+================================================================
+18. Search 최종 semantics 유지
+================================================================
+
+Search는 Post 조합 검색.
+
+q
+series repeated
+category repeated
+tag repeated
+from
+to
+page
+
+Series:
+OR
+
+Category:
+AND
+
+Tag:
+AND
+
+filter group:
+AND
+
+q >= 3 Unicode chars:
+FTS5 trigram
+
+q <= 2:
+escaped LIKE fallback
+
+20 posts/page 유지.
+
+SQL:
+filter/sort/pagination 수행.
+
+Worker JS:
+전체 corpus filter/slice 금지.
+
+
+================================================================
+19. SQL을 query별 .sql 파일로 분리
+================================================================
+
+runtime D1 query SQL을 JavaScript template literal에서 분리한다.
+
+목표:
+- db/*.js는 query orchestration/bind/result mapping
+- 실제 SQL은 query별 .sql 파일
+
+권장 구조:
+
+src/
+  db/
+    posts.js
+    series.js
+    categories.js
+    search.js
+    sessions.js
+    users.js
+    archive.js
+
+    queries/
+      posts/
+        count-published.sql
+        list-published.sql
+        find-published-by-id.sql
+        find-editable-by-id.sql
+        find-id-and-uuid.sql
+        insert.sql
+        update.sql
+        delete.sql
+        delete-fts.sql
+        insert-fts.sql
+        delete-categories.sql
+        insert-category.sql
+
+      series/
+        list-with-count.sql
+        find-by-id.sql
+        insert.sql
+        update.sql
+        detach-posts.sql
+        delete.sql
+
+      categories/
+        list-with-count.sql
+        find-by-id.sql
+        insert.sql
+        update.sql
+        delete.sql
+        find-by-names.sql
+
+      users/
+        find-by-username.sql
+        insert.sql
+        update-display-name.sql
+
+      sessions/
+        find-active.sql
+        insert.sql
+        delete.sql
+        delete-expired.sql
+
+      search/
+        options-series.sql
+        options-categories.sql
+        count-fts.sql
+        results-fts.sql
+        count-like.sql
+        results-like.sql
+
+      archive/
+        months.sql
+
+정확한 파일명은 구현 과정에서 조금 조정 가능.
+그러나 원칙은:
+
+"한 실행 query = 한 .sql 파일"
+
+SQL fragment를
+select.sql / where.sql / join.sql
+처럼 지나치게 잘게 쪼개지 않는다.
+
+JS에서 query string 조각을 읽기 어렵게 조합하는 generic query builder를 만들지 않는다.
+
+
+================================================================
+20. SQL import
+================================================================
+
+현재 Workers/Wrangler 환경에서
+.sql module import가 실제 build/deploy에서 문자열로 정상 동작하는지
+먼저 작은 smoke test로 검증.
+
+동작 확인 후:
+
+import query from "./queries/posts/find-published-by-id.sql";
+
+db.prepare(query)
+
+형태 사용.
+
+현재 Wrangler가 native .sql module import를 지원하는 환경이면
+불필요한 custom Text rule을 추가하지 않는다.
+
+dry-run과 실제 Worker에서 query import를 검증.
+
+
+================================================================
+21. Search SQL도 가능한 한 static query 파일
+================================================================
+
+Search 때문에 .sql 파일 안에 다시 복잡한 string interpolation을 만들지 않는다.
+
+반복 Series/Category/Tag filter는
+JSON array parameter + SQLite json_each(?)를 활용해
+고정 SQL로 작성하는 방식을 우선.
+
+예 개념:
+
+Series:
+json_each(series_json)
+
+Category:
+selected category 수와 relation count 비교
+
+Tag:
+wanted tag JSON array의 각 값이 posts.tags json_each에 존재하는지 검사
+
+q:
+FTS와 LIKE는 서로 다른 static SQL 파일 사용 가능.
+
+Count/results:
+각각 별도 query.
+
+결과적으로 search.js는:
+- filters parse
+- JSON bind parameter 준비
+- q length에 따라 FTS/LIKE query 선택
+- db.batch
+- result mapping
+
+정도로 읽혀야 한다.
+
+단 SQL 파일 분리를 위해
+이해하기 어려운 clever SQL을 만들지 않는다.
+가독성을 우선한다.
+
+
+================================================================
+22. SQL formatter
+================================================================
+
+SQL은 Prettier가 아니라
+sql-formatter 패키지를 사용.
+
+exact version pin.
+
+설정 파일:
+.sql-formatter.json
+
+기본 방향:
+
+{
+  "language": "sqlite",
+  "tabWidth": 2,
+  "keywordCase": "upper",
+  "linesBetweenQueries": 1,
+  "expressionWidth": 100
+}
+
+논리 연산/줄바꿈 옵션은
+최종 output을 실제로 검토해 읽기 좋은 쪽으로 설정.
+
+모든 first-party .sql:
+formatter 적용.
+
+SELECT *:
+금지 계속 유지.
+
+repository test는 이제 JS가 아니라
+src/db/queries/**/*.sql도 검사.
+
+
+================================================================
+23. Post update 불필요 DB read 제거
+================================================================
+
+POST /posts/:id/update save path에서
+fixed UUID 확인을 위해 전체 editable Post를 읽지 않는다.
+
+필요한 값:
+id
+uuid
+
+정도만 조회.
+
+전용 query:
+
+SELECT
+  id,
+  uuid
+FROM posts
+WHERE id = ?
+LIMIT 1;
+
+body_markdown/categories/tags 등의 기존 값은
+새 request가 최종 값을 제공하므로
+write request validation을 위해 불필요하게 읽지 않는다.
+
+"필요한 column만 SELECT" 원칙 철저히 적용.
+
+
+================================================================
+24. FTS 유지
+================================================================
+
+post_fts:
+contentless trigram FTS5 유지.
+
+rowid = posts.id.
+
+FTS:
+title
+subtitle
+description
+plain body
+
+Taxonomy/date:
+FTS에 넣지 않음.
+
+posts:
+body_text/search_text column 없음 유지.
+
+Post insert/update/delete:
+explicit sync.
+
+SQL file로 분리하더라도
+FTS 동작을 trigger에 숨기지 않는다.
+
+
+================================================================
+25. Image architecture 유지
+================================================================
+
+post_images table:
+만들지 않는다.
+
+R2가 이미지 source of truth.
+
+Key:
+
+posts/{post_uuid}/{image_uuid}.webp
+
+Public:
+
+/media/posts/{post_uuid}/{image_uuid}.webp
+
+Edit:
+R2 prefix list.
+
+Existing images:
+thumbnail
+Used/Unused
+Insert
+X
+
+이미지 X:
+native confirm
+삭제 예정
+Undo
+
+Save 성공 후:
+실제 R2 delete.
+
+Markdown image link:
+자동 삭제하지 않음.
+
+새 이미지:
+browser compression
+pending Blob
+Insert Markdown
+multipart save
+XHR upload progress.
+
+D1 save 실패:
+이번 request의 new R2 upload best-effort rollback.
+
+Post delete:
+D1/FTS delete 후 R2 prefix best-effort cleanup.
+
+
+================================================================
+26. Image upload memory 방어
+================================================================
+
+현재 multer memoryStorage의
+files x per-file size가 Worker memory를 과도하게 소비하지 않게 검토.
+
+active user만 가능한 endpoint라는 점을 유지하되
+합리적인 upper bound 적용.
+
+기존 browser compression:
+max 1600px
+WebP
+quality 약 .82
+
+server:
+WebP magic 검사
+UUID 검사
+overwrite 금지
+
+file count/size:
+현재 실제 사용성을 해치지 않는 선에서
+전체 request memory가 Worker 한도에 근접하지 않도록 낮춘다.
+
+변경한 최종 limit을 문서화.
+
+
+================================================================
+27. Views 구조 전면 정리
+================================================================
+
+현재 views 루트에 *.ejs가 평평하게 쌓이는 구조 제거.
+
+최종 권장 구조:
+
+views/
+  layouts/
+    base.ejs
+
+  partials/
+    common/
+      head.ejs
+      navigation.ejs
+      footer.ejs
+      pagination.ejs
+
+    posts/
+      row.ejs
+
+  about/
+    index.ejs
+
+  posts/
+    index.ejs
+    show.ejs
+    form.ejs
+
+  series/
+    index.ejs
+    new.ejs
+    edit.ejs
+
+  categories/
+    index.ejs
+    new.ejs
+    edit.ejs
+
+  archive/
+    index.ejs
+
+  search/
+    index.ejs
+    results.ejs
+
+  auth/
+    login.ejs
+    signup.ejs
+
+  profile/
+    index.ejs
+
+  errors/
+    error.ejs
+
+render.js/partial loader를 이에 맞게 정리.
+
+route와 view가 직관적으로 대응:
+
+/posts -> posts/index
+/posts/:id -> posts/show
+/posts/:id/edit -> posts/form
+/series -> series/index
+/categories -> categories/index
+
+EJS 파일 하나가 과도하게 커지면
+도메인 partial로만 분리.
+
+generic component system을 만들지 않는다.
+
+
+================================================================
+28. EJS formatting 원칙
+================================================================
+
+first-party EJS는 전부 formatter 대상.
+
+prettier-ignore를 정상 소스에서 사용하지 않는다.
+
+formatter가 처리하기 어려운 EJS 한 줄 구조가 있으면:
+
+<% for (...) { %><...><% } %>
+
+를 formatter ignore하는 대신
+template 자체를 readable multiline 구조로 다시 작성.
+
+Prettier EJS plugin:
+prettier-plugin-ejs 사용.
+
+현재 Prettier와 호환되는 exact version을 pin.
+
+Prettier 3+ 사용 시 plugin을 config/CLI에서 명시적으로 로드.
+
+전체 .ejs를 실제 format하고
+렌더링 테스트로 문법 손상 여부 확인.
+
+first-party EJS에 prettier-ignore가 남지 않도록 repository test 가능.
+
+
+================================================================
+29. Prettier 설정
+================================================================
+
+파일:
+prettier.config.mjs
+
+전체 방향:
+
+- printWidth: 100 전후
+- tabWidth: 2
+- spaces
+- semicolon 유지
+- JS string은 현재 code style에 맞춰 double quote
+- trailing comma 사용
+- endOfLine: lf
+- Markdown prose는 불필요하게 문장 재배치하지 않음
+- HTML/EJS는 긴 attribute/중첩이 읽히도록 줄바꿈
+- CSS도 동일한 line width
+
+언어별 override를 사용해
+JS/EJS/Markdown/JSON/YAML/CSS가 각각 읽기 좋게 유지.
+
+목표:
+"한 줄에 억지로 많은 EJS/JS를 넣지 않음"
+
+.prettierignore:
+오직 외부/생성 산출물 위주.
+
+반드시 ignore:
+- node_modules/
+- dist/
+- .wrangler/
+- public/vendor/
+- playwright-report/
+- test-results/
+- coverage/
+
+first-party src/views/public own code는 ignore 금지.
+
+
+================================================================
+30. ESLint
+================================================================
+
+flat config 사용:
+
+eslint.config.js
+
+권장 dependency:
+- eslint
+- @eslint/js
+- globals
+- eslint-config-prettier
+
+exact version pin.
+
+@eslint/js recommended 기반.
+
+환경 분리:
+
+src/**/*.js
+Node/Workers/ES module 환경.
+
+public first-party JS
+browser globals.
+
+tests/**/*.js / *.mjs
+Node test/browser test 환경.
+
+ignore:
+public/vendor
+dist
+.wrangler
+generated output
+
+목표:
+- undefined variable
+- unused variable
+- obvious bug
+- invalid patterns
+검출.
+
+console.error 등 실제 운영 logging을 무작정 금지하지 않는다.
+
+formatting rule은 Prettier와 충돌하지 않게
+eslint-config-prettier 사용.
+
+
+================================================================
+31. Git hooks 최종 확정
+================================================================
+
+Husky + lint-staged 사용.
+
+pre-commit:
+
+staged first-party file만.
+
+JS:
+Prettier --write
+ESLint --fix
+
+EJS:
+Prettier --write
+
+CSS/JSON/JSONC/Markdown/YAML:
+Prettier --write
+
+SQL:
+sql-formatter --fix
+
+vendor/generated:
+대상 제외.
+
+pre-commit에서 test 실행 금지.
+
+pre-push:
+
+ESLint 검사만.
+
+즉:
+
+pnpm lint
+
+정도.
+
+pre-push에서:
+unit test 금지.
+repository test 금지.
+integration 금지.
+browser 금지.
+build 금지.
+
+push는 빠르게 유지.
+
+
+================================================================
+32. package scripts
+================================================================
+
+정리 예:
+
+pnpm format
+pnpm format:check
+pnpm lint
+pnpm lint:fix
+
+pnpm test:unit
+pnpm test:repository
+pnpm test:integration
+pnpm test:browser
+
+pnpm build
+pnpm dev
+pnpm deploy
+pnpm db:local
+pnpm db:remote
+pnpm seed:local
+
+기존 scripts/check.mjs 같은
+"테스트 성격의 검사"를 scripts 폴더에 남기지 않는다.
+
+
+================================================================
+33. tests 구조 전면 정리
+================================================================
+
+테스트 성격의 코드는 전부 tests/ 아래.
+
+scripts/integration-test.mjs 제거.
+
+scripts/check.mjs 제거.
+
+tests/core.test.js처럼
+서로 다른 관심사의 unit test를 한 파일에 몰아넣지 않는다.
+
+권장:
+
+tests/
+  unit/
+    lib.test.js
+    search.test.js
+    markdown.test.js
+    security.test.js
+    images.test.js
+    pagination.test.js
+
+  integration/
+    public-routes.test.js
+    auth-session.test.js
+    posts.test.js
+    taxonomy.test.js
+    search.test.js
+    images.test.js
+    feeds.test.js
+
+  browser/
+    navigation.test.js
+    layout.test.js
+    auth.test.js
+    editor.test.js
+    images.test.js
+    pagination.test.js
+
+  repository/
+    architecture.test.js
+    schema.test.js
+    formatting.test.js
+    forbidden-patterns.test.js
+
+  helpers/
+    worker.js
+    database.js
+    auth.js
+    fixtures.js
+
+한 test file은 하나의 기능 영역에 집중.
+
+공통:
+worker startup
+login
+D1 reset
+R2 cleanup
+HTTP helper
+등만 helpers로 분리.
+
+
+================================================================
+34. Integration test isolation
+================================================================
+
+여러 integration file이 동일 local D1/R2 state를 깨지 않게 한다.
+
+가능한 방법:
+- integration concurrency=1
+- 각 suite before/after reset
+- 공유 helper
+
+테스트 순서 의존 금지.
+
+각 파일이 독립적으로 이해 가능해야 한다.
+
+중요:
+root .dev.vars를 test가 덮어쓰지 않는다.
+
+현재처럼:
+
+writeFile(".dev.vars", ...)
+
+후 복구하지 않는 코드 제거.
+
+테스트는:
+- isolated temp vars/config
+또는
+- 안전한 test env
+를 사용.
+
+실제 개발자의 local secret 파일을
+테스트가 변경/삭제하지 않는다.
+
+
+================================================================
+35. Repository tests
+================================================================
+
+기존 scripts/check.mjs 검사를
+tests/repository에 적절히 분리.
+
+검사:
+
+Forbidden dependency:
+- astro
+- tailwind
+- jsonwebtoken
+- react
+- vue
+- svelte
+
+Forbidden schema:
+- role
+- pages table
+- tags table
+- post_images
+- post slug
+
+Forbidden route:
+- /admin
+- /profile/posts
+- /profile/series
+- /profile/categories
+- /profile/users
+- /tags
+- /authors
+
+SQL:
+- SELECT *
+- SELECT p.*
+- SELECT c.*
+
+SQL 검사는:
+src/db/queries/**/*.sql 포함.
+
+Architecture:
+- required view structure
+- required test structure
+- tests가 scripts 아래 존재하지 않음
+- public/post-delete.js 없음
+- first-party prettier-ignore 없음
+- stale old view path 없음.
+
+
+================================================================
+36. CI 최종 구조
+================================================================
+
+GitHub Actions에서 전체 검증.
+
+순서 예:
+
+1. install
+2. format check
+3. ESLint
+4. unit tests
+5. repository/architecture tests
+6. local D1 migration
+7. development seed
+8. integration tests
+9. Worker dry-run build
+10. Chromium / Firefox / WebKit browser tests
+11. main에서만 remote D1 migration
+12. main에서만 Worker deploy
+
+사용자 최종 결정:
+
+pre-push에서는 test를 돌리지 않는다.
+테스트는 GitHub Actions가 책임진다.
+
+CI가 실패하면 deploy 금지.
+
+legacy R2 sample re-seed를 main deploy마다 수행하지 않는다.
+
+
+================================================================
+37. Design 최종 방향
+================================================================
+
+디자인 강도:
+A 확정.
+
+참고 철학:
+- Hacker News / Lobsters의 정보 밀도
+- SourceHut / suckless의 정돈된 문서 구조
+
+목표:
+
+"정보 중심이고 조밀하지만,
+일부러 낡아 보이게 만들지는 않은
+정돈된 문서/인덱스형 웹 UI"
+
+현재 문제:
+- main vertical padding이 큼
+- Post row 간격이 큼
+- header/nav가 넓게 벌어짐
+- brand margin-right:auto로 nav가 두 덩어리로 갈라짐
+- form/table padding이 큼
+- title/section이 modern blog/card처럼 여유가 큼
+- anchor만 raw인데 layout rhythm은 현대적인 SaaS/blog 느낌
+
+이를 수정.
+
+
+================================================================
+38. Global layout 디자인
+================================================================
+
+Navigation:
+- brand 포함 메뉴를 좌측부터 한 줄의 정보 navigation처럼 연속 배치
+- brand margin-right:auto 제거
+- 큰 empty gap 제거
+- header 높이 축소
+- dropdown 없음
+
+전체 content:
+- list/search/table page는 폭을 넉넉히 사용
+- 불필요한 큰 top/bottom whitespace 제거
+- viewport 양쪽 최소 gutter만 유지
+
+대략적 scale 가이드:
+- 일반 UI text: 13~14px 수준
+- page h1: 20~24px 수준
+- list title: 15~17px 수준
+- metadata: 11~12px 수준
+- nav: 13~14px 수준
+
+정확한 값은 visual test에서 조정하되
+현재보다 확실히 조밀해야 한다.
+
+main:
+현재 2.5rem~4rem 같은 큰 vertical padding을 줄인다.
+
+border:
+얇고 제한적으로.
+
+금지:
+- card
+- shadow
+- gradient
+- pill badge
+- 큰 radius
+- dashboard panel
+- 큰 colored button
+- hero section
+
+
+================================================================
+39. Posts index 디자인
+================================================================
+
+Post row는 card가 아니라
+"정보 record"처럼 보이게.
+
+권장 정보 순서:
+
+Title
+Description
+Date · Author · Series · Categories · Tags
+
+row vertical padding:
+현재보다 크게 축소.
+
+title/description/meta 간격:
+작게.
+
+Series/Category/Tag:
+별도 pill 금지.
+일반 text link.
+
+New Post:
+page title 근처의 작은 text link.
+
+Post list 자체에 Edit/Delete 반복 표시하지 않음.
+
+
+================================================================
+40. Post detail 디자인
+================================================================
+
+Post detail은 index보다 읽기 여유를 둔다.
+
+Title
+subtitle
+date · author
+Edit
+taxonomy
+본문
+
+Article body:
+- 15~16px 정도
+- line-height 약 1.55~1.65
+- reasonable reading width
+- code/table/image overflow 안전
+
+상세만 독서 공간을 확보하고
+사이트 전체를 넓은 editorial layout으로 만들지 않는다.
+
+Edit:
+작은 text link.
+
+Delete:
+detail에 없음.
+
+
+================================================================
+41. Series / Categories 디자인
+================================================================
+
+compact table/list.
+
+예:
+
+Name                       Posts   Action
+Blog Notes                    12   Edit
+Cloudflare                     8   Edit
+
+row/cell padding:
+작게.
+
+description:
+있으면 작은 secondary text.
+
+New Series/New Category:
+h1 근처 text link.
+
+Edit:
+일반 anchor.
+
+삭제:
+index에 없음.
+edit page 안.
+
+
+================================================================
+42. Search 디자인
+================================================================
+
+기존 old/raw table form 유지하되
+spacing을 줄이고 정보 중심 배치.
+
+Label column:
+좁게.
+
+input:
+무조건 width:32rem 같은 강제 확장 줄임.
+
+필요한 만큼:
+text/tag input 넓게
+date compact
+checkbox dense
+
+Series/Categories:
+checkbox 간 vertical gap 축소.
+
+Search button:
+browser-native 느낌 유지.
+
+결과:
+Posts index와 동일한 compact row 사용.
+
+
+================================================================
+43. Archive 디자인
+================================================================
+
+native details 유지.
+
+연도/월 line spacing 축소.
+
+큰 accordion/card 스타일 금지.
+
+details 자체가 문서 outline처럼 보여야 한다.
+
+
+================================================================
+44. Forms 디자인
+================================================================
+
+Login/Signup/Profile/Edit:
+native table/form 철학 유지.
+
+cell padding 축소.
+input/button native appearance 유지.
+
+button:
+작고 기본적인 control.
+
+Post editor는 입력량 때문에
+읽기 쉬운 field grouping은 허용하되
+card panel 남발 금지.
+
+Delete 영역:
+edit form 하단에서 얇은 rule 또는 충분히 작은 간격으로 분리.
+위험색은 과도하지 않게 text 정도만.
+
+
+================================================================
+45. Mobile
+================================================================
+
+mobile에서:
+desktop table/form이 읽히지 않는 경우만 stack.
+
+card UI로 변환하지 않는다.
+
+정보 순서 유지.
+
+horizontal overflow:
+없어야 함.
+
+Post metadata:
+wrap 허용.
+
+Navigation:
+wrap 허용.
+
+brand가 한 줄 전체를 독점하도록 강제하지 않는다.
+
+
+================================================================
+46. Pagination 디자인
+================================================================
+
+항상 visible.
+
+compact inline text navigation.
+
+예:
+
+<< < 1 2 3 4 5 6 7 8 9 10 > >>
+
+큰 button/pill 금지.
+
+disabled:
+색/텍스트 차이는 줄 수 있지만
+레이아웃에서 제거 금지.
+
+current:
+font-weight 또는 underline 정도.
+
+정보 중심 디자인에 맞게
+pagination 위아래 margin도 과도하지 않게.
+
+
+================================================================
+47. SEO 수정
+================================================================
+
+현재 canonical / Open Graph / robots 유지.
+
+Post:
+updated_at을 필요한 projection에 추가.
+
+JSON-LD:
+datePublished
+dateModified
+author
+url
+
+Twitter:
+기본 card metadata 복구.
+
+예:
+twitter:card
+twitter:title
+twitter:description
+
+noindex:
+기존 정책 유지.
+
+draft:
+public/search/rss/sitemap 제외.
+
+noindex:
+public 가능
+internal search 가능
+sitemap 제외.
+
+
+================================================================
+48. GitHub Repository metadata 정리
+================================================================
+
+현재 repository description의:
+
+"MayB's blog with Astro framework."
+
+같은 stale 설명 제거.
+
+현재 구조에 맞는 간단한 description으로 변경.
+
+예:
+Personal blog powered by Cloudflare Workers, Express, EJS, D1, and R2.
+
+README와 metadata가 서로 모순되지 않게 한다.
+
+
+================================================================
+49. GitHub Pages 제거
+================================================================
+
+GitHub Pages는 더 이상 사용하지 않는다.
+
+현재 repository에 Pages가 활성화돼 있다면 삭제/비활성화.
+
+가능하면 GitHub CLI/API:
+
+DELETE repos/zhdlxh48/mayb-log/pages
+
+수행.
+
+검증:
+- Pages API에서 site 없음
+또는
+- repository metadata에서 has_pages=false 등 실제 비활성 상태 확인.
+
+GitHub Pages workflow/gh-pages branch가 있다면
+실제 사용 여부 확인 후 제거.
+
+Cloudflare Workers만 production deployment로 남긴다.
+
+권한/환경 때문에 GitHub Pages 삭제 API를 수행할 수 없으면
+완료라고 쓰지 말고
+정확히 "수동 작업 필요"로 보고.
+
+
+================================================================
+50. 오래된 파일 / 문서 정리
+================================================================
+
+repo 전체를 dead-file 기준으로 감사.
+
+삭제 대상:
+- 사용되지 않는 JS
+- 사용되지 않는 view
+- superseded test script
+- old build artifact
+- 더 이상 참조되지 않는 config
+- obsolete roadmap/spec 문서
+
+특히 과거 구조를 설명하면서
+현재 코드와 충돌하는 오래된 문서는 정리.
+
+예:
+- old Cloudflare migration spec
+- old refactoring roadmap
+- old additional fix roadmap
+등이 더 이상 유지보수에 필요 없다면 삭제.
+
+유지할 문서:
+- README
+- MAINTENANCE
+- CONTENT_GUIDE
+- 최신 DECISIONS
+- 최신 IMPLEMENTATION_REPORT
+- 이 최종 지시서 또는 이를 대체하는 최신 final spec
+
+DECISIONS.md:
+현재 최종 구조로 다시 작성.
+600k / Category JSON / old search 같은 stale 결정 제거.
+
+IMPLEMENTATION_REPORT:
+작업 완료 후 실제 결과로 갱신.
+
+문서가 여러 개 서로 다른 진실을 말하지 않게 한다.
+
+
+================================================================
+51. scripts 폴더 정리
+================================================================
+
+scripts/에 테스트 코드 금지.
+
+허용:
+실제 개발/운영 helper.
+
+예:
+seed.mjs
+필요한 migration/rebuild utility
+
+금지:
+integration-test.mjs
+check.mjs
+browser test
+repository assertion
+
+테스트는 전부 tests/.
+
+포맷 tooling을 별도 helper가 필요하면
+tools/ 폴더를 사용할 수 있음.
+
+scripts를 임시 코드 보관소로 사용하지 않는다.
+
+
+================================================================
+52. Prettier / SQL formatter / ESLint config 파일
+================================================================
+
+최종 root tooling 예상:
+
+eslint.config.js
+prettier.config.mjs
+.prettierignore
+.sql-formatter.json
+lint-staged.config.mjs
+.husky/
+  pre-commit
+  pre-push
+
+필요하면:
+.editorconfig
+
+package.json:
+exact version pin.
+
+pnpm-lock.yaml 갱신.
+
+vendor:
+formatter 대상 제외.
+
+
+================================================================
+53. Tests - Pagination
+================================================================
+
+반드시 추가:
+
+last=1:
+<< < 1 > >>
+항상 존재.
+
+last=3/current=1:
+<< < 1 2 3 > >>
+
+current=3:
+> target 11이 존재할 수 있을 때
+11로 이동.
+
+current=13:
+< -> 10
+> -> 21
+
+>>:
+항상 actual last.
+
+last block:
+> / >> disabled 상태 적절.
+
+page=999:
+last로 canonical redirect.
+
+Search:
+filter query를 redirect/pagination link에서 보존.
+
+Post list/Search:
+동일 component behavior.
+
+
+================================================================
+54. Tests - CSRF / Session
+================================================================
+
+검증:
+
+Login:
+Set-Cookie에 session만.
+
+session:
+HttpOnly
+Secure
+SameSite=Strict
+
+csrf cookie:
+없음.
+
+Protected GET:
+form hidden csrf 존재.
+
+Post update:
+hidden csrf 검증.
+
+Post delete:
+edit page hidden csrf + POST.
+
+Series update/delete:
+hidden csrf.
+
+Category update/delete:
+hidden csrf.
+
+Profile update:
+hidden csrf.
+
+Logout:
+hidden csrf.
+
+wrong/missing csrf:
+403.
+
+wrong Origin:
+403.
+
+Public post detail:
+delete X 없음.
+post-delete.js 로드 없음.
+session DB read 0.
+
+stale session:
+protected route 접근 후 session cookie clear.
+
+
+================================================================
+55. Tests - Markdown
+================================================================
+
+Server:
+
+Markdown normal:
+render.
+
+External link:
+변형 없이 Marked 동작.
+
+Relative link:
+변형 없이 동작.
+
+Anchor:
+변형 없이 동작.
+
+External image:
+변형 없이 동작.
+
+<div>Test</div>:
+실제 div로 저장되지 않음.
+escaped text.
+
+<script>:
+실행 가능한 script로 저장되지 않음.
+
+iframe:
+허용.
+
+iframe allowed attributes:
+보존.
+
+iframe:
+srcdoc 제거.
+onload/on* 제거.
+javascript: src 금지.
+http/https src 허용.
+
+Client preview:
+
+<div>Test</div>:
+실제 div preview.
+
+raw HTML preview:
+client sanitizer 없음.
+
+서버/public과 preview 차이가 의도대로 테스트.
+
+
+================================================================
+56. Tests - Signup
+================================================================
+
+password_confirmation field 존재.
+
+두 password가 다르면:
+server 400.
+
+같으면:
+pending user 생성.
+
+show-password checkbox:
+둘 다 text로 변경.
+다시 해제:
+둘 다 password.
+
+없는 username login:
+fake verify path를 타는 구조 unit test 또는 integration behavior 검증.
+
+PBKDF2 new signup:
+100000.
+
+
+================================================================
+57. Tests - SQL files
+================================================================
+
+모든 runtime D1 SQL이
+src/db/queries에 구조적으로 존재하는지 검사.
+
+db/*.js:
+import query 사용.
+
+SELECT * 없음.
+
+Post list:
+body_markdown/body_html 없음.
+
+Post detail:
+body_html/updated_at 등 필요한 값만.
+
+Post update lookup:
+id, uuid만.
+
+Search:
+SQL filter/pagination.
+
+Archive:
+one group query.
+
+SQL formatter check:
+CI에서 실패 가능하게 한다.
+
+
+================================================================
+58. Tests - Views
+================================================================
+
+새 view path 모두 render.
+
+old flat view path가 남아 dead file이 되지 않음.
+
+EJS:
+formatter 이후 syntax valid.
+
+Escaping:
+user data <%= ... %>.
+
+trusted server body_html:
+필요한 곳만 raw.
+
+Post detail:
+Edit 있음.
+Delete 없음.
+
+Post edit:
+Delete 있음.
+
+Series/Category:
+index Edit/New.
+delete는 edit page.
+
+Navigation:
+정확히
+mayb-log
+Posts
+Series
+Categories
+Archive
+Search
+Login/Profile
+
+Tags/Sign up nav 없음.
+
+
+================================================================
+59. Tests - Design / Browser
+================================================================
+
+Chromium
+Firefox
+WebKit.
+
+폭:
+375
+768
+1024
+1440
+
+검증:
+- horizontal overflow 없음
+- navigation compact
+- Post list 과도한 spacing 없음
+- pagination 항상 visible
+- form usable
+- details usable
+- editor image controls usable
+- focus visible
+- CSS 제거 시 semantic order 유지
+
+가능하면 screenshot baseline 또는 최소 수동 screenshot report로:
+Posts
+Post detail
+Series
+Categories
+Search
+Archive
+Login
+Post edit
+확인.
+
+"spacing 줄였다"는 코드 diff만으로 완료 판단하지 않는다.
+실제 브라우저에서 정보 밀도를 검토.
+
+
+================================================================
+60. CI / formatter 검증
+================================================================
+
+CI:
+Prettier check 실패 시 실패.
+SQL format check 실패 시 실패.
+ESLint 실패 시 실패.
+unit/repository/integration/browser/build 실패 시 deploy 금지.
+
+pre-commit:
+자동 수정 가능.
+
+pre-push:
+자동 수정 금지.
+ESLint 검사만.
+
+
+================================================================
+61. Static assets / frontend cleanup
+================================================================
+
+삭제:
+public/post-delete.js
+
+공통 tiny site script:
+- data-confirm
+
+password visibility는 작은 auth/signup 전용 script 또는 역할이 명확한 first-party JS로 구현.
+
+frontend JS는 역할별 유지:
+- site.js
+- editor.js
+- image-editor.js
+- search.js
+- signup/auth password visibility script
+등.
+
+하나의 giant site.js에 editor/search 전체를 합치지 않는다.
+
+public/vendor:
+그대로 vendored third-party.
+format/lint 금지.
+
+
+================================================================
+62. Existing route invariants
+================================================================
+
+Public:
+
+GET /
+GET /posts
+GET /posts/:id
+GET /series
+GET /categories
+GET /archive
+GET /search
+GET /login
+POST /login
+GET /signup
+POST /signup
+GET /media/posts/:postUuid/:imageUuid.webp
+GET /rss.xml
+GET /sitemap.xml
+GET /robots.txt
+
+Protected GET:
+
+GET /posts/new
+GET /posts/:id/edit
+GET /series/new
+GET /series/:id/edit
+GET /categories/new
+GET /categories/:id/edit
+GET /profile
+
+Protected POST:
+
+POST /posts
+POST /posts/:id/update
+POST /posts/:id/delete
+POST /series/create
+POST /series/:id/update
+POST /series/:id/delete
+POST /categories/create
+POST /categories/:id/update
+POST /categories/:id/delete
+POST /profile/update
+POST /logout
+
+새 admin route 추가 금지.
+
+
+================================================================
+63. Public session query budget 유지
+================================================================
+
+GET /
+session D1 0
+
+GET /posts
+session D1 0
+
+GET /posts/:id
+session D1 0
+
+GET /series
+session D1 0
+
+GET /categories
+session D1 0
+
+GET /archive
+session D1 0
+
+GET /search
+session D1 0
+
+/media
+D1 0
+
+RSS/Sitemap/robots:
+session D1 0
+
+Navigation:
+cookie string parse only.
+
+Protected GET/POST만 D1 session read.
+
+
+================================================================
+64. Git / branch 작업 방식
+================================================================
+
+latest main에서 작업 시작.
+
+기존 workflow naming을 따르는
+fix/* 또는 feature/* branch 사용 가능.
+
+불필요한 history rewrite 금지.
+
+pre-commit hook이
+format/lint fix를 수행한 뒤 commit.
+
+pre-push:
+ESLint만.
+
+GitHub CI:
+전체 검증.
+
+main:
+CI 성공 후 deploy.
+
+
+================================================================
+65. 완료 보고서
+================================================================
+
+반드시 실제 결과와 함께 보고:
+
+1. 작업 시작 main SHA
+2. final SHA
+3. branch
+4. dependency 변경
+5. Express/EJS/Marked/Multer/sanitize-html/ESLint/Prettier 버전
+6. 최종 tree
+7. 최종 views tree
+8. 최종 tests tree
+9. 최종 SQL query tree
+10. scripts에서 제거한 test/check 파일
+11. 삭제한 dead/obsolete 파일
+12. session cookie 최종 attribute
+13. csrf cookie가 없다는 근거
+14. CSRF hidden form flow
+15. Post detail Edit-only 결과
+16. Post edit Delete confirm 결과
+17. Series/Category external confirm 결과
+18. PBKDF2 100000 통일 근거
+19. signup password confirmation/show checkbox
+20. Markdown server iframe sanitizer 정책
+21. unsanitized client preview 확인
+22. 외부 link/image 확인
+23. pagination 항상 visible + block semantics
+24. page=999 redirect
+25. inclusive To date
+26. SQL .sql import
+27. SELECT * 부재
+28. Post update minimal lookup
+29. SEO dateModified/Twitter
+30. stale session cookie cleanup
+31. ESLint config
+32. Prettier config
+33. SQL formatter config
+34. Husky pre-commit
+35. Husky pre-push
+36. CI steps
+37. unit/repository/integration/browser 결과
+38. Worker dry-run
+39. production deploy 결과
+40. GitHub repository description
+41. GitHub Pages 실제 비활성화 여부
+42. 남은 미완료 항목
+
+실패/미검증 항목을 숨기지 않는다.
+
+
+================================================================
+66. 최종 Acceptance Checklist
+================================================================
+
+Architecture
+[ ] Express + EJS + D1 + R2 유지
+[ ] no admin/role/pages/tags/post_images/slug
+[ ] public session DB read 0
+
+Session / CSRF
+[ ] session cookie HttpOnly
+[ ] session cookie Secure
+[ ] session cookie SameSite=Strict
+[ ] csrf cookie 완전 제거
+[ ] csrf_token D1 session row 유지
+[ ] protected form hidden csrf
+[ ] exact Origin
+[ ] stale session cookie clear
+
+Post
+[ ] detail Edit only
+[ ] detail Delete/X 없음
+[ ] post-delete.js 제거
+[ ] delete는 edit page
+[ ] delete confirm external JS
+[ ] active user global edit permission
+[ ] author preserved
+
+Series / Category
+[ ] global data
+[ ] public New/Edit visible
+[ ] delete는 edit page
+[ ] no inline onsubmit
+[ ] external data-confirm
+[ ] hidden csrf
+
+Auth
+[ ] PBKDF2 100000 통일
+[ ] fake login verify
+[ ] password_confirmation
+[ ] server equality validation
+[ ] show-password checkbox toggles both
+[ ] pending manual D1 activation
+
+Markdown
+[ ] custom safeUrl regex 제거
+[ ] external links allowed
+[ ] relative links allowed
+[ ] anchors allowed
+[ ] external images allowed
+[ ] normal raw HTML server escapes
+[ ] iframe server allowed
+[ ] sanitize-html server-side
+[ ] iframe srcdoc/on* blocked
+[ ] client preview no sanitize
+[ ] preview raw div 실제 render
+
+Pagination
+[ ] always visible
+[ ] one page = << < 1 > >>
+[ ] << first
+[ ] < previous block
+[ ] > next block start
+[ ] >> actual last
+[ ] page3 > page11
+[ ] page13 < page10
+[ ] page13 > page21
+[ ] disabled controls stay visible
+[ ] out-of-range redirect
+
+Search
+[ ] Series OR
+[ ] Category AND
+[ ] Tag AND
+[ ] q FTS/LIKE
+[ ] 20/page
+[ ] To inclusive
+[ ] Archive link matches inclusive semantics
+
+SQL
+[ ] runtime query별 .sql
+[ ] one executable query per file
+[ ] db/*.js orchestration only
+[ ] SQL formatter
+[ ] no SELECT *
+[ ] search SQL static/readable
+[ ] post update lookup id+uuid only
+
+Tests
+[ ] no tests in scripts
+[ ] no giant core.test.js
+[ ] unit split
+[ ] integration split
+[ ] browser split
+[ ] repository split
+[ ] helpers split
+[ ] no root .dev.vars overwrite
+[ ] integration isolated
+
+Views
+[ ] domain folder structure
+[ ] layouts/
+[ ] partials/
+[ ] posts/
+[ ] series/
+[ ] categories/
+[ ] auth/
+[ ] search/
+[ ] no dead flat views
+
+Formatting / Lint
+[ ] eslint.config.js
+[ ] prettier.config.mjs
+[ ] prettier-plugin-ejs
+[ ] no first-party prettier-ignore
+[ ] .sql-formatter.json
+[ ] Husky
+[ ] lint-staged
+[ ] pre-commit format + eslint --fix
+[ ] pre-push eslint only
+[ ] CI format/lint/tests/build
+
+Design
+[ ] compact information-first layout
+[ ] nav one compact cluster
+[ ] spacing materially reduced
+[ ] no card/pill/shadow/gradient
+[ ] compact posts
+[ ] compact table/form
+[ ] article remains readable
+[ ] pagination compact
+[ ] mobile no overflow
+
+Docs / GitHub
+[ ] stale 600k docs removed
+[ ] stale old architecture docs removed/rewritten
+[ ] README current
+[ ] MAINTENANCE current
+[ ] CONTENT_GUIDE current
+[ ] DECISIONS current
+[ ] IMPLEMENTATION_REPORT current
+[ ] repository description no Astro
+[ ] GitHub Pages disabled
+
+================================================================
+최종 한 문장
+================================================================
+
+mayb-log은 이번 작업 이후
+"Cloudflare Workers 위의 Express/EJS 서버 렌더링 블로그로서,
+public GET은 session DB를 읽지 않고,
+session cookie 하나만 HttpOnly로 사용하며,
+CSRF는 보호된 EJS form hidden token으로 처리하고,
+Post/Series/Category 삭제는 edit page 안에서만 수행하며,
+Markdown의 일반 링크/이미지는 자유롭게 두되 서버 저장에서는 iframe만 sanitize-html로 허용하고,
+모든 runtime SQL을 읽기 쉬운 query별 .sql 파일로 분리하고,
+테스트·뷰·포맷·린트 구조를 명확히 정리하며,
+Hacker News/Lobsters의 정보 밀도와 SourceHut 계열의 정돈된 레이아웃을 결합한
+작고 조밀하고 유지보수하기 쉬운 블로그"
+가 되어야 한다.

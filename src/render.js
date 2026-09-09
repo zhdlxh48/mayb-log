@@ -1,40 +1,61 @@
 import ejs from "ejs";
 import { formatDate, json, safeJson } from "./lib.js";
-import layout from "../views/layout.ejs";
-import head from "../views/partials/head.ejs";
-import navigation from "../views/partials/navigation.ejs";
-import footer from "../views/partials/footer.ejs";
-import postRow from "../views/partials/post-row.ejs";
-import pagination from "../views/partials/pagination.ejs";
-import about from "../views/about.ejs";
-import posts from "../views/posts.ejs";
-import post from "../views/post.ejs";
-import postEdit from "../views/post-edit.ejs";
-import series from "../views/series.ejs";
-import seriesNew from "../views/series-new.ejs";
-import seriesEdit from "../views/series-edit.ejs";
-import categories from "../views/categories.ejs";
-import categoryNew from "../views/category-new.ejs";
-import categoryEdit from "../views/category-edit.ejs";
-import archive from "../views/archive.ejs";
-import search from "../views/search.ejs";
-import searchResults from "../views/search-results.ejs";
-import login from "../views/login.ejs";
-import signup from "../views/signup.ejs";
-import profile from "../views/profile.ejs";
-import error from "../views/error.ejs";
+import layout from "../views/layouts/base.ejs";
+import head from "../views/partials/common/head.ejs";
+import navigation from "../views/partials/common/navigation.ejs";
+import footer from "../views/partials/common/footer.ejs";
+import pagination from "../views/partials/common/pagination.ejs";
+import postRow from "../views/partials/posts/row.ejs";
+import about from "../views/about/index.ejs";
+import posts from "../views/posts/index.ejs";
+import post from "../views/posts/show.ejs";
+import postForm from "../views/posts/form.ejs";
+import series from "../views/series/index.ejs";
+import seriesNew from "../views/series/new.ejs";
+import seriesEdit from "../views/series/edit.ejs";
+import categories from "../views/categories/index.ejs";
+import categoryNew from "../views/categories/new.ejs";
+import categoryEdit from "../views/categories/edit.ejs";
+import archive from "../views/archive/index.ejs";
+import search from "../views/search/index.ejs";
+import searchResults from "../views/search/results.ejs";
+import login from "../views/auth/login.ejs";
+import signup from "../views/auth/signup.ejs";
+import profile from "../views/profile/index.ejs";
+import error from "../views/errors/error.ejs";
 
-const compile = (name, source) => ejs.compile(source, { filename: `views/${name}.ejs` });
-const views = Object.fromEntries(Object.entries({ about, posts, post, "post-edit": postEdit, series, "series-new": seriesNew, "series-edit": seriesEdit, categories, "category-new": categoryNew, "category-edit": categoryEdit, archive, search, "search-results": searchResults, login, signup, profile, error }).map(([name, source]) => [name, compile(name, source)]));
-const partials = {
-  head: compile("partials/head", head),
-  navigation: compile("partials/navigation", navigation),
-  footer: compile("partials/footer", footer),
-  "post-row": compile("partials/post-row", postRow),
-  pagination: compile("partials/pagination", pagination),
-  "search-results": views["search-results"],
+const sources = {
+  "about/index": about,
+  "posts/index": posts,
+  "posts/show": post,
+  "posts/form": postForm,
+  "series/index": series,
+  "series/new": seriesNew,
+  "series/edit": seriesEdit,
+  "categories/index": categories,
+  "categories/new": categoryNew,
+  "categories/edit": categoryEdit,
+  "archive/index": archive,
+  "search/index": search,
+  "search/results": searchResults,
+  "auth/login": login,
+  "auth/signup": signup,
+  "profile/index": profile,
+  "errors/error": error,
 };
-const renderLayout = compile("layout", layout);
+const compile = (name, source) => ejs.compile(source, { filename: `views/${name}.ejs` });
+const views = Object.fromEntries(
+  Object.entries(sources).map(([name, source]) => [name, compile(name, source)]),
+);
+const partials = {
+  head: compile("partials/common/head", head),
+  navigation: compile("partials/common/navigation", navigation),
+  footer: compile("partials/common/footer", footer),
+  pagination: compile("partials/common/pagination", pagination),
+  "posts/row": compile("partials/posts/row", postRow),
+  "search/results": views["search/results"],
+};
+const renderLayout = compile("layouts/base", layout);
 
 export function renderer(site) {
   const base = {

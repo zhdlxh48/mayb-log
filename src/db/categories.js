@@ -1,41 +1,39 @@
+import deleteQuery from "./queries/categories/delete.sql";
+import findById from "./queries/categories/find-by-id.sql";
+import findByNames from "./queries/categories/find-by-names.sql";
+import insertIfMissing from "./queries/categories/insert-if-missing.sql";
+import insertQuery from "./queries/categories/insert.sql";
+import listWithCount from "./queries/categories/list-with-count.sql";
+import updateQuery from "./queries/categories/update.sql";
+
 export async function listCategoriesWithPublishedCount(db) {
-  return (await db.prepare(`
-    SELECT c.id, c.name, c.description, COUNT(p.id) AS post_count
-    FROM categories AS c
-    LEFT JOIN post_categories AS pc ON pc.category_id = c.id
-    LEFT JOIN posts AS p ON p.id = pc.post_id AND p.draft = 0 AND p.published_at IS NOT NULL
-    GROUP BY c.id
-    ORDER BY c.name COLLATE NOCASE, c.id
-  `).all()).results;
+  return (await db.prepare(listWithCount).all()).results;
 }
 
-export function findCategory(db, id) {
-  return db.prepare("SELECT id, name, description FROM categories WHERE id = ?").bind(id).first();
-}
+export const findCategory = (db, id) => db.prepare(findById).bind(id).first();
 
-export async function createCategory(db, name, description = "") {
+export function createCategory(db, name, description = "") {
   const now = Math.floor(Date.now() / 1000);
-  return db.prepare("INSERT INTO categories (name, description, created_at, updated_at) VALUES (?, ?, ?, ?) RETURNING id")
-    .bind(name, description, now, now).first();
+  return db.prepare(insertQuery).bind(name, description, now, now).first();
 }
 
-export function updateCategory(db, id, name, description) {
-  return db.prepare("UPDATE categories SET name = ?, description = ?, updated_at = ? WHERE id = ?")
-    .bind(name, description, Math.floor(Date.now() / 1000), id).run();
-}
+export const updateCategory = (db, id, name, description) =>
+  db
+    .prepare(updateQuery)
+    .bind(name, description, Math.floor(Date.now() / 1000), id)
+    .run();
 
-export function deleteCategory(db, id) {
-  return db.prepare("DELETE FROM categories WHERE id = ?").bind(id).run();
-}
+export const deleteCategory = (db, id) => db.prepare(deleteQuery).bind(id).run();
 
 export async function findOrCreateCategories(db, selectedIds, newNames) {
   const now = Math.floor(Date.now() / 1000);
-  if (newNames.length) await db.batch(newNames.map((name) => db.prepare(`
-    INSERT INTO categories (name, description, created_at, updated_at)
-    VALUES (?, '', ?, ?) ON CONFLICT(name) DO NOTHING
-  `).bind(name, now, now)));
-  const created = newNames.length ? (await db.prepare(`
-    SELECT id FROM categories WHERE name IN (${newNames.map(() => "?").join(",")})
-  `).bind(...newNames).all()).results.map((row) => row.id) : [];
+  if (newNames.length) {
+    await db.batch(newNames.map((name) => db.prepare(insertIfMissing).bind(name, now, now)));
+  }
+  const created = newNames.length
+    ? (await db.prepare(findByNames).bind(JSON.stringify(newNames)).all()).results.map(
+        ({ id }) => id,
+      )
+    : [];
   return [...new Set([...selectedIds, ...created])];
 }
