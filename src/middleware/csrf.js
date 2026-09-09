@@ -9,7 +9,11 @@ function same(left = "", right = "") {
 
 export function requireCsrf(req, res, next) {
   const expectedOrigin = `${req.protocol}://${req.get("host")}`;
-  if (!req.user || req.get("origin") !== expectedOrigin || !same(req.body?.csrf, req.user.csrf_token))
+  if (
+    !req.user ||
+    req.get("origin") !== expectedOrigin ||
+    !same(req.body?.csrf, req.user.csrf_token)
+  )
     return next(new HttpError(403, "요청을 확인할 수 없습니다. 다시 시도해 주세요."));
   next();
 }

@@ -6,7 +6,8 @@ export default defineConfig({
   workers: 1,
   use: { baseURL: "http://127.0.0.1:8792" },
   webServer: {
-    command: "pnpm dev --port 8792",
+    command:
+      "pnpm exec wrangler dev --local --port 8792 --var TURNSTILE_SECRET_KEY:1x0000000000000000000000000000000AA --var TURNSTILE_SITE_KEY:1x00000000000000000000AA",
     url: "http://127.0.0.1:8792",
     reuseExistingServer: !process.env.CI,
   },

@@ -1,20 +1,47 @@
 import { marked } from "marked";
+import sanitizeHtml from "sanitize-html";
 
-const escape = (value) => String(value ?? "").replace(/[&<>'\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
-const safeUrl = (value) => /^(https?:|mailto:|\/)/i.test(String(value || "").trim()) ? String(value).trim() : "#";
+const escape = (value) =>
+  String(value ?? "").replace(
+    /[&<>'"]/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "'": "&#39;",
+        '"': "&quot;",
+      })[character],
+  );
 
+const iframe = /^\s*<iframe\b[\s\S]*<\/iframe\s*>\s*$/i;
 const renderer = new marked.Renderer();
-renderer.html = ({ text }) => escape(text);
-renderer.link = function ({ href, title, tokens }) {
-  return `<a href="${escape(safeUrl(href))}"${title ? ` title="${escape(title)}"` : ""}>${this.parser.parseInline(tokens)}</a>`;
+renderer.html = ({ text }) => {
+  if (!iframe.test(text)) return escape(text);
+  return sanitizeHtml(text, {
+    allowedTags: ["iframe"],
+    allowedAttributes: {
+      iframe: [
+        "src",
+        "title",
+        "width",
+        "height",
+        "loading",
+        "allow",
+        "allowfullscreen",
+        "referrerpolicy",
+        "sandbox",
+      ],
+    },
+    allowedSchemes: ["http", "https"],
+    allowedSchemesByTag: { iframe: ["http", "https"] },
+  });
 };
-renderer.image = ({ href, title, text }) => `<img src="${escape(safeUrl(href))}" alt="${escape(text)}"${title ? ` title="${escape(title)}"` : ""} loading="lazy">`;
 
 marked.use({ gfm: true, breaks: false, renderer });
 
 export function renderMarkdown(bodyMarkdown) {
-  const markdown = String(bodyMarkdown || "");
-  const bodyHtml = marked.parse(markdown);
+  const bodyHtml = marked.parse(String(bodyMarkdown || ""));
   const plainBody = bodyHtml
     .replace(/<[^>]+>/g, " ")
     .replace(/&(?:amp|lt|gt|quot|#39);/g, " ")

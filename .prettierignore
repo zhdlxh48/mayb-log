@@ -1,0 +1,7 @@
+node_modules
+dist
+.wrangler
+public/vendor
+playwright-report
+test-results
+coverage

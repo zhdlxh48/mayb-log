@@ -10,7 +10,10 @@ export const PAGE_SIZE = 20;
 
 export function cookies(header = "") {
   return Object.fromEntries(
-    header.split(";").map((part) => part.trim().split(/=(.*)/s)).filter(([key]) => key),
+    header
+      .split(";")
+      .map((part) => part.trim().split(/=(.*)/s))
+      .filter(([key]) => key),
   );
 }
 
@@ -19,11 +22,25 @@ export function values(value) {
 }
 
 export function uniqueText(value) {
-  return [...new Set(values(value).flatMap((item) => String(item).split(",")).map((item) => item.trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      values(value)
+        .flatMap((item) => String(item).split(","))
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export function positiveIds(value) {
-  return [...new Set(values(value).map(Number).filter(Number.isSafeInteger).filter((id) => id > 0))];
+  return [
+    ...new Set(
+      values(value)
+        .map(Number)
+        .filter(Number.isSafeInteger)
+        .filter((id) => id > 0),
+    ),
+  ];
 }
 
 export function integer(value, fallback = 1) {
@@ -31,18 +48,30 @@ export function integer(value, fallback = 1) {
   return Number.isSafeInteger(number) && number > 0 ? number : fallback;
 }
 
+export function requestedPage(value) {
+  if (value == null || value === "") return 1;
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : 0;
+}
+
 export function dateEpoch(value) {
   if (!value) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new HttpError(400, "날짜 형식이 올바르지 않습니다.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
+    throw new HttpError(400, "날짜 형식이 올바르지 않습니다.");
   const epoch = Date.parse(`${value}T00:00:00+09:00`);
-  if (!Number.isFinite(epoch) || new Date(epoch + 9 * 3600_000).toISOString().slice(0, 10) !== value)
+  if (
+    !Number.isFinite(epoch) ||
+    new Date(epoch + 9 * 3600_000).toISOString().slice(0, 10) !== value
+  )
     throw new HttpError(400, "존재하지 않는 날짜입니다.");
   return Math.floor(epoch / 1000);
 }
 
 export function formatDate(epoch) {
   if (!epoch) return "";
-  return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "medium" }).format(epoch * 1000);
+  return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "medium" }).format(
+    epoch * 1000,
+  );
 }
 
 export function pageBlock(page, total) {
@@ -59,7 +88,11 @@ export function pageBlock(page, total) {
 }
 
 export function json(value, fallback = []) {
-  try { return JSON.parse(value); } catch { return fallback; }
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
 }
 
 export function safeJson(value) {
@@ -67,5 +100,8 @@ export function safeJson(value) {
 }
 
 export function escapeXml(value) {
-  return String(value ?? "").replace(/[<>&'\"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[char]);
+  return String(value ?? "").replace(
+    /[<>&'"]/g,
+    (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[char],
+  );
 }

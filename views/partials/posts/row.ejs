@@ -1,0 +1,30 @@
+<article class="post-row">
+  <h2><a href="/posts/<%= post.id %>"><%= post.title %></a></h2>
+  <% if (post.subtitle) { %>
+  <p class="subtitle"><%= post.subtitle %></p>
+  <% } %>
+  <p><%= post.description %></p>
+  <p class="meta">
+    <time datetime="<%= new Date(post.published_at * 1000).toISOString() %>"
+      ><%= formatDate(post.published_at) %></time
+    >
+    ·
+    <%= post.author_name %>
+    <% if (post.series_title) { %>
+    · <a href="/search?series=<%= post.series_id %>"><%= post.series_title %></a><% } %>
+  </p>
+  <% const categories = json(post.categories_json); const tags = json(post.tags); %>
+  <% if (categories.length || tags.length) { %>
+  <p class="taxonomies">
+    <% for (const category of categories) { %><a href="/search?category=<%= category.id %>"
+      ><%= category.name %></a
+    >
+    <% } %>
+    <% for (const tag of tags) { const params = new URLSearchParams({ tag }); %><a
+      href="/search?<%= params %>"
+      >#<%= tag %></a
+    >
+    <% } %>
+  </p>
+  <% } %>
+</article>
