@@ -28,6 +28,10 @@ test("search keeps static filter semantics and redirects invalid pages canonical
       (await fetch(`${origin}/posts?page=999`, { redirect: "manual" })).headers.get("location"),
       "/posts",
     );
+    assert.equal(
+      (await fetch(`${origin}/search?page=0`, { redirect: "manual" })).headers.get("location"),
+      "/search",
+    );
     const archive = await (await fetch(`${origin}/archive`)).text();
     assert.match(archive, /to=2026-09-30/);
   }));
