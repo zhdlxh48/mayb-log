@@ -8,10 +8,16 @@
     "node": "24.20.0"
   },
   "scripts": {
+    "prepare": "husky",
     "dev": "wrangler dev --local",
-    "check": "node scripts/check.mjs",
-    "test": "node --test tests/*.test.js",
-    "test:integration": "node scripts/integration-test.mjs",
+    "format": "prettier --write . && node --input-type=module --eval \"import fs from 'node:fs'; import path from 'node:path'; import {format} from 'sql-formatter'; const walk=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(d,e.name)):e.name.endsWith('.sql')?[path.join(d,e.name)]:[]); const options=JSON.parse(fs.readFileSync('.sql-formatter.json','utf8')); for(const file of walk('src').concat(walk('migrations'),walk('seed'))) fs.writeFileSync(file,format(fs.readFileSync(file,'utf8'),options));\"",
+    "format:check": "prettier --check . && node --test tests/repository/formatting.test.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "pnpm test:unit && pnpm test:repository",
+    "test:unit": "node --test tests/unit/*.test.js",
+    "test:repository": "node --test tests/repository/*.test.js",
+    "test:integration": "node --test --test-concurrency=1 tests/integration/*.test.js",
     "test:browser": "playwright test",
     "build": "wrangler deploy --dry-run --outdir dist",
     "db:local": "wrangler d1 migrations apply mayb-log-final --local",
@@ -20,13 +26,23 @@
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@playwright/test": "1.63.0",
+    "eslint": "10.10.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.12.0",
+    "husky": "9.1.7",
+    "lint-staged": "17.5.0",
+    "prettier": "3.9.6",
+    "prettier-plugin-ejs": "1.0.3",
+    "sql-formatter": "15.8.2",
     "wrangler": "4.129.1"
   },
   "dependencies": {
     "ejs": "6.0.1",
     "express": "5.2.1",
     "marked": "18.0.12",
-    "multer": "2.3.0"
+    "multer": "2.3.0",
+    "sanitize-html": "2.17.7"
   }
 }

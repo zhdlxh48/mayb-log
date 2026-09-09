@@ -1,5 +1,0 @@
-<header class="page-header"><h1>Categories</h1><a href="/categories/new">New Category</a></header>
-<table><thead><tr><th>Name</th><th>Posts</th><th>Action</th></tr></thead><tbody>
-<% for (const item of categories) { %><tr><td><a href="/search?category=<%= item.id %>"><%= item.name %></a><% if (item.description) { %><br><small><%= item.description %></small><% } %></td><td><%= item.post_count %></td><td><a href="/categories/<%= item.id %>/edit">Edit</a></td></tr><% } %>
-</tbody></table>
-<% if (!categories.length) { %><p>등록된 카테고리가 없습니다.</p><% } %>

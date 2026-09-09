@@ -1,0 +1,15 @@
+<h1>New Category</h1>
+<form method="post" action="/categories/create">
+  <input type="hidden" name="csrf" value="<%= user.csrf_token %>" />
+  <table class="form-table">
+    <tr>
+      <th><label for="name">Name</label></th>
+      <td><input id="name" name="name" required maxlength="120" /></td>
+    </tr>
+    <tr>
+      <th><label for="description">Description</label></th>
+      <td><textarea id="description" name="description" rows="4"></textarea></td>
+    </tr>
+  </table>
+  <button type="submit">Create</button>
+</form>

@@ -1,0 +1,29 @@
+<nav class="pagination" aria-label="페이지">
+  <% if (pager.current > 1) { %>
+  <a href="<%= pageUrl(1) %>" aria-label="첫 페이지">&lt;&lt;</a>
+  <% } else { %>
+  <span aria-disabled="true" aria-label="첫 페이지">&lt;&lt;</span>
+  <% } %>
+  <% if (pager.previous) { %>
+  <a href="<%= pageUrl(pager.previous) %>" aria-label="이전 10페이지">&lt;</a>
+  <% } else { %>
+  <span aria-disabled="true" aria-label="이전 10페이지">&lt;</span>
+  <% } %>
+  <% for (const number of pager.pages) { %>
+  <% if (number === pager.current) { %>
+  <a href="<%= pageUrl(number) %>" aria-current="page"><%= number %></a>
+  <% } else { %>
+  <a href="<%= pageUrl(number) %>"><%= number %></a>
+  <% } %>
+  <% } %>
+  <% if (pager.next) { %>
+  <a href="<%= pageUrl(pager.next) %>" aria-label="다음 10페이지">&gt;</a>
+  <% } else { %>
+  <span aria-disabled="true" aria-label="다음 10페이지">&gt;</span>
+  <% } %>
+  <% if (pager.current < pager.last) { %>
+  <a href="<%= pageUrl(pager.last) %>" aria-label="마지막 페이지">&gt;&gt;</a>
+  <% } else { %>
+  <span aria-disabled="true" aria-label="마지막 페이지">&gt;&gt;</span>
+  <% } %>
+</nav>

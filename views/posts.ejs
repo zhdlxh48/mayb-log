@@ -1,6 +1,0 @@
-<header class="page-header"><h1>Posts</h1><a href="/posts/new">New Post</a></header>
-<section aria-label="게시글 목록">
-<% if (!posts.length) { %><p>아직 공개된 글이 없습니다.</p><% } %>
-<% for (const post of posts) { %><%- partial('post-row', { post }) %><% } %>
-</section>
-<%- partial('pagination', { pager, pageUrl }) %>

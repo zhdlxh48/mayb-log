@@ -2,42 +2,30 @@
 
 ## 요청 흐름
 
-`src/worker.js`가 Express를 Workers `node:http` handler에 연결합니다. `src/app.js`는 공통 보안 헤더와 라우트를 조립합니다. 각 `src/routes/*.js`에서 입력과 응답 흐름을 읽을 수 있고, 실제 SQL은 `src/db/*.js`에 그대로 있습니다. `src/render.js`는 Wrangler가 text module로 포함한 실제 `views/*.ejs`를 시작 시 한 번 컴파일합니다.
+`src/worker.js`가 Cloudflare의 Node HTTP handler로 Express 앱을 실행한다. `src/app.js`는 보안 헤더와 route를 연결하고, `src/routes/`가 입력 검증과 흐름을 담당한다. `src/db/*.js`는 `src/db/queries/**/*.sql`을 import해 D1에 bind한다. `src/render.js`는 `views/`의 EJS를 미리 compile한다. `public/`에는 CSS, 작은 화면 스크립트, 검증된 vendor 파일만 있다.
 
-공개 GET 라우트에는 session middleware를 연결하지 않습니다. Navigation의 Login/Profile은 session cookie 존재 여부만 봅니다. `/profile`, 작성·편집 화면과 모든 변경 POST에서만 D1 session과 active 상태를 검증합니다.
+공개 route에는 `loadSession`을 붙이지 않는다. 인증이 필요한 GET/POST만 `loadSession`, `requireActive`를 사용하고 변경 POST는 `requireCsrf`까지 사용한다. 보호된 새 form에는 `<input type="hidden" name="csrf" value="<%= user.csrf_token %>">`를 넣는다. CSRF cookie나 `document.cookie` 읽기를 다시 만들지 않는다.
 
-## 데이터
+## 기능 변경
 
-- `posts.id`: 공개 URL과 관계 키
-- `posts.uuid`: `posts/{post_uuid}/` R2 namespace
-- `post_fts`: 저장할 때 명시적으로 동기화하는 파생 검색 인덱스
-- Series: 글 하나에 0개 또는 1개
-- Categories: `post_categories`로 여러 개
-- Tags: `posts.tags` JSON 배열
+- route: 해당 `src/routes/<domain>.js`
+- D1 query: 실행 단위로 `src/db/queries/<domain>/*.sql` 추가 후 해당 db module에서 import
+- 화면: `views/<domain>/` 또는 `views/partials/`
+- 공통 스타일: `public/site.css`
+- Markdown 저장 정책: `src/services/markdown.js`
+- 이미지 정책: `src/services/images.js`, `public/image-editor.js`
+- 검색 입력: `src/search.js`; 쿼리: `src/db/queries/search/`
 
-스키마를 바꿀 때 기존 migration 파일을 수정하지 말고 새 번호의 SQL을 추가합니다. 로컬에서 `pnpm db:local`과 통합 테스트를 먼저 통과시킨 뒤 `main` 배포가 remote migration을 적용하게 합니다.
+SQL에는 `SELECT *`를 쓰지 않는다. 쿼리 변경 후 `pnpm format`, `pnpm test:repository`, `pnpm test:integration`을 실행한다. 인증·이미지·검색 변경은 해당 브라우저 테스트도 실행한다.
 
-## 검색
+## 계정과 데이터
 
-`src/db/search.js`가 검색의 단일 기준입니다. 3글자 이상은 contentless trigram FTS5, 1~2글자는 escaped LIKE를 사용합니다. 반복 Series는 OR, 반복 Category와 Tag는 각각 AND이며 그룹 사이는 AND입니다. 필터·정렬·20개 pagination은 전부 SQL에서 처리합니다.
+회원가입은 `pending`이다. 본인 확인 후 D1에서 `active`로 바꾼다. `password_iterations`가 100000을 넘는 오래된 테스트 계정은 삭제하거나 새 해시로 교체하되 실제 사용자 계정은 임의로 삭제하지 않는다. 운영 secret은 Cloudflare secret과 GitHub Actions secret에만 둔다.
 
-## 계정과 보안
+이미지 업로드는 6개 × 4MiB가 상한이다. R2 정리 실패는 글 저장을 되돌리지 않고 로그에 남는다. 고아 이미지는 post UUID prefix를 확인해 수동 삭제한다.
 
-가입 계정은 기본 `pending`입니다. 활성화와 비활성화는 D1 Console에서 처리합니다.
+## 배포 실패 대응
 
-```sql
-UPDATE users SET status = 'active', updated_at = unixepoch() WHERE username = 'mayb';
-UPDATE users SET status = 'inactive', updated_at = unixepoch() WHERE username = 'mayb';
-```
+GitHub Actions의 verify 실패 단계부터 재현한다. 포맷은 `pnpm format`, 린트는 `pnpm lint:fix`로 고친 뒤 해당 테스트를 다시 실행한다. D1 migration 실패 시 적용 목록과 SQL을 확인하고, 이미 적용된 migration 파일을 수정하지 말고 새 번호의 migration을 추가한다. Worker 배포 실패 시 `pnpm build`와 Wrangler 인증·binding을 확인한다. 긴급 운영 오류는 최신 `main`에서 `hotfix/*`를 만들고 검증 후 `main`과 `dev`에 각각 병합한다.
 
-모든 active 사용자는 같은 편집 권한을 가집니다. `author_user_id`는 최초 작성자 표시에만 쓰며 편집해도 바뀌지 않습니다. 세션 raw token은 HttpOnly cookie에만 있고 D1에는 SHA-256 hash가 저장됩니다. 변경 POST는 active session, CSRF token, 정확한 Origin을 모두 확인합니다.
-
-## 장애 확인
-
-1. GitHub Actions의 verify 실패 단계부터 확인합니다.
-2. migration 실패면 D1 migration 상태와 해당 SQL을 확인합니다.
-3. 이미지 문제면 R2의 `posts/{post_uuid}/` prefix와 Markdown URL을 비교합니다.
-4. 검색 누락이면 `posts`와 `post_fts`의 같은 rowid를 확인합니다.
-5. 배포 실패면 Cloudflare API token의 Workers Scripts, D1, R2 권한과 Worker secret을 확인합니다.
-
-의존성은 한 번에 하나씩 갱신하고 전체 검사를 다시 실행합니다. 새 기능은 기존 route, DB 함수, EJS 화면 중 실제로 필요한 위치에만 추가합니다.
+Cloudflare 장애 시 배포 로그의 Worker version을 확인해 정상 버전으로 rollback하고, DB schema가 함께 바뀌었다면 호환 여부를 먼저 확인한다.

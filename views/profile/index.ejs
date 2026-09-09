@@ -1,0 +1,28 @@
+<h1>Profile</h1>
+<form method="post" action="/profile/update">
+  <input type="hidden" name="csrf" value="<%= user.csrf_token %>" />
+  <table class="form-table">
+    <tr>
+      <th>아이디</th>
+      <td><%= user.username %></td>
+    </tr>
+    <tr>
+      <th><label for="display_name">닉네임</label></th>
+      <td>
+        <input
+          id="display_name"
+          name="display_name"
+          value="<%= user.display_name %>"
+          required
+          maxlength="80"
+        />
+      </td>
+    </tr>
+  </table>
+  <button type="submit">변경</button>
+</form>
+<form method="post" action="/logout">
+  <input type="hidden" name="csrf" value="<%= user.csrf_token %>" /><button type="submit">
+    Logout
+  </button>
+</form>
