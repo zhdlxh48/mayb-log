@@ -6,14 +6,17 @@ import { parseSearch, searchParams } from "../search.js";
 export const searchRoutes = Router();
 searchRoutes.get("/search", async (req, res) => {
   const filters = parseSearch(req.query);
+  const pageUrl = (page) => {
+    const query = String(searchParams(filters, page));
+    return query ? `/search?${query}` : "/search";
+  };
   if (!filters.page) {
     filters.page = 1;
-    return res.redirect(303, `/search?${searchParams(filters, 1)}`);
+    return res.redirect(303, pageUrl(1));
   }
   const fragment = req.get("HX-Request") === "true";
   const result = await searchPosts(req.app.locals.bindings().DB, filters, !fragment);
   const pager = pageBlock(filters.page, result.total);
-  const pageUrl = (page) => `/search?${searchParams(filters, page)}`;
   if (filters.page > pager.last) return res.redirect(303, pageUrl(pager.last));
   if (fragment)
     return res.send(req.app.locals.render("search/results", { ...result, pager, pageUrl }, true));
