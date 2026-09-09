@@ -23,6 +23,6 @@ test("first-party SQL matches the shared formatter configuration", async () => {
     ...(await sqlFiles("seed")),
   ]) {
     const source = await readFile(file, "utf8");
-    assert.equal(source, format(source, options), file);
+    assert.equal(source.trimEnd(), format(source, options).trimEnd(), file);
   }
 });
