@@ -10,7 +10,7 @@
   "scripts": {
     "prepare": "husky",
     "dev": "wrangler dev --local",
-    "format": "prettier --write . && node --input-type=module --eval \"import fs from 'node:fs'; import path from 'node:path'; import {format} from 'sql-formatter'; const walk=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(d,e.name)):e.name.endsWith('.sql')?[path.join(d,e.name)]:[]); const options=JSON.parse(fs.readFileSync('.sql-formatter.json','utf8')); for(const file of walk('src').concat(walk('migrations'),walk('seed'))) fs.writeFileSync(file,format(fs.readFileSync(file,'utf8'),options));\"",
+    "format": "prettier --write . && node --input-type=module --eval \"import fs from 'node:fs'; import path from 'node:path'; import {format} from 'sql-formatter'; const walk=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(d,e.name)):e.name.endsWith('.sql')?[path.join(d,e.name)]:[]); const options=JSON.parse(fs.readFileSync('.sql-formatter.json','utf8')); for(const file of walk('src').concat(walk('migrations'),walk('seed'))) fs.writeFileSync(file,format(fs.readFileSync(file,'utf8'),options).trimEnd()+'\\n');\"",
     "format:check": "prettier --check . && node --test tests/repository/formatting.test.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
