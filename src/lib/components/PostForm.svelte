@@ -169,7 +169,7 @@
 
 	<label for="bodyMarkdown">Body</label>
 	<input type="hidden" name="bodyMarkdown" value={markdown} />
-	<MarkdownEditor bind:value={markdown} {carta} />
+	<div class="post-editor"><MarkdownEditor bind:value={markdown} {carta} /></div>
 	{#each form.errors.bodyMarkdown ?? [] as error}<small class="field-error">{error}</small>{/each}
 	{#if mediaError}<p role="alert">{mediaError}</p>{/if}
 
@@ -225,11 +225,47 @@
 		margin: 0;
 		white-space: nowrap;
 	}
-	:global(.carta-editor) {
-		min-height: 34rem;
+	.post-editor {
 		margin-block: 0.5rem 0.8rem;
+		min-width: 0;
+	}
+	:global(.post-editor .carta-editor) {
+		min-height: 0;
+		overflow: hidden;
 		border: 1px solid #c8cfd6;
 		border-radius: 0.2rem;
+	}
+	:global(.post-editor .carta-theme__default .carta-toolbar) {
+		height: 2.5rem;
+		padding: 0.25rem 0.5rem;
+	}
+	:global(.post-editor .carta-theme__default .carta-toolbar-left button) {
+		height: 100%;
+		min-height: 0;
+		margin: 0 0.75rem 0 0;
+		padding: 0 0.15rem;
+		line-height: 1.3;
+		box-shadow: none;
+	}
+	:global(.post-editor .carta-theme__default .carta-icon) {
+		flex: 0 0 1.75rem;
+		width: 1.75rem;
+		height: 1.75rem;
+		min-height: 0;
+		margin: 0 0 0 0.15rem;
+		padding: 0;
+		box-shadow: none;
+	}
+	:global(.post-editor .carta-theme__default .carta-icon-full) {
+		width: 100%;
+		min-height: 0;
+		margin: 0;
+		padding: 0.35rem;
+		box-shadow: none;
+	}
+	:global(.post-editor .carta-theme__default .carta-input),
+	:global(.post-editor .carta-theme__default .carta-renderer) {
+		height: clamp(24rem, 58vh, 36rem);
 	}
 	:global(.carta-font-code) {
 		font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -240,5 +276,14 @@
 		padding: 0.15rem 0.4rem;
 		margin-left: 0.4rem;
 		font-size: 0.78rem;
+	}
+	@media (max-width: 640px) {
+		:global(.post-editor .carta-theme__default .carta-wrapper) {
+			padding-inline: 0.75rem;
+		}
+		:global(.post-editor .carta-theme__default .carta-input),
+		:global(.post-editor .carta-theme__default .carta-renderer) {
+			height: 24rem;
+		}
 	}
 </style>
