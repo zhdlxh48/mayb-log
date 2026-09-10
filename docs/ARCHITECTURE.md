@@ -34,7 +34,7 @@ Carta는 편집과 preview를 담당합니다. preview는 편집기 기본 동�
 
 ## 화면과 SEO
 
-Pico CSS가 기본 control과 typography를 제공합니다. 색, 공통 폭, form grid 같은 사이트 전체 값은 `src/app.css`에 있고 각 화면과 컴포넌트의 모양은 해당 `.svelte` 파일의 `<style>`에 있습니다.
+기본 글꼴, 색, 링크, 표, 입력 요소와 공용 form grid는 `src/global.css`에 있습니다. 상단바, 글 목록, 페이지 제목, 페이지네이션과 편집기 모양은 해당 Svelte 컴포넌트의 `<style>`에서 관리합니다. 별도의 UI CSS 프레임워크는 사용하지 않습니다.
 
 공개 화면은 모두 SSR입니다. `Seo.svelte`가 canonical, Open Graph, Twitter metadata를 만들고 글 화면은 BlogPosting JSON-LD를 추가합니다. draft와 미래 글은 공개 query에서 제외됩니다. noindex 글은 공개와 RSS에는 포함되지만 sitemap에서는 제외됩니다.
 

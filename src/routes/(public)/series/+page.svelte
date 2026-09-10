@@ -1,13 +1,14 @@
 <script lang="ts">
 	import Seo from '$lib/components/Seo.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	let { data } = $props();
 </script>
 
 <Seo title="Series" description="시리즈 목록" canonical={`${data.siteUrl}/series`} />
-<header>
-	<h1>Series</h1>
-	{#if data.user}<a href="/series/new">New Series</a>{/if}
-</header>
+<PageHeader
+	title="Series"
+	action={data.user ? { href: '/series/new', label: 'New Series' } : undefined}
+/>
 <table>
 	<thead><tr><th>Title</th><th>Posts</th><th>Action</th></tr></thead>
 	<tbody>
@@ -27,13 +28,7 @@
 </table>
 
 <style>
-	header {
-		display: flex;
-		gap: 1rem;
-		align-items: baseline;
-	}
 	small {
 		display: block;
-		color: var(--pico-muted-color);
 	}
 </style>

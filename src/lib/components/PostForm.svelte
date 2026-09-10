@@ -213,6 +213,12 @@
 	form {
 		max-width: 920px;
 	}
+	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: center;
+	}
 	fieldset {
 		display: flex;
 		flex-wrap: wrap;
