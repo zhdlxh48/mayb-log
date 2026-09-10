@@ -2,21 +2,33 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { dateTimeLocal } from '$lib/dates';
-import { deletePost, getEditablePost, updatePost } from '$lib/server/db/queries/posts';
+import { requireUser } from '$lib/server/auth/guards';
+import { isUniqueConflict } from '$lib/server/db/errors';
+import {
+	deletePost,
+	getEditablePost,
+	updatePost,
+	type PublicationAction
+} from '$lib/server/db/queries/posts';
 import { getPostOptions } from '$lib/server/db/queries/taxonomy';
 import { requestDb } from '$lib/server/db/request';
+import { listPostImages } from '$lib/server/media/images';
 import { postSchema } from '$lib/validation/content';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
+import * as m from '$lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async ({ params, platform, url }) => {
 	const id = Number(params.id);
-	if (!Number.isInteger(id)) error(404, '글을 찾을 수 없습니다.');
+	if (!Number.isInteger(id) || !platform) error(404, m.post_not_found());
 	const db = requestDb(platform);
 	const [post, options] = await Promise.all([getEditablePost(db, id), getPostOptions(db)]);
-	if (!post) error(404, '글을 찾을 수 없습니다.');
+	if (!post) error(404, m.post_not_found());
+	const status: 'draft' | 'scheduled' | 'published' =
+		post.publishedAt === null ? 'draft' : post.publishedAt > new Date() ? 'scheduled' : 'published';
 	return {
 		post,
 		options,
+		images: await listPostImages(platform.env.MEDIA, post.assetId),
 		form: await superValidate(
 			{
 				title: post.title,
@@ -34,34 +46,40 @@ export const load: PageServerLoad = async ({ params, platform, url }) => {
 			},
 			zod4(postSchema)
 		),
-		saved: url.searchParams.has('saved')
+		saved: url.searchParams.has('saved'),
+		status
 	};
 };
 
-async function save(event: RequestEvent, draft: boolean) {
+async function save(event: RequestEvent, action: PublicationAction) {
+	requireUser();
 	const id = Number(event.params.id);
+	if (!Number.isInteger(id)) error(404, m.post_not_found());
 	const form = await superValidate(event.request, zod4(postSchema));
 	if (!form.valid) return fail(400, { form });
-	if (!(await getEditablePost(requestDb(event.platform), id))) error(404, '글을 찾을 수 없습니다.');
+	let post: Awaited<ReturnType<typeof updatePost>>;
 	try {
-		await updatePost(requestDb(event.platform), id, form.data, draft);
-	} catch {
-		return fail(400, { form, error: '글을 저장하지 못했습니다. 시리즈 순서를 확인하세요.' });
+		post = await updatePost(requestDb(event.platform), id, form.data, action);
+	} catch (cause) {
+		if (isUniqueConflict(cause)) return fail(409, { form, error: m.post_conflict() });
+		throw cause;
 	}
-	const scheduled =
-		!draft && form.data.publishedAt && new Date(`${form.data.publishedAt}:00+09:00`) > new Date();
-	redirect(303, draft || scheduled ? `/posts/${id}/edit?saved=1` : `/posts/${id}`);
+	if (!post) error(404, m.post_not_found());
+	if (!post.publishedAt || post.publishedAt > new Date())
+		redirect(303, `/posts/${id}/edit?saved=1`);
+	redirect(303, `/posts/${id}`);
 }
 
 export const actions: Actions = {
-	saveDraft: (event) => save(event, true),
-	publish: (event) => save(event, false),
-	save: (event) => save(event, false),
-	moveToDraft: (event) => save(event, true),
+	saveDraft: (event) => save(event, 'saveDraft'),
+	publish: (event) => save(event, 'publish'),
+	save: (event) => save(event, 'save'),
+	moveToDraft: (event) => save(event, 'moveToDraft'),
 	delete: async ({ params, platform }) => {
+		requireUser();
 		const id = Number(params.id);
-		if (!Number.isInteger(id)) error(404, '글을 찾을 수 없습니다.');
-		await deletePost(requestDb(platform), id);
+		if (!Number.isInteger(id) || !(await deletePost(requestDb(platform), id)))
+			error(404, m.post_not_found());
 		redirect(303, '/posts');
 	}
 };

@@ -1,11 +1,12 @@
 <script lang="ts">
 	import Seo from '$lib/components/Seo.svelte';
+	import * as m from '$lib/paraglide/messages.js';
 	let { data } = $props();
 </script>
 
-<Seo title="About" description="개발과 일상의 기록" canonical={`${data.siteUrl}/`} />
+<Seo title={m.about_title()} description={m.about_description()} canonical={`${data.siteUrl}/`} />
 <article class="article-body">
 	<h1>mayb-log</h1>
-	<p>개발하며 배우고, 만들고, 생각한 것을 기록합니다.</p>
-	<p><a href="/posts">글 목록 보기</a></p>
+	<p>{m.about_body()}</p>
+	<p><a href="/posts">{m.view_posts()}</a></p>
 </article>

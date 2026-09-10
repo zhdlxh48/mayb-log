@@ -1,10 +1,13 @@
 import { betterAuth } from 'better-auth';
-import { admin, captcha, username } from 'better-auth/plugins';
+import { captcha, username } from 'better-auth/plugins';
 
 export const auth = betterAuth({
 	emailAndPassword: {
 		enabled: true,
 		autoSignIn: false
+	},
+	session: {
+		cookieCache: { enabled: true, maxAge: 120 }
 	},
 	disabledPaths: ['/is-username-available'],
 	user: {
@@ -17,7 +20,6 @@ export const auth = betterAuth({
 		}
 	},
 	plugins: [
-		admin(),
 		username({ displayUsername: false, immutableUsername: true }),
 		captcha({
 			provider: 'cloudflare-turnstile',

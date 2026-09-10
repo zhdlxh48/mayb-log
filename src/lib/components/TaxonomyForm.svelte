@@ -1,4 +1,6 @@
 <script lang="ts">
+	import * as m from '$lib/paraglide/messages.js';
+
 	let {
 		kind,
 		data,
@@ -14,7 +16,7 @@
 </script>
 
 <form method="POST" action={editing ? '?/save' : undefined} class="form-grid">
-	<label for={field}>{kind === 'series' ? 'Title' : 'Name'}</label>
+	<label for={field}>{kind === 'series' ? m.title() : m.name()}</label>
 	<div>
 		<input
 			id={field}
@@ -23,10 +25,12 @@
 			required
 		/>{#each errors[field] ?? [] as error}<small class="field-error">{error}</small>{/each}
 	</div>
-	<label for="description">Description</label><textarea id="description" name="description" rows="3"
-		>{data.description}</textarea
+	<label for="description">{m.description()}</label><textarea
+		id="description"
+		name="description"
+		rows="3">{data.description}</textarea
 	>
-	<span></span><button type="submit">Save</button>
+	<span></span><button type="submit">{m.save()}</button>
 </form>
 
 {#if editing}
@@ -34,9 +38,9 @@
 		method="POST"
 		action="?/delete"
 		onsubmit={(event) => {
-			if (!confirm('삭제하시겠습니까? 연결된 글은 유지됩니다.')) event.preventDefault();
+			if (!confirm(m.delete_taxonomy_confirm())) event.preventDefault();
 		}}
 	>
-		<button type="submit" class="outline secondary">Delete</button>
+		<button type="submit" class="outline secondary">{m.delete()}</button>
 	</form>
 {/if}

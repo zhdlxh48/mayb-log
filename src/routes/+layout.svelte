@@ -8,11 +8,14 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
+	<link rel="alternate" type="application/rss+xml" title="mayb-log" href="/rss.xml" />
 </svelte:head>
 
 <AppHeader user={data.user} />
 <main class="site-main">{@render children()}</main>
-<footer class="site-footer">© {new Date().getFullYear()} mayb-log</footer>
+<footer class="site-footer">
+	© {new Date().getFullYear()} mayb-log · <a href="/rss.xml">RSS</a>
+</footer>
 
 <style>
 	.site-main,

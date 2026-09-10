@@ -1,10 +1,16 @@
 <script lang="ts">
 	import PostForm from '$lib/components/PostForm.svelte';
 	import Seo from '$lib/components/Seo.svelte';
+	import * as m from '$lib/paraglide/messages.js';
 	let { data, form } = $props();
 </script>
 
-<Seo title="New Post" description="새 글 작성" canonical={`${data.siteUrl}/posts/new`} noindex />
-<h1>New Post</h1>
+<Seo
+	title={m.new_post_title()}
+	description={m.new_post_description()}
+	canonical={`${data.siteUrl}/posts/new`}
+	noindex
+/>
+<h1>{m.new_post_title()}</h1>
 {#if form && 'error' in form && form.error}<p role="alert">{form.error}</p>{/if}
-<PostForm form={form?.form ?? data.form} options={data.options} mode="new" />
+<PostForm form={form?.form ?? data.form} options={data.options} mode="new" assetId={data.assetId} />

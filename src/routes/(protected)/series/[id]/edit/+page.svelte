@@ -1,16 +1,17 @@
 <script lang="ts">
 	import Seo from '$lib/components/Seo.svelte';
 	import TaxonomyForm from '$lib/components/TaxonomyForm.svelte';
+	import * as m from '$lib/paraglide/messages.js';
 	let { data, form } = $props();
 </script>
 
 <Seo
-	title={`Edit ${data.item.title}`}
-	description="시리즈 편집"
+	title={`${m.edit()} ${data.item.title}`}
+	description={m.edit_series()}
 	canonical={`${data.siteUrl}/series/${data.item.id}/edit`}
 	noindex
 />
-<h1>Edit Series</h1>
+<h1>{m.edit_series()}</h1>
 {#if form && 'error' in form && form.error}<p role="alert">{form.error}</p>{/if}
 <TaxonomyForm
 	kind="series"

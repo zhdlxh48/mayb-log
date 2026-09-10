@@ -9,3 +9,5 @@ bun.lockb
 /static/
 worker-configuration.d.ts
 .wrangler-dry/
+project.inlang/cache/
+src/lib/paraglide/
