@@ -1,47 +1,31 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "mayb-log",
-  "main": "src/worker.js",
-  "compatibility_date": "2026-09-08",
-  "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
-  "preview_urls": true,
-  "assets": {
-    "directory": "./public",
-  },
-  "rules": [
-    {
-      "type": "Text",
-      "globs": ["**/*.ejs"],
-      "fallthrough": true,
-    },
-  ],
-  "vars": {
-    "SITE_NAME": "mayb-log",
-    "SITE_ORIGIN": "https://mayb-log.mayb.workers.dev",
-    "TURNSTILE_SITE_KEY": "0x4AAAAAAEs16S9dT7tGuaVw",
-  },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "mayb-log-final",
-      "database_id": "560292fd-93e0-4e13-b8ff-47d629f13ec6",
-    },
-  ],
-  "r2_buckets": [
-    {
-      "binding": "MEDIA",
-      "bucket_name": "mayb-log-media-final",
-    },
-  ],
-  "ratelimits": [
-    {
-      "name": "AUTH_RATE_LIMIT",
-      "namespace_id": "1001",
-      "simple": {
-        "limit": 8,
-        "period": 60,
-      },
-    },
-  ],
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "mayb-log-sveltekit",
+	"compatibility_date": "2026-09-09",
+	"compatibility_flags": ["nodejs_compat"],
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+	"workers_dev": true,
+	"preview_urls": true,
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "mayb-log-sveltekit-db",
+			"database_id": "f2b34fea-46ec-4273-b506-0f3a1c20dcc1",
+			"migrations_dir": "drizzle"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "MEDIA",
+			"bucket_name": "mayb-log-sveltekit-media"
+		}
+	],
+	"vars": {
+		"SITE_URL": "https://mayb-log-sveltekit.mayb.workers.dev",
+		"TURNSTILE_SITE_KEY": "0x4AAAAAAEuU3wd7mELSZrP0"
+	}
 }
