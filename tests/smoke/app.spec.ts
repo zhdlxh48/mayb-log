@@ -55,15 +55,21 @@ test('draft, image, publish, search, archive, edit and delete', async ({ page })
 	await page.goto('/login');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page.getByRole('link', { name: 'Sign up' }).click();
+	await expect(page).toHaveURL('/signup');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page.getByRole('link', { name: '이미 계정이 있습니다.' }).click();
+	await expect(page).toHaveURL('/login');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page.goBack();
+	await expect(page).toHaveURL('/signup');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page.goForward();
+	await expect(page).toHaveURL('/login');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/login');
 	await page.getByRole('link', { name: 'Sign up' }).click();
+	await expect(page).toHaveURL('/signup');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page
 		.locator('[data-turnstile-container]')
