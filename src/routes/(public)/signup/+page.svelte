@@ -73,7 +73,8 @@
 			>{/each}
 	</div>
 	<span></span><label
-		><input type="checkbox" bind:checked={showPassword} /> {m.show_password()}</label
+		><input id="showPassword" type="checkbox" bind:checked={showPassword} />
+		{m.show_password()}</label
 	>
 	<span>{m.robot_check()}</span><Turnstile siteKey={data.turnstileSiteKey} />
 	<span></span><button type="submit">{m.signup_title()}</button>

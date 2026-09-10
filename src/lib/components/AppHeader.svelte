@@ -36,7 +36,10 @@
 			{/if}
 			<label class="language"
 				>{m.language_label()}<select
+					id="language"
+					name="language"
 					aria-label={m.language_label()}
+					autocomplete="language"
 					value={getLocale()}
 					onchange={(event) => setLocale(event.currentTarget.value as Locale)}
 					><option value="ko">한국어</option><option value="ja">日本語</option><option value="en"

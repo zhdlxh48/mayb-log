@@ -28,7 +28,7 @@
 <form method="POST" action="?/profile" class="form-grid">
 	<label for="name">{m.nickname()}</label>
 	<div>
-		<input id="name" name="name" value={profile.data.name} required />
+		<input id="name" name="name" autocomplete="nickname" value={profile.data.name} required />
 		{#each profile.errors.name ?? [] as error}<small class="field-error">{error}</small>{/each}
 	</div>
 	<span></span><button type="submit">{m.save_profile()}</button>
