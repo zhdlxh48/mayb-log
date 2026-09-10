@@ -1,17 +1,23 @@
 <script lang="ts">
 	import Seo from '$lib/components/Seo.svelte';
 	import Turnstile from '$lib/components/Turnstile.svelte';
+	import * as m from '$lib/paraglide/messages.js';
 	let { data, form } = $props();
 	let showPassword = $state(false);
 	const current = $derived(form?.form ?? data.form);
 </script>
 
-<Seo title="Sign up" description="mayb-log 회원가입" canonical={`${data.siteUrl}/signup`} noindex />
-<h1>Sign up</h1>
+<Seo
+	title={m.signup_title()}
+	description={m.signup_description()}
+	canonical={`${data.siteUrl}/signup`}
+	noindex
+/>
+<h1>{m.signup_title()}</h1>
 {#if form?.success}<p role="status">{form.success}</p>{/if}
 {#if form && 'error' in form && form.error}<p role="alert">{form.error}</p>{/if}
 <form method="POST" class="form-grid">
-	<label for="username">User ID</label>
+	<label for="username">{m.user_id()}</label>
 	<div>
 		<input
 			id="username"
@@ -22,7 +28,7 @@
 		/>{#each current.errors.username ?? [] as error}<small class="field-error">{error}</small
 			>{/each}
 	</div>
-	<label for="name">Nickname</label>
+	<label for="name">{m.nickname()}</label>
 	<div>
 		<input
 			id="name"
@@ -32,7 +38,7 @@
 			required
 		/>{#each current.errors.name ?? [] as error}<small class="field-error">{error}</small>{/each}
 	</div>
-	<label for="email">Email</label>
+	<label for="email">{m.email()}</label>
 	<div>
 		<input
 			id="email"
@@ -43,7 +49,7 @@
 			required
 		/>{#each current.errors.email ?? [] as error}<small class="field-error">{error}</small>{/each}
 	</div>
-	<label for="password">Password</label>
+	<label for="password">{m.password()}</label>
 	<div>
 		<input
 			id="password"
@@ -54,7 +60,7 @@
 		/>{#each current.errors.password ?? [] as error}<small class="field-error">{error}</small
 			>{/each}
 	</div>
-	<label for="passwordConfirmation">Password confirmation</label>
+	<label for="passwordConfirmation">{m.password_confirmation()}</label>
 	<div>
 		<input
 			id="passwordConfirmation"
@@ -66,8 +72,10 @@
 				>{error}</small
 			>{/each}
 	</div>
-	<span></span><label><input type="checkbox" bind:checked={showPassword} /> 비밀번호 표시</label>
-	<span>Robot check</span><Turnstile siteKey={data.turnstileSiteKey} />
-	<span></span><button type="submit">Sign up</button>
+	<span></span><label
+		><input type="checkbox" bind:checked={showPassword} /> {m.show_password()}</label
+	>
+	<span>{m.robot_check()}</span><Turnstile siteKey={data.turnstileSiteKey} />
+	<span></span><button type="submit">{m.signup_title()}</button>
 </form>
-<p><a href="/login">이미 계정이 있습니다.</a></p>
+<p><a href="/login" data-sveltekit-reload>{m.login_link()}</a></p>

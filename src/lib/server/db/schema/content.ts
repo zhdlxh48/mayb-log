@@ -1,5 +1,6 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
+	check,
 	index,
 	integer,
 	primaryKey,
@@ -12,15 +13,14 @@ import { user } from './auth';
 export const series = sqliteTable('series', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	title: text('title').notNull().unique(),
-	description: text('description').notNull().default(''),
-	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+	description: text('description').notNull().default('')
 });
 
 export const posts = sqliteTable(
 	'posts',
 	{
 		id: integer('id').primaryKey({ autoIncrement: true }),
+		assetId: text('asset_id').notNull().unique(),
 		authorId: text('author_id')
 			.notNull()
 			.references(() => user.id),
@@ -30,26 +30,28 @@ export const posts = sqliteTable(
 		bodyMarkdown: text('body_markdown').notNull(),
 		seriesId: integer('series_id').references(() => series.id, { onDelete: 'set null' }),
 		seriesPosition: integer('series_position'),
-		draft: integer('draft', { mode: 'boolean' }).notNull().default(true),
 		noindex: integer('noindex', { mode: 'boolean' }).notNull().default(false),
 		publishedAt: integer('published_at', { mode: 'timestamp_ms' }),
 		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 		updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
 	},
 	(table) => [
-		index('posts_public_idx').on(table.draft, table.publishedAt),
+		index('posts_published_idx')
+			.on(table.publishedAt, table.id)
+			.where(sql`${table.publishedAt} IS NOT NULL`),
 		index('posts_author_idx').on(table.authorId),
-		index('posts_series_idx').on(table.seriesId),
-		uniqueIndex('posts_series_position_idx').on(table.seriesId, table.seriesPosition)
+		uniqueIndex('posts_series_position_idx').on(table.seriesId, table.seriesPosition),
+		check(
+			'posts_series_position_check',
+			sql`(${table.seriesId} IS NULL AND ${table.seriesPosition} IS NULL) OR (${table.seriesId} IS NOT NULL AND ${table.seriesPosition} IS NOT NULL)`
+		)
 	]
 );
 
 export const categories = sqliteTable('categories', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	name: text('name').notNull().unique(),
-	description: text('description').notNull().default(''),
-	createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-	updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+	description: text('description').notNull().default('')
 });
 
 export const tags = sqliteTable('tags', {
@@ -67,7 +69,10 @@ export const postCategories = sqliteTable(
 			.notNull()
 			.references(() => categories.id, { onDelete: 'cascade' })
 	},
-	(table) => [primaryKey({ columns: [table.postId, table.categoryId] })]
+	(table) => [
+		primaryKey({ columns: [table.postId, table.categoryId] }),
+		index('post_categories_category_idx').on(table.categoryId, table.postId)
+	]
 );
 
 export const postTags = sqliteTable(
@@ -80,7 +85,10 @@ export const postTags = sqliteTable(
 			.notNull()
 			.references(() => tags.id, { onDelete: 'cascade' })
 	},
-	(table) => [primaryKey({ columns: [table.postId, table.tagId] })]
+	(table) => [
+		primaryKey({ columns: [table.postId, table.tagId] }),
+		index('post_tags_tag_idx').on(table.tagId, table.postId)
+	]
 );
 
 export const postRelations = relations(posts, ({ one, many }) => ({

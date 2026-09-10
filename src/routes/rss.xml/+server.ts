@@ -11,7 +11,6 @@ export const GET: RequestHandler = async ({ platform }) => {
 		description: '개발과 일상의 기록',
 		id: site,
 		link: site,
-		language: 'ko',
 		copyright: `© ${new Date().getFullYear()} mayb-log`,
 		feedLinks: { rss2: `${site}/rss.xml` }
 	});
@@ -27,6 +26,9 @@ export const GET: RequestHandler = async ({ platform }) => {
 		});
 	}
 	return new Response(feed.rss2(), {
-		headers: { 'content-type': 'application/rss+xml; charset=utf-8' }
+		headers: {
+			'content-type': 'application/rss+xml; charset=utf-8',
+			'cache-control': 'public, max-age=300'
+		}
 	});
 };

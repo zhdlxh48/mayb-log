@@ -1,18 +1,21 @@
 import { error } from '@sveltejs/kit';
 import { getPublishedPost, getSeriesNeighbors } from '$lib/server/db/queries/posts';
 import { requestDb } from '$lib/server/db/request';
-import { renderMarkdown } from '$lib/server/markdown/render';
+import { renderMarkdownDocument } from '$lib/server/markdown/render';
 import type { PageServerLoad } from './$types';
+import * as m from '$lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async ({ params, platform }) => {
 	const id = Number(params.id);
-	if (!Number.isInteger(id)) error(404, '글을 찾을 수 없습니다.');
+	if (!Number.isInteger(id)) error(404, m.post_not_found());
 	const db = requestDb(platform);
 	const post = await getPublishedPost(db, id);
-	if (!post) error(404, '글을 찾을 수 없습니다.');
+	if (!post) error(404, m.post_not_found());
+	const rendered = await renderMarkdownDocument(post.bodyMarkdown);
 	return {
 		post,
-		html: await renderMarkdown(post.bodyMarkdown),
+		html: rendered.html,
+		image: rendered.firstImage,
 		neighbors: await getSeriesNeighbors(db, post),
 		siteUrl: platform?.env.SITE_URL ?? ''
 	};

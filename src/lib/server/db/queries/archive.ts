@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, lte, sql } from 'drizzle-orm';
+import { and, isNotNull, lte, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { posts } from '$lib/server/db/schema/content';
 
@@ -10,7 +10,7 @@ export async function getArchive(db: Database, now = new Date()) {
 			count: sql<number>`count(*)`
 		})
 		.from(posts)
-		.where(and(eq(posts.draft, false), isNotNull(posts.publishedAt), lte(posts.publishedAt, now)))
+		.where(and(isNotNull(posts.publishedAt), lte(posts.publishedAt, now)))
 		.groupBy(sql`1, 2`)
 		.orderBy(sql`1 DESC, 2 DESC`);
 }

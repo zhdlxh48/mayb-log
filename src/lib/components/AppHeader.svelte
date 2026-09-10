@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import * as m from '$lib/paraglide/messages.js';
+	import { getLocale, setLocale, type Locale } from '$lib/paraglide/runtime.js';
 
 	let { user } = $props<{ user: App.Locals['user'] }>();
 
@@ -9,21 +11,39 @@
 </script>
 
 <header class="site-header">
-	<nav aria-label="주요 탐색">
+	<nav aria-label={m.nav_label()}>
 		<a class="brand" href="/" aria-current={current('/') ? 'page' : undefined}>mayb-log</a>
 		<div class="links">
-			<a href="/posts" aria-current={current('/posts') ? 'page' : undefined}>Posts</a>
-			<a href="/series" aria-current={current('/series') ? 'page' : undefined}>Series</a>
-			<a href="/categories" aria-current={current('/categories') ? 'page' : undefined}>Categories</a
+			<a href="/posts" aria-current={current('/posts') ? 'page' : undefined}>{m.nav_posts()}</a>
+			<a href="/series" aria-current={current('/series') ? 'page' : undefined}>{m.nav_series()}</a>
+			<a href="/categories" aria-current={current('/categories') ? 'page' : undefined}
+				>{m.nav_categories()}</a
 			>
-			<a href="/archive" aria-current={current('/archive') ? 'page' : undefined}>Archive</a>
-			<a href="/search" aria-current={current('/search') ? 'page' : undefined}>Search</a>
+			<a href="/archive" aria-current={current('/archive') ? 'page' : undefined}
+				>{m.nav_archive()}</a
+			>
+			<a href="/search" aria-current={current('/search') ? 'page' : undefined}>{m.nav_search()}</a>
 			{#if user}
-				<a href="/drafts" aria-current={current('/drafts') ? 'page' : undefined}>Drafts</a>
-				<a href="/profile" aria-current={current('/profile') ? 'page' : undefined}>Profile</a>
+				<a href="/drafts" aria-current={current('/drafts') ? 'page' : undefined}>{m.nav_drafts()}</a
+				>
+				<a href="/profile" aria-current={current('/profile') ? 'page' : undefined}
+					>{m.nav_profile()}</a
+				>
 			{:else}
-				<a href="/login" aria-current={current('/login') ? 'page' : undefined}>Login</a>
+				<a href="/login" data-sveltekit-reload aria-current={current('/login') ? 'page' : undefined}
+					>{m.nav_login()}</a
+				>
 			{/if}
+			<label class="language"
+				>{m.language_label()}<select
+					aria-label={m.language_label()}
+					value={getLocale()}
+					onchange={(event) => setLocale(event.currentTarget.value as Locale)}
+					><option value="ko">한국어</option><option value="ja">日本語</option><option value="en"
+						>English</option
+					></select
+				></label
+			>
 		</div>
 	</nav>
 </header>
@@ -54,6 +74,18 @@
 	}
 	.links a[aria-current='page'] {
 		font-weight: 700;
+	}
+	.language {
+		display: flex;
+		gap: 0.25rem;
+		align-items: baseline;
+		color: var(--muted-color);
+		font-size: 0.82rem;
+	}
+	.language select {
+		width: auto;
+		min-height: 1.7rem;
+		padding: 0.05rem 0.2rem;
 	}
 	@media (max-width: 640px) {
 		.site-header {

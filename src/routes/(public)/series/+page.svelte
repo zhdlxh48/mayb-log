@@ -1,16 +1,21 @@
 <script lang="ts">
 	import Seo from '$lib/components/Seo.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import * as m from '$lib/paraglide/messages.js';
 	let { data } = $props();
 </script>
 
-<Seo title="Series" description="시리즈 목록" canonical={`${data.siteUrl}/series`} />
+<Seo
+	title={m.series_title()}
+	description={m.series_description()}
+	canonical={`${data.siteUrl}/series`}
+/>
 <PageHeader
-	title="Series"
-	action={data.user ? { href: '/series/new', label: 'New Series' } : undefined}
+	title={m.series_title()}
+	action={data.user ? { href: '/series/new', label: m.new_series() } : undefined}
 />
 <table>
-	<thead><tr><th>Title</th><th>Posts</th><th>Action</th></tr></thead>
+	<thead><tr><th>{m.title()}</th><th>{m.posts_count()}</th><th>{m.action()}</th></tr></thead>
 	<tbody>
 		{#each data.items as item}
 			<tr>
@@ -20,10 +25,10 @@
 						>{/if}</td
 				>
 				<td>{item.count}</td><td
-					>{#if data.user}<a href={`/series/${item.id}/edit`}>Edit</a>{/if}</td
+					>{#if data.user}<a href={`/series/${item.id}/edit`}>{m.edit()}</a>{/if}</td
 				>
 			</tr>
-		{:else}<tr><td colspan="3">등록된 시리즈가 없습니다.</td></tr>{/each}
+		{:else}<tr><td colspan="3">{m.empty_series()}</td></tr>{/each}
 	</tbody>
 </table>
 

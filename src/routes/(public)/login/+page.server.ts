@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ url }) => ({
 });
 
 export const actions: Actions = {
-	default: async ({ request, locals }) => {
+	default: async ({ request, locals, url }) => {
 		const form = await superValidate(request, zod4(loginSchema));
 		if (!form.valid) return fail(400, { form });
 		try {
@@ -19,9 +19,12 @@ export const actions: Actions = {
 				headers: authHeaders(request, form.data.captcha)
 			});
 		} catch (error) {
-			return fail(400, { form, error: authMessage(error) });
+			const message = authMessage(error);
+			if (!message) throw error;
+			return fail(400, { form, error: message });
 		}
-		const next = form.data.next;
-		redirect(303, next.startsWith('/') && !next.startsWith('//') ? next : '/profile');
+		const target = new URL(form.data.next || '/profile', url.origin);
+		if (target.origin !== url.origin) redirect(303, '/profile');
+		redirect(303, target.pathname + target.search + target.hash);
 	}
 };

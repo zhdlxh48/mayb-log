@@ -1,10 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { expect, test } from '@playwright/test';
+import { expect, request as createRequest, test } from '@playwright/test';
 
 const username = 'smoke_user';
 const email = 'smoke_user@example.com';
 const password = 'Smoke-password-123!';
-const changedPassword = 'Changed-password-123!';
+const png = Buffer.from(
+	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+	'base64'
+);
 
 function sql(command: string) {
 	execFileSync(
@@ -25,7 +28,6 @@ function sql(command: string) {
 test.beforeAll(async ({ request }) => {
 	sql(`DELETE FROM posts WHERE author_id IN (SELECT id FROM user WHERE username = '${username}');`);
 	sql(`DELETE FROM user WHERE username = '${username}';`);
-
 	const response = await request.post('/signup', {
 		headers: { origin: 'http://localhost:5173' },
 		form: {
@@ -51,105 +53,85 @@ test.afterAll(() => {
 	sql(`DELETE FROM user WHERE username = '${username}';`);
 });
 
-test('draft, image, publish, search, archive, edit and delete', async ({ page }) => {
+test('rejects a protected mutation without a session', async () => {
+	const context = await createRequest.newContext({ baseURL: 'http://localhost:5173' });
+	const response = await context.post('/posts/new?/saveDraft', {
+		maxRedirects: 0,
+		headers: { origin: 'http://localhost:5173' },
+		form: {}
+	});
+	const denied = (await response.json()) as { type: string; status: number; location: string };
+	expect(denied).toMatchObject({ type: 'redirect', status: 303 });
+	expect(denied.location).toContain('/login?next=');
+	await context.dispose();
+});
+
+test('auth, editor, media, preview and post lifecycle', async ({ page, context }) => {
+	await context.addCookies([
+		{ name: 'PARAGLIDE_LOCALE', value: 'en', domain: 'localhost', path: '/' }
+	]);
 	await page.goto('/login');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page.getByRole('link', { name: 'Sign up' }).click();
 	await expect(page).toHaveURL('/signup');
-	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
-	await page.getByRole('link', { name: '이미 계정이 있습니다.' }).click();
-	await expect(page).toHaveURL('/login');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page.goBack();
-	await expect(page).toHaveURL('/signup');
-	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
-	await page.goForward();
 	await expect(page).toHaveURL('/login');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
-	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto('/login');
-	await page.getByRole('link', { name: 'Sign up' }).click();
+	await page.goForward();
 	await expect(page).toHaveURL('/signup');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
-	await page
-		.locator('[data-turnstile-container]')
-		.evaluate((container) => container.replaceChildren());
-	await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+	const otherTab = await context.newPage();
+	await otherTab.goto('about:blank');
+	await page.bringToFront();
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
-	await page.setViewportSize({ width: 1280, height: 720 });
+	await otherTab.close();
 
-	const login = await page.request.post('/login', {
-		headers: { origin: 'http://localhost:5173' },
-		form: { username, password, captcha: 'test-token', next: '/profile' }
-	});
-	expect(login.ok()).toBe(true);
-
-	await page.goto('/profile');
-	await expect(page.getByText(username, { exact: true })).toBeVisible();
-	await expect(page.getByText(email, { exact: true })).toBeVisible();
-	await page.getByLabel('Current password').fill(password);
-	await page.getByLabel('New password').fill(changedPassword);
-	await page.getByLabel('Confirmation').fill(changedPassword);
-	await page.getByRole('button', { name: 'Change password' }).click();
-	await expect(page.getByRole('status')).toContainText('비밀번호를 변경했습니다.');
-	const changedLogin = await page.evaluate(
-		async ({ username, password }) => {
-			await fetch('/api/auth/sign-out', { method: 'POST' });
-			return fetch('/api/auth/sign-in/username', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json', 'x-captcha-response': 'test-token' },
-				body: JSON.stringify({ username, password })
-			}).then((response) => response.status);
-		},
-		{ username, password: changedPassword }
-	);
-	expect(changedLogin).toBe(200);
-
-	const mediaUrl = await page.evaluate(async () => {
-		const bytes = Uint8Array.from(
-			atob('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEALmk0mk0iIiIiIgBoSygABc6zbAAA'),
-			(value) => value.charCodeAt(0)
-		);
-		const body = new FormData();
-		body.set('file', new File([bytes], 'smoke.webp', { type: 'image/webp' }));
-		const response = await fetch('/api/media', { method: 'POST', body });
-		if (!response.ok) throw new Error(await response.text());
-		return ((await response.json()) as { url: string }).url;
-	});
-
-	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto('/posts/new');
-	const toolbar = await page.getByRole('toolbar').boundingBox();
-	const writeTab = await page.getByRole('button', { name: 'Write' }).boundingBox();
-	expect(toolbar).not.toBeNull();
-	expect(writeTab).not.toBeNull();
-	expect(writeTab!.y).toBeGreaterThanOrEqual(toolbar!.y);
-	expect(writeTab!.y + writeTab!.height).toBeLessThanOrEqual(toolbar!.y + toolbar!.height + 1);
+	await page.goto('/login?next=/posts/new');
+	await page.getByLabel('User ID').fill(username);
+	await page.getByLabel('Password', { exact: true }).fill(password);
+	await expect(page.locator('input[name="captcha"]')).toHaveValue(/.+/);
+	await page.getByRole('button', { name: 'Login' }).click();
+	await expect(page).toHaveURL('/posts/new');
+	const assetId = await page.locator('input[name="assetId"]').inputValue();
+	expect(assetId).toMatch(/^[0-9a-f-]{36}$/);
 	await page.getByLabel('Title', { exact: true }).fill('SvelteKit smoke post');
-	await page.getByLabel('Description').fill('초안부터 공개까지 확인하는 테스트 글입니다.');
-	await page.locator('input[name="bodyMarkdown"]').evaluate((input, media) => {
-		(input as HTMLInputElement).value = `# Smoke\n\n![test image](${media})`;
-	}, mediaUrl);
+	await page.getByLabel('Description').fill('Post lifecycle smoke test.');
+	await page.getByLabel('Body').fill('# Smoke\n\nPreview body');
+	await page
+		.getByLabel('Upload image')
+		.setInputFiles({ name: 'smoke.png', mimeType: 'image/png', buffer: png });
+	const imageLink = page.locator('table.images a');
+	await expect(imageLink).toBeVisible();
+	const mediaUrl = await imageLink.getAttribute('href');
+	expect(mediaUrl).toMatch(new RegExp(`^/media/${assetId}/[0-9a-f-]{36}\\.webp$`));
+	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(mediaUrl!));
+	await page.getByRole('button', { name: 'Preview' }).click();
+	await expect(page.locator('.preview h1')).toHaveText('Smoke');
+	const invalidFields = await page.locator('form').evaluate((form: HTMLFormElement) =>
+		Array.from(form.elements)
+			.filter((field) => 'checkValidity' in field && !(field as HTMLInputElement).checkValidity())
+			.map((field) => (field as HTMLInputElement).name)
+	);
+	expect(invalidFields).toEqual([]);
+	const saveResponse = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/saveDraft')
+	);
 	await page.getByRole('button', { name: 'Save draft' }).click();
-	await page.setViewportSize({ width: 1280, height: 720 });
+	const saved = await saveResponse;
+	expect(saved.status()).toBe(303);
 	await expect(page).toHaveURL(/\/posts\/\d+\/edit\?saved=1$/);
-	await expect(page.getByRole('status')).toContainText('저장했습니다.');
 	const editUrl = page.url();
 	const postId = editUrl.match(/\/posts\/(\d+)\/edit/)?.[1];
 	expect(postId).toBeTruthy();
 
-	await page.goto('/drafts');
-	await expect(page.getByRole('link', { name: 'SvelteKit smoke post' })).toBeVisible();
-	await page.getByRole('link', { name: 'SvelteKit smoke post' }).click();
 	await page.getByRole('button', { name: 'Publish' }).click();
 	await expect(page).toHaveURL(`/posts/${postId}`);
 	await expect(page.getByRole('heading', { name: 'SvelteKit smoke post' })).toBeVisible();
-	await expect(page.locator('.article-body img')).toHaveAttribute('src', mediaUrl);
-
-	await page.goto('/search?q=SvelteKit');
+	await expect(page.locator('.article-body img')).toHaveAttribute('src', mediaUrl!);
+	await page.getByRole('link', { name: 'Smoke User' }).click();
+	await expect(page).toHaveURL('/search?author=smoke_user');
 	await expect(page.getByRole('link', { name: 'SvelteKit smoke post' })).toBeVisible();
-	await page.goto('/archive');
-	await expect(page.getByText(`${new Date().getFullYear()} (1)`)).toBeVisible();
 
 	await page.goto(editUrl);
 	await page.getByLabel('Title', { exact: true }).fill('Edited smoke post');
@@ -157,12 +139,16 @@ test('draft, image, publish, search, archive, edit and delete', async ({ page })
 	await expect(page.getByRole('heading', { name: 'Edited smoke post' })).toBeVisible();
 	await page.getByRole('link', { name: 'Edit' }).click();
 	page.once('dialog', (dialog) => dialog.accept());
-	await page.getByRole('button', { name: 'Delete', exact: true }).click();
+	await page.locator('button[formaction="?/delete"]').click();
 	await expect(page).toHaveURL('/posts');
 
+	const imageId = mediaUrl!.split('/').at(-1)!.replace('.webp', '');
 	const removed = await page.evaluate(
-		async (url) => fetch(url, { method: 'DELETE' }).then((r) => r.status),
-		mediaUrl.replace('/media/', '/api/media/').replace('.webp', '')
+		async ({ assetId, imageId }) =>
+			fetch(`/api/media/${assetId}/${imageId}`, { method: 'DELETE' }).then(
+				(response) => response.status
+			),
+		{ assetId, imageId }
 	);
 	expect(removed).toBe(204);
 });

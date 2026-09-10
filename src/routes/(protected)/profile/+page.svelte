@@ -1,38 +1,42 @@
 <script lang="ts">
 	import Seo from '$lib/components/Seo.svelte';
+	import * as m from '$lib/paraglide/messages.js';
 	let { data, form } = $props();
 	const profile = $derived(form?.profileForm ?? data.profileForm);
 	const password = $derived(form?.passwordForm ?? data.passwordForm);
 </script>
 
-<Seo title="Profile" description="계정 정보" canonical={`${data.siteUrl}/profile`} noindex />
-<h1>Profile</h1>
+<Seo
+	title={m.profile_title()}
+	description={m.profile_description()}
+	canonical={`${data.siteUrl}/profile`}
+	noindex
+/>
+<h1>{m.profile_title()}</h1>
 <dl>
-	<dt>User ID</dt>
+	<dt>{m.user_id()}</dt>
 	<dd>{data.user.username}</dd>
-	<dt>Email</dt>
+	<dt>{m.email()}</dt>
 	<dd>{data.user.email}</dd>
-	<dt>Approval</dt>
-	<dd>{data.user.approved ? 'Approved' : 'Pending'}</dd>
-	<dt>Account</dt>
-	<dd>{data.user.banned ? 'Suspended' : 'Active'}</dd>
+	<dt>{m.approval()}</dt>
+	<dd>{data.user.approved ? m.approved() : m.pending()}</dd>
 </dl>
 
-<h2>Profile</h2>
+<h2>{m.profile_title()}</h2>
 {#if form?.success}<p role="status">{form.success}</p>{/if}
 {#if form && 'error' in form && form.error}<p role="alert">{form.error}</p>{/if}
 <form method="POST" action="?/profile" class="form-grid">
-	<label for="name">Nickname</label>
+	<label for="name">{m.nickname()}</label>
 	<div>
 		<input id="name" name="name" value={profile.data.name} required />
 		{#each profile.errors.name ?? [] as error}<small class="field-error">{error}</small>{/each}
 	</div>
-	<span></span><button type="submit">Save profile</button>
+	<span></span><button type="submit">{m.save_profile()}</button>
 </form>
 
-<h2>Password</h2>
+<h2>{m.password()}</h2>
 <form method="POST" action="?/password" class="form-grid">
-	<label for="currentPassword">Current password</label>
+	<label for="currentPassword">{m.current_password()}</label>
 	<div>
 		<input
 			id="currentPassword"
@@ -44,7 +48,7 @@
 		{#each password.errors.currentPassword ?? [] as error}<small class="field-error">{error}</small
 			>{/each}
 	</div>
-	<label for="newPassword">New password</label>
+	<label for="newPassword">{m.new_password()}</label>
 	<div>
 		<input
 			id="newPassword"
@@ -56,7 +60,7 @@
 		{#each password.errors.newPassword ?? [] as error}<small class="field-error">{error}</small
 			>{/each}
 	</div>
-	<label for="passwordConfirmation">Confirmation</label>
+	<label for="passwordConfirmation">{m.confirmation()}</label>
 	<div>
 		<input
 			id="passwordConfirmation"
@@ -69,7 +73,9 @@
 				>{error}</small
 			>{/each}
 	</div>
-	<span></span><button type="submit">Change password</button>
+	<span></span><button type="submit">{m.change_password()}</button>
 </form>
 
-<form method="POST" action="?/logout"><button type="submit" class="secondary">Logout</button></form>
+<form method="POST" action="?/logout">
+	<button type="submit" class="secondary">{m.logout()}</button>
+</form>

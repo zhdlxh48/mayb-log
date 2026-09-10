@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { koreanDate } from '$lib/dates';
+	import LocalDate from '$lib/components/LocalDate.svelte';
 
 	let { post } = $props<{
 		post: {
@@ -8,6 +8,7 @@
 			description: string;
 			publishedAt: Date | null;
 			authorName: string;
+			authorUsername: string | null;
 			seriesTitle: string | null;
 			categories: string[];
 			tags: string[];
@@ -17,13 +18,15 @@
 
 <article class="post-row">
 	<p class="date">
-		<time datetime={post.publishedAt?.toISOString()}>{koreanDate(post.publishedAt)}</time>
+		<LocalDate value={post.publishedAt} />
 	</p>
 	<div>
 		<h2><a href={`/posts/${post.id}`}>{post.title}</a></h2>
 		<p>{post.description}</p>
 		<p class="metadata">
-			{post.authorName}
+			{#if post.authorUsername}<a href={`/search?author=${encodeURIComponent(post.authorUsername)}`}
+					>{post.authorName}</a
+				>{:else}{post.authorName}{/if}
 			{#if post.seriesTitle}
 				· {post.seriesTitle}{/if}
 			{#each post.categories as category}

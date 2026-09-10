@@ -3,11 +3,12 @@ import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { eq } from 'drizzle-orm';
 import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
-import { admin, captcha, username } from 'better-auth/plugins';
+import { captcha, username } from 'better-auth/plugins';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { database } from '$lib/server/db';
 import * as authSchema from '$lib/server/db/schema/auth';
 import { user } from '$lib/server/db/schema/auth';
+import * as m from '$lib/paraglide/messages.js';
 
 export function createAuth(platform: App.Platform) {
 	const db = database(platform.env.DB);
@@ -26,6 +27,9 @@ export function createAuth(platform: App.Platform) {
 			enabled: true,
 			autoSignIn: false
 		},
+		session: {
+			cookieCache: { enabled: true, maxAge: 120 }
+		},
 		disabledPaths: ['/is-username-available'],
 		user: {
 			additionalFields: {
@@ -37,22 +41,18 @@ export function createAuth(platform: App.Platform) {
 				create: {
 					before: async (session) => {
 						const account = await db
-							.select({ approved: user.approved, banned: user.banned })
+							.select({ approved: user.approved })
 							.from(user)
 							.where(eq(user.id, session.userId))
 							.get();
 						if (!account?.approved) {
-							throw new APIError('FORBIDDEN', { message: '승인 대기 중입니다.' });
-						}
-						if (account.banned) {
-							throw new APIError('FORBIDDEN', { message: '정지된 계정입니다.' });
+							throw new APIError('FORBIDDEN', { message: m.account_unapproved() });
 						}
 					}
 				}
 			}
 		},
 		plugins: [
-			admin(),
 			username({ displayUsername: false, immutableUsername: true }),
 			captcha({
 				provider: 'cloudflare-turnstile',

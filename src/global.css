@@ -232,6 +232,11 @@ dt {
 	color: #444;
 }
 
+.article-body .note {
+	padding-left: 1rem;
+	border-left: 3px solid #6b7280;
+}
+
 .article-body iframe {
 	border: 0;
 }
