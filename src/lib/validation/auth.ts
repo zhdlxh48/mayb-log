@@ -9,6 +9,7 @@ export const signupSchema = z
 			.max(30, '아이디는 30글자 이하여야 합니다.')
 			.regex(/^[a-zA-Z0-9_.]+$/, '영문, 숫자, 밑줄, 마침표만 사용할 수 있습니다.'),
 		name: z.string().trim().min(2, '닉네임은 두 글자 이상이어야 합니다.').max(50),
+		email: z.string().trim().toLowerCase().email('올바른 이메일 주소를 입력하세요.'),
 		password: z.string().min(8, '비밀번호는 여덟 글자 이상이어야 합니다.').max(128),
 		passwordConfirmation: z.string(),
 		captcha: z.string().min(1, '로봇 확인을 완료하세요.')
