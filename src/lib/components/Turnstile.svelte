@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 
 	type TurnstileApi = {
-		ready(callback: () => void): void;
 		render(
 			container: HTMLElement,
 			options: {
@@ -42,7 +41,7 @@
 		loadError = false;
 		const turnstile = getTurnstile();
 		if (turnstile) {
-			turnstile.ready(renderWidget);
+			renderWidget();
 			return;
 		}
 
@@ -59,8 +58,8 @@
 		script.addEventListener('error', () => (loadError = true), { once: true });
 	}
 
-	function restoreWidget(event: PageTransitionEvent) {
-		if (!event.persisted) return;
+	function restoreWidget() {
+		if (document.visibilityState === 'hidden' || container.childElementCount > 0) return;
 		const turnstile = getTurnstile();
 		if (widgetId && turnstile) turnstile.remove(widgetId);
 		widgetId = undefined;
@@ -70,8 +69,10 @@
 	onMount(() => {
 		loadWidget();
 		window.addEventListener('pageshow', restoreWidget);
+		document.addEventListener('visibilitychange', restoreWidget);
 		return () => {
 			window.removeEventListener('pageshow', restoreWidget);
+			document.removeEventListener('visibilitychange', restoreWidget);
 			const turnstile = getTurnstile();
 			if (widgetId && turnstile) turnstile.remove(widgetId);
 		};
