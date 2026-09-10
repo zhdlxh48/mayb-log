@@ -15,24 +15,36 @@
 	}>();
 </script>
 
-<article>
-	<h2><a href={`/posts/${post.id}`}>{post.title}</a></h2>
-	<p>{post.description}</p>
-	<p class="metadata">
-		{koreanDate(post.publishedAt)} · {post.authorName}
-		{#if post.seriesTitle}
-			· {post.seriesTitle}{/if}
-		{#each post.categories as category}
-			· {category}{/each}
-		{#each post.tags as tag}
-			· <a href={`/search?tag=${encodeURIComponent(tag)}`}>#{tag}</a>{/each}
+<article class="post-row">
+	<p class="date">
+		<time datetime={post.publishedAt?.toISOString()}>{koreanDate(post.publishedAt)}</time>
 	</p>
+	<div>
+		<h2><a href={`/posts/${post.id}`}>{post.title}</a></h2>
+		<p>{post.description}</p>
+		<p class="metadata">
+			{post.authorName}
+			{#if post.seriesTitle}
+				· {post.seriesTitle}{/if}
+			{#each post.categories as category}
+				· {category}{/each}
+			{#each post.tags as tag}
+				· <a href={`/search?tag=${encodeURIComponent(tag)}`}>#{tag}</a>{/each}
+		</p>
+	</div>
 </article>
 
 <style>
-	article {
-		padding-block: 0.75rem;
-		border-bottom: 1px solid #dfe3e7;
+	.post-row {
+		display: grid;
+		grid-template-columns: 7.5rem minmax(0, 1fr);
+		gap: 1rem;
+		margin-block: 0 1.3rem;
+	}
+	.date {
+		margin: 0.15rem 0 0;
+		color: var(--muted-color);
+		font-size: 0.86rem;
 	}
 	h2 {
 		margin: 0 0 0.25rem;
@@ -40,5 +52,11 @@
 	}
 	p {
 		margin: 0.2rem 0;
+	}
+	@media (max-width: 640px) {
+		.post-row {
+			grid-template-columns: minmax(0, 1fr);
+			gap: 0;
+		}
 	}
 </style>
