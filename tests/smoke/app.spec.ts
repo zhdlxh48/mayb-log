@@ -52,14 +52,25 @@ test.afterAll(() => {
 });
 
 test('draft, image, publish, search, archive, edit and delete', async ({ page }) => {
-	await page.goto('/signup');
-	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page.goto('/login');
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
+	await page.getByRole('link', { name: 'Sign up' }).click();
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
+	await page.getByRole('link', { name: '이미 계정이 있습니다.' }).click();
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page.goBack();
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page.goForward();
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.getByRole('link', { name: 'Sign up' }).click();
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
+	await page
+		.locator('[data-turnstile-container]')
+		.evaluate((container) => container.replaceChildren());
+	await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
+	await page.setViewportSize({ width: 1280, height: 720 });
 
 	const login = await page.request.post('/login', {
 		headers: { origin: 'http://localhost:5173' },
