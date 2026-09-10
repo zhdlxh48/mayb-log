@@ -47,7 +47,6 @@
 	"dependencies": {
 		"@better-auth/drizzle-adapter": "1.7.3",
 		"@cartamd/plugin-attachment": "4.2.0",
-		"@picocss/pico": "2.1.1",
 		"better-auth": "1.7.3",
 		"browser-image-compression": "2.0.2",
 		"carta-md": "4.11.2",

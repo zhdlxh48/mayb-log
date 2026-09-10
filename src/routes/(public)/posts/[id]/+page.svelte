@@ -60,7 +60,7 @@
 
 <style>
 	.subtitle {
-		color: var(--pico-muted-color);
+		color: var(--muted-color);
 		font-size: 1.05rem;
 	}
 	.series-nav {
