@@ -32,6 +32,17 @@
 			required
 		/>{#each current.errors.name ?? [] as error}<small class="field-error">{error}</small>{/each}
 	</div>
+	<label for="email">Email</label>
+	<div>
+		<input
+			id="email"
+			type="email"
+			name="email"
+			autocomplete="email"
+			value={current.data.email}
+			required
+		/>{#each current.errors.email ?? [] as error}<small class="field-error">{error}</small>{/each}
+	</div>
 	<label for="password">Password</label>
 	<div>
 		<input

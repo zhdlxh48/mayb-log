@@ -4,10 +4,6 @@ export function authHeaders(request: Request, captchaToken: string) {
 	return headers;
 }
 
-export function accountEmail(username: string) {
-	return `${username.toLowerCase()}@account.invalid`;
-}
-
 export function authMessage(error: unknown) {
 	if (error && typeof error === 'object' && 'body' in error) {
 		const body = error.body;
