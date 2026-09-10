@@ -4,6 +4,7 @@ import { zod4 } from 'sveltekit-superforms/adapters';
 import { signupSchema } from '$lib/validation/auth';
 import { authHeaders, authMessage } from '$lib/server/auth/forms';
 import type { Actions, PageServerLoad } from './$types';
+import * as m from '$lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async () => ({ form: await superValidate(zod4(signupSchema)) });
 
@@ -23,10 +24,12 @@ export const actions: Actions = {
 			});
 			return {
 				form,
-				success: '회원가입이 완료되었습니다. 운영자 승인 후 로그인할 수 있습니다.'
+				success: m.signup_success()
 			};
 		} catch (error) {
-			return fail(400, { form, error: authMessage(error) });
+			const message = authMessage(error);
+			if (!message) throw error;
+			return fail(400, { form, error: message });
 		}
 	}
 };

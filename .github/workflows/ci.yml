@@ -3,7 +3,7 @@ name: Verify and deploy
 on:
   pull_request:
   push:
-    branches: [main, dev, 'rewrite/**', 'feature/**', 'hotfix/**']
+    branches: [main, dev, 'rewrite/**', 'feature/**', 'hotfix/**', 'refactor/**']
   workflow_dispatch:
 
 permissions:

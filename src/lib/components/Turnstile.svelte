@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import * as m from '$lib/paraglide/messages.js';
 
 	type TurnstileApi = {
 		render(
@@ -69,10 +70,8 @@
 	onMount(() => {
 		loadWidget();
 		window.addEventListener('pageshow', restoreWidget);
-		document.addEventListener('visibilitychange', restoreWidget);
 		return () => {
 			window.removeEventListener('pageshow', restoreWidget);
-			document.removeEventListener('visibilitychange', restoreWidget);
 			const turnstile = getTurnstile();
 			if (widgetId && turnstile) turnstile.remove(widgetId);
 		};
@@ -80,8 +79,7 @@
 </script>
 
 <div class="turnstile" data-turnstile-container bind:this={container}></div>
-{#if loadError}<small role="alert">로봇 확인을 불러오지 못했습니다. 페이지를 새로고침하세요.</small
-	>{/if}
+{#if loadError}<small role="alert">{m.captcha_error()}</small>{/if}
 
 <style>
 	.turnstile {

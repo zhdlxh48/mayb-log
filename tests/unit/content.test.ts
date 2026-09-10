@@ -25,6 +25,20 @@ describe('Markdown policy', () => {
 		const html = await renderMarkdown('<iframe src="javascript:alert(1)"></iframe>');
 		expect(html).toBe('<iframe></iframe>');
 	});
+
+	it('does not allow an iframe mixed with other raw HTML', async () => {
+		const html = await renderMarkdown(
+			'<iframe src="https://example.com/embed"></iframe><div>Test</div>'
+		);
+		expect(html).not.toContain('<iframe');
+		expect(html).toContain('iframe src=');
+	});
+
+	it('renders the supported note directive through the shared pipeline', async () => {
+		const html = await renderMarkdown(':::note{type="warning"}\n**Careful**\n:::');
+		expect(html).toContain('<aside class="note note-warning">');
+		expect(html).toContain('<strong>Careful</strong>');
+	});
 });
 
 describe('pagination blocks', () => {

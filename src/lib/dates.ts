@@ -26,10 +26,3 @@ export function dateTimeLocal(date: Date | null) {
 		.format(date)
 		.replace(' ', 'T');
 }
-
-export function koreanDate(date: Date | null) {
-	if (!date) return '';
-	return new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'medium' }).format(
-		date
-	);
-}

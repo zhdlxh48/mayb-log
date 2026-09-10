@@ -7,9 +7,8 @@ export function authHeaders(request: Request, captchaToken: string) {
 export function authMessage(error: unknown) {
 	if (error && typeof error === 'object' && 'body' in error) {
 		const body = error.body;
-		if (body && typeof body === 'object' && 'message' in body && typeof body.message === 'string') {
-			return body.message;
-		}
+		if (body && typeof body === 'object') return m.request_failed();
 	}
-	return '요청을 처리하지 못했습니다.';
+	return null;
 }
+import * as m from '$lib/paraglide/messages.js';

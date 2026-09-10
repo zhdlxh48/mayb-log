@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { pagination } from '$lib/pagination';
+	import * as m from '$lib/paraglide/messages.js';
 
 	let {
 		pager,
@@ -19,22 +20,23 @@
 	}
 </script>
 
-{#if pager.last > 1}
-	<nav class="pagination" aria-label="페이지 이동">
-		{#if pager.current > 1}<a href={url(1)} aria-label="첫 페이지">&lt;&lt;</a>{/if}
-		{#if pager.previousBlock}<a href={url(pager.previousBlock)} aria-label="이전 페이지 묶음"
-				>&lt;</a
+<nav class="pagination" aria-label={m.pagination_label()}>
+	{#if pager.current > 1}<a href={url(1)} aria-label={m.first_page()}>&lt;&lt;</a>{:else}<span
+			aria-disabled="true">&lt;&lt;</span
+		>{/if}
+	{#if pager.previousBlock}<a href={url(pager.previousBlock)} aria-label={m.previous_block()}
+			>&lt;</a
+		>{:else}<span aria-disabled="true">&lt;</span>{/if}
+	{#each pager.pages as page}
+		{#if page === pager.current}<span aria-current="page">{page}</span>{:else}<a href={url(page)}
+				>{page}</a
 			>{/if}
-		{#each pager.pages as page}
-			{#if page === pager.current}<span aria-current="page">{page}</span>{:else}<a href={url(page)}
-					>{page}</a
-				>{/if}
-		{/each}
-		{#if pager.nextBlock}<a href={url(pager.nextBlock)} aria-label="다음 페이지 묶음">&gt;</a>{/if}
-		{#if pager.current < pager.last}<a href={url(pager.last)} aria-label="마지막 페이지">&gt;&gt;</a
-			>{/if}
-	</nav>
-{/if}
+	{/each}
+	{#if pager.nextBlock}<a href={url(pager.nextBlock)} aria-label={m.next_block()}>&gt;</a
+		>{:else}<span aria-disabled="true">&gt;</span>{/if}
+	{#if pager.current < pager.last}<a href={url(pager.last)} aria-label={m.last_page()}>&gt;&gt;</a
+		>{:else}<span aria-disabled="true">&gt;&gt;</span>{/if}
+</nav>
 
 <style>
 	.pagination {
@@ -46,5 +48,8 @@
 	[aria-current='page'] {
 		font-weight: 700;
 		text-decoration: underline;
+	}
+	[aria-disabled='true'] {
+		color: var(--muted-color);
 	}
 </style>

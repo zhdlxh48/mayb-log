@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://mayb-log-sveltekit.mayb.workers.dev/sitemap.xml

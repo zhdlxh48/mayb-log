@@ -1,4 +1,17 @@
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, lte, or, sql } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	count,
+	desc,
+	eq,
+	gt,
+	inArray,
+	isNotNull,
+	isNull,
+	lte,
+	or,
+	sql
+} from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { user } from '$lib/server/db/schema/auth';
 import {
@@ -12,63 +25,81 @@ import {
 import { POSTS_PER_PAGE } from '$lib/pagination';
 import { tagNames } from '$lib/validation/content';
 
-const categoryNames = sql<string>`COALESCE((
-	SELECT group_concat(name, char(31)) FROM (
-		SELECT ${categories.name} AS name
-		FROM ${postCategories}
-		INNER JOIN ${categories} ON ${categories.id} = ${postCategories.categoryId}
-		WHERE ${postCategories.postId} = ${posts.id}
-		ORDER BY ${categories.name}
-	)
-), '')`;
+const categoryNames = sql<string>`COALESCE((SELECT json_group_array(name) FROM (
+	SELECT ${categories.name} AS name FROM ${postCategories}
+	INNER JOIN ${categories} ON ${categories.id} = ${postCategories.categoryId}
+	WHERE ${postCategories.postId} = ${posts.id} ORDER BY ${categories.name}
+)), '[]')`;
 
-const joinedTagNames = sql<string>`COALESCE((
-	SELECT group_concat(name, char(31)) FROM (
-		SELECT ${tags.name} AS name
-		FROM ${postTags}
-		INNER JOIN ${tags} ON ${tags.id} = ${postTags.tagId}
-		WHERE ${postTags.postId} = ${posts.id}
-		ORDER BY ${tags.name}
-	)
-), '')`;
+const joinedTagNames = sql<string>`COALESCE((SELECT json_group_array(name) FROM (
+	SELECT ${tags.name} AS name FROM ${postTags}
+	INNER JOIN ${tags} ON ${tags.id} = ${postTags.tagId}
+	WHERE ${postTags.postId} = ${posts.id} ORDER BY ${tags.name}
+)), '[]')`;
 
-export const postSelection = {
+export const postSummarySelection = {
 	id: posts.id,
+	title: posts.title,
+	description: posts.description,
+	publishedAt: posts.publishedAt,
+	authorId: posts.authorId,
+	authorName: user.name,
+	authorUsername: user.username,
+	seriesTitle: series.title,
+	categories: categoryNames,
+	tags: joinedTagNames
+};
+
+const postDetailSelection = {
+	...postSummarySelection,
+	subtitle: posts.subtitle,
+	bodyMarkdown: posts.bodyMarkdown,
+	seriesId: posts.seriesId,
+	seriesPosition: posts.seriesPosition,
+	noindex: posts.noindex,
+	updatedAt: posts.updatedAt
+};
+
+const postEditorSelection = {
+	id: posts.id,
+	assetId: posts.assetId,
 	title: posts.title,
 	subtitle: posts.subtitle,
 	description: posts.description,
 	bodyMarkdown: posts.bodyMarkdown,
 	seriesId: posts.seriesId,
 	seriesPosition: posts.seriesPosition,
-	draft: posts.draft,
 	noindex: posts.noindex,
 	publishedAt: posts.publishedAt,
-	createdAt: posts.createdAt,
 	updatedAt: posts.updatedAt,
-	authorId: posts.authorId,
-	authorName: user.name,
-	seriesTitle: series.title,
 	categories: categoryNames,
 	tags: joinedTagNames
 };
 
-export type Post = Awaited<ReturnType<typeof getEditablePost>>;
+export type Post = NonNullable<Awaited<ReturnType<typeof getPublishedPost>>>;
 
-function split(value: string) {
-	return value ? value.split(String.fromCharCode(31)) : [];
+function parseNames(value: string) {
+	try {
+		const parsed: unknown = JSON.parse(value);
+		return Array.isArray(parsed)
+			? parsed.filter((name): name is string => typeof name === 'string')
+			: [];
+	} catch {
+		return [];
+	}
 }
 
 export function mapPost<T extends { categories: string; tags: string }>(post: T) {
-	return { ...post, categories: split(post.categories), tags: split(post.tags) };
+	return { ...post, categories: parseNames(post.categories), tags: parseNames(post.tags) };
 }
 
 export function publicPostCondition(now = new Date()) {
-	return and(eq(posts.draft, false), isNotNull(posts.publishedAt), lte(posts.publishedAt, now));
+	return and(isNotNull(posts.publishedAt), lte(posts.publishedAt, now));
 }
 
-function selectPosts(db: Database) {
+function selectSummaries(db: Database) {
 	return db
-		.select(postSelection)
+		.select(postSummarySelection)
 		.from(posts)
 		.innerJoin(user, eq(user.id, posts.authorId))
 		.leftJoin(series, eq(series.id, posts.seriesId));
@@ -77,34 +108,44 @@ function selectPosts(db: Database) {
 export async function getPublishedPosts(db: Database, page: number, now = new Date()) {
 	const condition = publicPostCondition(now);
 	const total = await db.select({ value: count() }).from(posts).where(condition).get();
-	const items = await selectPosts(db)
+	const rows = await selectSummaries(db)
 		.where(condition)
 		.orderBy(desc(posts.publishedAt), desc(posts.id))
 		.limit(POSTS_PER_PAGE)
 		.offset((page - 1) * POSTS_PER_PAGE);
-	return { total: total?.value ?? 0, items: items.map(mapPost) };
+	return { total: total?.value ?? 0, items: rows.map(mapPost) };
 }
 
 export async function getPublishedPost(db: Database, id: number, now = new Date()) {
-	const row = await selectPosts(db)
+	const row = await db
+		.select(postDetailSelection)
+		.from(posts)
+		.innerJoin(user, eq(user.id, posts.authorId))
+		.leftJoin(series, eq(series.id, posts.seriesId))
 		.where(and(eq(posts.id, id), publicPostCondition(now)))
 		.get();
 	return row ? mapPost(row) : null;
 }
 
 export async function getEditablePost(db: Database, id: number) {
-	const row = await selectPosts(db).where(eq(posts.id, id)).get();
+	const row = await db.select(postEditorSelection).from(posts).where(eq(posts.id, id)).get();
 	return row ? mapPost(row) : null;
 }
 
 export async function getDrafts(db: Database, now = new Date()) {
-	const rows = await selectPosts(db)
-		.where(or(eq(posts.draft, true), gt(posts.publishedAt, now)))
+	return db
+		.select({
+			id: posts.id,
+			title: posts.title,
+			publishedAt: posts.publishedAt,
+			updatedAt: posts.updatedAt
+		})
+		.from(posts)
+		.where(or(isNull(posts.publishedAt), gt(posts.publishedAt, now)))
 		.orderBy(desc(posts.updatedAt));
-	return rows.map(mapPost);
 }
 
-export async function getSeriesNeighbors(db: Database, post: NonNullable<Post>) {
+export async function getSeriesNeighbors(db: Database, post: Post) {
 	if (!post.seriesId || post.seriesPosition === null) return { previous: null, next: null };
 	const condition = publicPostCondition();
 	const [previous, next] = await Promise.all([
@@ -151,76 +192,143 @@ export type PostInput = {
 	noindex: boolean;
 };
 
-function publication(value: string, publish: boolean) {
-	if (!value) return publish ? new Date() : null;
+export type PublicationAction = 'saveDraft' | 'publish' | 'save' | 'moveToDraft';
+
+function publication(value: string, action: PublicationAction) {
+	if (action === 'saveDraft' || action === 'moveToDraft') return null;
+	if (!value) return new Date();
 	const date = new Date(`${value}:00+09:00`);
 	return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function values(input: PostInput, draft: boolean, authorId?: string) {
-	const now = new Date();
+function postValues(input: PostInput, action: PublicationAction) {
 	return {
-		...(authorId ? { authorId } : {}),
 		title: input.title,
 		subtitle: input.subtitle || null,
 		description: input.description,
 		bodyMarkdown: input.bodyMarkdown,
 		seriesId: input.seriesId,
 		seriesPosition: input.seriesId ? input.seriesPosition : null,
-		draft,
 		noindex: input.noindex,
-		publishedAt: publication(input.publishedAt, !draft),
-		updatedAt: now,
-		...(authorId ? { createdAt: now } : {})
+		publishedAt: publication(input.publishedAt, action),
+		updatedAt: new Date()
 	};
 }
 
-async function syncTerms(db: Database, postId: number, categoryIds: number[], rawTags: string) {
-	await db.delete(postCategories).where(eq(postCategories.postId, postId));
-	await db.delete(postTags).where(eq(postTags.postId, postId));
-
-	const validCategories = categoryIds.length
+async function relationsFor(db: Database, categoryIds: number[], rawTags: string) {
+	const uniqueCategoryIds = [...new Set(categoryIds)];
+	const validCategories = uniqueCategoryIds.length
 		? await db
 				.select({ id: categories.id })
 				.from(categories)
-				.where(inArray(categories.id, categoryIds))
+				.where(inArray(categories.id, uniqueCategoryIds))
 		: [];
-	for (const category of validCategories) {
-		await db.insert(postCategories).values({ postId, categoryId: category.id });
-	}
-
-	for (const name of tagNames(rawTags)) {
-		await db.insert(tags).values({ name }).onConflictDoNothing();
-		const tag = await db.select({ id: tags.id }).from(tags).where(eq(tags.name, name)).get();
-		if (tag) await db.insert(postTags).values({ postId, tagId: tag.id });
-	}
+	const names = tagNames(rawTags);
+	if (names.length)
+		await db
+			.insert(tags)
+			.values(names.map((name) => ({ name })))
+			.onConflictDoNothing();
+	const savedTags = names.length
+		? await db.select({ id: tags.id }).from(tags).where(inArray(tags.name, names))
+		: [];
+	return {
+		categoryIds: validCategories.map(({ id }) => id),
+		tagIds: savedTags.map(({ id }) => id)
+	};
 }
 
-export async function createPost(db: Database, input: PostInput, authorId: string, draft: boolean) {
+function relationStatements(
+	db: Database,
+	postId: number,
+	relations: { categoryIds: number[]; tagIds: number[] }
+) {
+	return [
+		db.delete(postCategories).where(eq(postCategories.postId, postId)),
+		db.delete(postTags).where(eq(postTags.postId, postId)),
+		...(relations.categoryIds.length
+			? [
+					db
+						.insert(postCategories)
+						.values(relations.categoryIds.map((categoryId) => ({ postId, categoryId })))
+				]
+			: []),
+		...(relations.tagIds.length
+			? [db.insert(postTags).values(relations.tagIds.map((tagId) => ({ postId, tagId })))]
+			: [])
+	];
+}
+
+export async function createPost(
+	db: Database,
+	input: PostInput,
+	authorId: string,
+	assetId: string,
+	action: 'saveDraft' | 'publish'
+) {
+	const relations = await relationsFor(db, input.categories, input.tags);
+	const now = new Date();
 	const created = await db
 		.insert(posts)
-		.values(values(input, draft, authorId) as typeof posts.$inferInsert)
+		.values({ ...postValues(input, action), authorId, assetId, createdAt: now, updatedAt: now })
 		.returning({ id: posts.id })
 		.get();
-	await syncTerms(db, created.id, input.categories, input.tags);
-	return created.id;
+	try {
+		await db.batch(
+			relationStatements(db, created.id, relations) as unknown as Parameters<Database['batch']>[0]
+		);
+	} catch (cause) {
+		await db.delete(posts).where(eq(posts.id, created.id));
+		throw cause;
+	}
+	return { id: created.id, publishedAt: publication(input.publishedAt, action) };
 }
 
-export async function updatePost(db: Database, id: number, input: PostInput, draft: boolean) {
-	await db
+export async function updatePost(
+	db: Database,
+	id: number,
+	input: PostInput,
+	action: PublicationAction
+) {
+	const relations = await relationsFor(db, input.categories, input.tags);
+	const update = db
 		.update(posts)
-		.set(values(input, draft) as Partial<typeof posts.$inferInsert>)
-		.where(eq(posts.id, id));
-	await syncTerms(db, id, input.categories, input.tags);
+		.set(postValues(input, action))
+		.where(eq(posts.id, id))
+		.returning({ id: posts.id });
+	const [updated] = await db.batch([update, ...relationStatements(db, id, relations)] as Parameters<
+		Database['batch']
+	>[0]);
+	if (!(updated as { id: number }[]).length) return null;
+	return { id, publishedAt: publication(input.publishedAt, action) };
 }
 
 export async function deletePost(db: Database, id: number) {
-	await db.delete(posts).where(eq(posts.id, id));
+	return (await db.delete(posts).where(eq(posts.id, id)).returning({ id: posts.id }).get()) ?? null;
 }
 
 export async function getFeedPosts(db: Database, now = new Date()) {
-	const rows = await selectPosts(db)
+	return db
+		.select({
+			id: posts.id,
+			title: posts.title,
+			description: posts.description,
+			bodyMarkdown: posts.bodyMarkdown,
+			authorName: user.name,
+			publishedAt: posts.publishedAt,
+			updatedAt: posts.updatedAt
+		})
+		.from(posts)
+		.innerJoin(user, eq(user.id, posts.authorId))
 		.where(publicPostCondition(now))
+		.orderBy(desc(posts.publishedAt), desc(posts.id))
+		.limit(30);
+}
+
+export async function getSitemapPosts(db: Database, now = new Date()) {
+	return db
+		.select({ id: posts.id, updatedAt: posts.updatedAt })
+		.from(posts)
+		.where(and(publicPostCondition(now), eq(posts.noindex, false)))
 		.orderBy(desc(posts.publishedAt), desc(posts.id));
-	return rows.map(mapPost);
 }

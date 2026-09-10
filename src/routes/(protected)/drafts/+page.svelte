@@ -1,24 +1,25 @@
 <script lang="ts">
-	import { koreanDate } from '$lib/dates';
+	import LocalDate from '$lib/components/LocalDate.svelte';
+	import * as m from '$lib/paraglide/messages.js';
 	import Seo from '$lib/components/Seo.svelte';
 	let { data } = $props();
 </script>
 
 <Seo
-	title="Drafts"
-	description="임시 저장 및 예약 글"
+	title={m.drafts_title()}
+	description={m.drafts_description()}
 	canonical={`${data.siteUrl}/drafts`}
 	noindex
 />
-<h1>Drafts</h1>
-<p><a href="/posts/new">New Post</a></p>
+<h1>{m.drafts_title()}</h1>
+<p><a href="/posts/new">{m.new_post()}</a></p>
 <table>
-	<thead><tr><th>Title</th><th>Status</th><th>Updated</th></tr></thead>
+	<thead><tr><th>{m.title()}</th><th>{m.status()}</th><th>{m.updated()}</th></tr></thead>
 	<tbody
 		>{#each data.items as post}<tr
 				><td><a href={`/posts/${post.id}/edit`}>{post.title}</a></td><td
-					>{post.draft ? 'Draft' : 'Scheduled'}</td
-				><td>{koreanDate(post.updatedAt)}</td></tr
-			>{:else}<tr><td colspan="3">임시 저장 또는 예약된 글이 없습니다.</td></tr>{/each}</tbody
+					>{post.publishedAt ? m.scheduled() : m.draft()}</td
+				><td><LocalDate value={post.updatedAt} /></td></tr
+			>{:else}<tr><td colspan="3">{m.empty_drafts()}</td></tr>{/each}</tbody
 	>
 </table>
