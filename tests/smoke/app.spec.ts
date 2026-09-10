@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { expect, test } from '@playwright/test';
 
 const username = 'smoke_user';
+const email = 'smoke_user@example.com';
 const password = 'Smoke-password-123!';
 const changedPassword = 'Changed-password-123!';
 
@@ -30,6 +31,7 @@ test.beforeAll(async ({ request }) => {
 		form: {
 			username,
 			name: 'Smoke User',
+			email,
 			password,
 			passwordConfirmation: password,
 			captcha: 'test-token'
@@ -59,6 +61,7 @@ test('draft, image, publish, search, archive, edit and delete', async ({ page })
 
 	await page.goto('/profile');
 	await expect(page.getByText(username, { exact: true })).toBeVisible();
+	await expect(page.getByText(email, { exact: true })).toBeVisible();
 	await page.getByLabel('Current password').fill(password);
 	await page.getByLabel('New password').fill(changedPassword);
 	await page.getByLabel('Confirmation').fill(changedPassword);

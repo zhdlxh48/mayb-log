@@ -10,6 +10,8 @@
 <dl>
 	<dt>User ID</dt>
 	<dd>{data.user.username}</dd>
+	<dt>Email</dt>
+	<dd>{data.user.email}</dd>
 	<dt>Approval</dt>
 	<dd>{data.user.approved ? 'Approved' : 'Pending'}</dd>
 	<dt>Account</dt>
