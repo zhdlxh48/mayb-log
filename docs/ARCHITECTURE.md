@@ -24,7 +24,7 @@ DB를 수정할 때는 `src/lib/server/db/schema`을 바꾸고 Drizzle migration
 
 Better Auth의 Username plugin이 아이디와 비밀번호, session cookie를 담당합니다. 가입할 때 실제 이메일을 함께 저장하지만 이메일 서비스와 인증 메일은 사용하지 않습니다. 로그인은 아이디와 비밀번호로만 처리하며 아이디와 이메일은 가입 후 바꿀 수 없습니다. mayb-log 고유 정책은 `user.approved` 하나입니다.
 
-가입과 로그인 화면의 Turnstile 결과는 Better Auth Captcha plugin에 `x-captcha-response`로 전달합니다. 자체 password hash, session token, CSRF token, captcha 검증 코드는 없습니다. 비밀번호 변경은 현재 비밀번호를 다시 확인하고 다른 세션을 폐기합니다.
+가입과 로그인 화면은 Turnstile을 명시적으로 렌더링하며 브라우저가 페이지를 복원하면 위젯도 다시 만듭니다. 결과는 Better Auth Captcha plugin에 `x-captcha-response`로 전달합니다. 자체 password hash, session token, CSRF token, captcha 검증 코드는 없습니다. 비밀번호 변경은 현재 비밀번호를 다시 확인하고 다른 세션을 폐기합니다.
 
 ## 글과 이미지
 

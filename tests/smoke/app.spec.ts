@@ -52,7 +52,15 @@ test.afterAll(() => {
 });
 
 test('draft, image, publish, search, archive, edit and delete', async ({ page }) => {
-	await page.goto('/');
+	await page.goto('/signup');
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
+	await page.goto('/login');
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
+	await page.goBack();
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
+	await page.goForward();
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
+
 	const login = await page.request.post('/login', {
 		headers: { origin: 'http://localhost:5173' },
 		form: { username, password, captcha: 'test-token', next: '/profile' }
@@ -92,13 +100,21 @@ test('draft, image, publish, search, archive, edit and delete', async ({ page })
 		return ((await response.json()) as { url: string }).url;
 	});
 
+	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto('/posts/new');
+	const toolbar = await page.getByRole('toolbar').boundingBox();
+	const writeTab = await page.getByRole('button', { name: 'Write' }).boundingBox();
+	expect(toolbar).not.toBeNull();
+	expect(writeTab).not.toBeNull();
+	expect(writeTab!.y).toBeGreaterThanOrEqual(toolbar!.y);
+	expect(writeTab!.y + writeTab!.height).toBeLessThanOrEqual(toolbar!.y + toolbar!.height + 1);
 	await page.getByLabel('Title', { exact: true }).fill('SvelteKit smoke post');
 	await page.getByLabel('Description').fill('초안부터 공개까지 확인하는 테스트 글입니다.');
 	await page.locator('input[name="bodyMarkdown"]').evaluate((input, media) => {
 		(input as HTMLInputElement).value = `# Smoke\n\n![test image](${media})`;
 	}, mediaUrl);
 	await page.getByRole('button', { name: 'Save draft' }).click();
+	await page.setViewportSize({ width: 1280, height: 720 });
 	await expect(page).toHaveURL(/\/posts\/\d+\/edit\?saved=1$/);
 	await expect(page.getByRole('status')).toContainText('저장했습니다.');
 	const editUrl = page.url();
