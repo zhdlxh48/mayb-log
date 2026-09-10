@@ -1,6 +1,0 @@
-<p><%= total %>개의 글</p>
-<% if (!posts.length) { %>
-<p>조건에 맞는 글이 없습니다.</p>
-<% } %>
-<% for (const post of posts) { %><%- partial('posts/row', { post }) %><% } %>
-<%- partial('pagination', { pager, pageUrl }) %>
