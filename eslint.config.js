@@ -1,41 +1,45 @@
-import js from "@eslint/js";
-import prettier from "eslint-config-prettier";
-import globals from "globals";
+import prettier from 'eslint-config-prettier';
+import path from 'node:path';
+import js from '@eslint/js';
+import svelte from 'eslint-plugin-svelte';
+import { defineConfig, includeIgnoreFile } from 'eslint/config';
+import globals from 'globals';
+import ts from 'typescript-eslint';
 
-export default [
-  {
-    ignores: [
-      "dist/**",
-      ".astro/**",
-      ".wrangler/**",
-      ".vendor-download/**",
-      ".fixtures/**",
-      "public/vendor/**",
-      "playwright-report/**",
-      "test-results/**",
-      "coverage/**",
-    ],
-  },
-  js.configs.recommended,
-  {
-    files: ["src/**/*.js", "scripts/**/*.{js,mjs}", "tests/**/*.js", "*.js"],
-    languageOptions: { ecmaVersion: "latest", sourceType: "module", globals: { ...globals.node } },
-  },
-  {
-    files: ["src/**/*.js"],
-    languageOptions: { globals: { ...globals.node, ...globals.worker } },
-  },
-  {
-    files: ["public/**/*.js", "tests/browser/**/*.js"],
-    languageOptions: {
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-        marked: "readonly",
-        imageCompression: "readonly",
-      },
-    },
-  },
-  { rules: { "no-unused-vars": ["error", { argsIgnorePattern: "^_" }] } },
-  prettier,
-];
+const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
+
+export default defineConfig(
+	{ ignores: ['worker-configuration.d.ts'] },
+	includeIgnoreFile(gitignorePath),
+	js.configs.recommended,
+	ts.configs.recommended,
+	svelte.configs.recommended,
+	prettier,
+	svelte.configs.prettier,
+	{
+		languageOptions: { globals: { ...globals.browser, ...globals.node } },
+		rules: {
+			// typescript-eslint strongly recommend that you do not use the no-undef lint rule on TypeScript projects.
+			// see: https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
+			'no-undef': 'off'
+		}
+	},
+	{
+		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
+		languageOptions: {
+			parserOptions: {
+				projectService: true,
+				extraFileExtensions: ['.svelte'],
+				parser: ts.parser
+			}
+		}
+	},
+	{
+		rules: {
+			'svelte/no-at-html-tags': 'off',
+			'svelte/no-navigation-without-resolve': 'off',
+			'svelte/prefer-svelte-reactivity': 'off',
+			'svelte/require-each-key': 'off'
+		}
+	}
+);
