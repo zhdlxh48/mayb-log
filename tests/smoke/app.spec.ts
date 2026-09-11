@@ -69,10 +69,10 @@ test.beforeAll(async ({ request }) => {
 	sql(`DELETE FROM posts WHERE author_id IN (SELECT id FROM user WHERE username = '${username}');`);
 	sql(`DELETE FROM user WHERE username = '${username}';`);
 	sql(
-		`DELETE FROM categories WHERE name IN ('Smoke category', 'Stale new category', 'Stale post category', 'Stale edit category');`
+		`DELETE FROM categories WHERE name IN ('Smoke category', 'Stale new category', 'Stale post category', 'Stale edit category', 'Invalid route category');`
 	);
 	sql(
-		`DELETE FROM series WHERE title IN ('Smoke series', 'Stale post series', 'Stale edit series', 'Stale delete series');`
+		`DELETE FROM series WHERE title IN ('Smoke series', 'Stale post series', 'Stale edit series', 'Stale delete series', 'Invalid route series');`
 	);
 	sql(`INSERT INTO categories (name, description) VALUES
 		('Smoke category', 'fixture'),
@@ -108,10 +108,10 @@ test.afterAll(() => {
 	sql(`DELETE FROM posts WHERE author_id IN (SELECT id FROM user WHERE username = '${username}');`);
 	sql(`DELETE FROM user WHERE username = '${username}';`);
 	sql(
-		`DELETE FROM categories WHERE name IN ('Smoke category', 'Stale new category', 'Stale post category', 'Stale edit category');`
+		`DELETE FROM categories WHERE name IN ('Smoke category', 'Stale new category', 'Stale post category', 'Stale edit category', 'Invalid route category');`
 	);
 	sql(
-		`DELETE FROM series WHERE title IN ('Smoke series', 'Stale post series', 'Stale edit series', 'Stale delete series');`
+		`DELETE FROM series WHERE title IN ('Smoke series', 'Stale post series', 'Stale edit series', 'Stale delete series', 'Invalid route series');`
 	);
 });
 
@@ -183,11 +183,121 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 	await page
 		.getByLabel('Upload image')
 		.setInputFiles({ name: 'smoke.png', mimeType: 'image/png', buffer: png });
-	const imageLink = page.locator('table.images a');
-	await expect(imageLink).toBeVisible();
-	const mediaUrl = await imageLink.getAttribute('href');
+	const primaryImageItem = page.locator('.image-item').first();
+	await expect(page.locator('.image-grid')).toBeVisible();
+	await expect(primaryImageItem.getByRole('checkbox')).toBeVisible();
+	await expect(primaryImageItem.getByRole('button', { name: /^Insert / })).toBeVisible();
+	await expect(primaryImageItem.getByRole('button', { name: /Delete/ })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Delete selected (0)' })).toBeDisabled();
+	const mediaUrl = await primaryImageItem.locator('img').getAttribute('src');
 	expect(mediaUrl).toMatch(new RegExp(`^/media/${assetId}/[0-9a-f-]{36}\\.webp$`));
 	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(mediaUrl!));
+	const beforeInsert = await page.getByLabel('Body').inputValue();
+	await primaryImageItem.getByRole('button', { name: /^Insert / }).click();
+	await expect(page.getByLabel('Body')).toHaveValue(`${beforeInsert}![image](${mediaUrl})`);
+
+	const invalidBatchDelete = await context.request.delete(`/api/media/${assetId}`, {
+		headers: { origin: 'http://localhost:5173' },
+		data: { imageIds: ['not-a-uuid'] }
+	});
+	expect(invalidBatchDelete.status()).toBe(400);
+
+	for (let index = 0; index < 2; index += 1) {
+		await page
+			.getByLabel('Upload image')
+			.setInputFiles({ name: `delete-${index}.png`, mimeType: 'image/png', buffer: png });
+		await expect(page.locator('.image-item')).toHaveCount(index + 2);
+	}
+	const disposableUrls = await page
+		.locator('.image-item img')
+		.evaluateAll((images) => images.slice(1).map((image) => image.getAttribute('src')!));
+	const disposableIds = disposableUrls.map((url) => url.split('/').at(-1)!.replace('.webp', ''));
+	for (const id of disposableIds)
+		await page.locator(`[data-image-id="${id}"]`).getByRole('checkbox').check();
+	await expect(page.getByRole('button', { name: 'Delete selected (2)' })).toBeEnabled();
+	const batchRequests: { imageIds: string[] }[] = [];
+	page.on('request', (request) => {
+		if (
+			request.method() === 'DELETE' &&
+			new URL(request.url()).pathname === `/api/media/${assetId}`
+		)
+			batchRequests.push(request.postDataJSON() as { imageIds: string[] });
+	});
+	let deleteDialogs = 0;
+	page.once('dialog', async (dialog) => {
+		deleteDialogs += 1;
+		await dialog.accept();
+	});
+	const multiDeleteResponse = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'DELETE' &&
+			new URL(response.url()).pathname === `/api/media/${assetId}`
+	);
+	await page.getByRole('button', { name: 'Delete selected (2)' }).click();
+	expect((await multiDeleteResponse).status()).toBe(204);
+	expect(batchRequests).toEqual([{ imageIds: disposableIds }]);
+	expect(deleteDialogs).toBe(1);
+	await expect(page.locator('.image-item')).toHaveCount(1);
+	await expect(page.locator(`.image-item img[src="${mediaUrl}"]`)).toBeVisible();
+	for (const url of disposableUrls)
+		await expect(page.getByLabel('Body')).toHaveValue(new RegExp(url));
+
+	await page
+		.getByLabel('Upload image')
+		.setInputFiles({ name: 'delete-one.png', mimeType: 'image/png', buffer: png });
+	await expect(page.locator('.image-item')).toHaveCount(2);
+	const singleDeleteItem = page.locator('.image-item').nth(1);
+	const singleDeleteUrl = await singleDeleteItem.locator('img').getAttribute('src');
+	const singleDeleteId = singleDeleteUrl!.split('/').at(-1)!.replace('.webp', '');
+	await singleDeleteItem.getByRole('checkbox').check();
+	const batchUrl = `**/api/media/${assetId}`;
+	await page.route(batchUrl, (route) => route.fulfill({ status: 500 }));
+	page.once('dialog', async (dialog) => {
+		deleteDialogs += 1;
+		await dialog.accept();
+	});
+	const failedDeleteResponse = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'DELETE' &&
+			new URL(response.url()).pathname === `/api/media/${assetId}`
+	);
+	await page.getByRole('button', { name: 'Delete selected (1)' }).click();
+	expect((await failedDeleteResponse).status()).toBe(500);
+	await page.unroute(batchUrl);
+	await expect(page.getByRole('alert')).toHaveText('Could not delete the image.');
+	await expect(singleDeleteItem).toBeVisible();
+	await expect(singleDeleteItem.getByRole('checkbox')).toBeChecked();
+	await expect(page.getByRole('button', { name: 'Delete selected (1)' })).toBeEnabled();
+
+	page.once('dialog', async (dialog) => {
+		deleteDialogs += 1;
+		await dialog.accept();
+	});
+	const singleDeleteResponse = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'DELETE' &&
+			new URL(response.url()).pathname === `/api/media/${assetId}`
+	);
+	await page.getByRole('button', { name: 'Delete selected (1)' }).click();
+	expect((await singleDeleteResponse).status()).toBe(204);
+	expect(batchRequests).toEqual([
+		{ imageIds: disposableIds },
+		{ imageIds: [singleDeleteId] },
+		{ imageIds: [singleDeleteId] }
+	]);
+	expect(deleteDialogs).toBe(3);
+	await expect(page.locator('.image-item')).toHaveCount(1);
+	await expect(page.locator(`.image-item img[src="${mediaUrl}"]`)).toBeVisible();
+	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(singleDeleteUrl!));
+
+	const markdownBeforeOversizedImport = await page.getByLabel('Body').inputValue();
+	await page.getByLabel('Import .md').setInputFiles({
+		name: 'too-large.md',
+		mimeType: 'text/markdown',
+		buffer: Buffer.alloc(1024 * 1024 + 1, 'a')
+	});
+	await expect(page.getByRole('alert')).toHaveText('The Markdown body is too large.');
+	await expect(page.getByLabel('Body')).toHaveValue(markdownBeforeOversizedImport);
 	await page
 		.getByLabel('Title', { exact: true })
 		.evaluate((input) => input.removeAttribute('required'));
@@ -198,7 +308,7 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 	expect((await invalidResponse).status()).toBe(400);
 	await expect(page).toHaveURL(/\/posts\/new\?\/saveDraft$/);
 	await expect(page.locator('input[name="assetId"]')).toHaveValue(assetId);
-	await expect(page.locator('table.images a')).toHaveAttribute('href', mediaUrl!);
+	await expect(page.locator(`.image-item img[src="${mediaUrl}"]`)).toBeVisible();
 	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(mediaUrl!));
 	await expect(page.getByLabel('Tags')).toHaveValue('original-tag');
 	await expect(page.getByLabel('Smoke category')).toBeChecked();
@@ -218,7 +328,7 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 		'Classification information changed. Reload the page and check.'
 	);
 	await expect(page.locator('input[name="assetId"]')).toHaveValue(assetId);
-	await expect(page.locator('table.images a')).toHaveAttribute('href', mediaUrl!);
+	await expect(page.locator(`.image-item img[src="${mediaUrl}"]`)).toBeVisible();
 	await expect(page.getByLabel('Title', { exact: true })).toHaveValue('SvelteKit smoke post');
 	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(mediaUrl!));
 	await expect(page.getByLabel('Tags')).toHaveValue('original-tag');
@@ -242,7 +352,7 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 	await page.getByRole('button', { name: 'Save draft' }).click();
 	expect((await uiConflictResponse).status()).toBe(409);
 	await expect(page.locator('input[name="assetId"]')).toHaveValue(assetId);
-	await expect(page.locator('table.images a')).toHaveAttribute('href', mediaUrl!);
+	await expect(page.locator(`.image-item img[src="${mediaUrl}"]`)).toBeVisible();
 	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(mediaUrl!));
 	await expect(page.getByLabel('Tags')).toHaveValue('original-tag');
 	await expect(page.getByLabel('Smoke category')).toBeChecked();
@@ -329,7 +439,7 @@ Unknown widget
 	const saved = await saveResponse;
 	expect(saved.status()).toBe(303);
 	await expect(page).toHaveURL(/\/posts\/\d+\/edit\?saved=1$/);
-	await expect(page.locator('table.images a')).toHaveAttribute('href', mediaUrl!);
+	await expect(page.locator(`.image-item img[src="${mediaUrl}"]`)).toBeVisible();
 	await expect(page.getByLabel('Tags')).toHaveValue('original-tag');
 	await expect(page.getByLabel('Smoke category')).toBeChecked();
 	const editUrl = page.url();
@@ -454,6 +564,28 @@ Unknown widget
 	expect(
 		query<{ value: number }>(
 			`SELECT count(*) AS value FROM posts WHERE asset_id = '${createConflictAssetId}'`
+		)[0].value
+	).toBe(0);
+
+	const invalidCategoryEdit = await context.request.post('/categories/0/edit?/save', {
+		headers: { origin: 'http://localhost:5173' },
+		form: { name: 'Invalid route category', description: 'must not exist' }
+	});
+	expect(await actionStatus(invalidCategoryEdit)).toBe(404);
+	expect(
+		query<{ value: number }>(
+			"SELECT count(*) AS value FROM categories WHERE name = 'Invalid route category'"
+		)[0].value
+	).toBe(0);
+
+	const invalidSeriesEdit = await context.request.post('/series/0/edit?/save', {
+		headers: { origin: 'http://localhost:5173' },
+		form: { title: 'Invalid route series', description: 'must not exist' }
+	});
+	expect(await actionStatus(invalidSeriesEdit)).toBe(404);
+	expect(
+		query<{ value: number }>(
+			"SELECT count(*) AS value FROM series WHERE title = 'Invalid route series'"
 		)[0].value
 	).toBe(0);
 

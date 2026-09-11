@@ -99,6 +99,7 @@ describe('R2 image listing', () => {
 					: {
 							objects: [
 								{ key: `${prefix}${firstId}.webp` },
+								{ key: `${prefix}44444444-4444-4444-8444-444444444444.jpeg` },
 								{ key: `${prefix}33333333-3333-1333-8333-333333333333.webp` },
 								{ key: `${prefix}not-a-uuid.webp` }
 							],
