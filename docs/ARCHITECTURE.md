@@ -2,7 +2,7 @@
 
 ## 요청과 인증
 
-`src/hooks.server.ts`는 Paraglide middleware와 Better Auth handler를 연결합니다. Better Auth는 `username()`, `captcha(...)`, `sveltekitCookies(...)`만 사용하며 비밀번호, session, Turnstile을 담당합니다. 이메일은 가입 정보로 저장하지만 인증하지 않습니다. 공식 `session.cookieCache`를 120초 사용해 반복된 session D1 read를 줄입니다.
+`src/hooks.server.ts`는 Paraglide middleware와 Better Auth handler를 연결합니다. Better Auth는 `username()`, `captcha(...)`, `sveltekitCookies(...)`만 사용하며 비밀번호, session, Turnstile을 담당합니다. 이메일은 가입 정보로 저장하지만 인증하지 않습니다. 공식 `session.cookieCache`를 120초 사용해 반복된 session D1 read를 줄입니다. 이 때문에 기존 session의 승인 또는 승인 해제 반영은 최대 120초 늦을 수 있으며, D1 read 감소를 위해 의도적으로 허용한 trade-off입니다.
 
 mayb-log 고유 계정 상태는 `user.approved` 하나입니다. `src/lib/server/auth/guards.ts`의 `requireUser()`가 현재 request의 로그인과 승인을 확인합니다. 보호 layout은 화면 이동 편의를 위한 것입니다. 모든 보호 page server load는 D1/R2 접근 전에, 모든 변경 action과 media 및 Preview endpoint는 action body 첫 단계에서 이 helper를 직접 호출합니다.
 
@@ -28,9 +28,9 @@ DB schema는 `src/lib/server/db/schema`, 목적별 query는 `src/lib/server/db/q
 
 raw fragment는 HAST로 parse합니다. 공백을 제외한 top-level element가 iframe 하나일 때만 제한된 HTTP(S) iframe을 허용하고 나머지는 원문 글자로 표시합니다. `/api/markdown-preview`와 공개 글은 같은 renderer와 sanitizer를 사용합니다. Preview는 버튼을 눌렀고 본문이 직전 Preview와 달라졌을 때만 요청하며 HTML과 간단한 line/column diagnostic을 받습니다.
 
-편집기는 plain textarea입니다. `.md` import는 `File.text()`로 처리합니다. 이미지 선택 시 browser-image-compression이 WebP, 긴 변 1600px, 최대 4MiB로 줄인 뒤 한 이미지씩 `/api/media/{assetId}`에 보냅니다. 서버는 MIME, 크기, WebP magic bytes를 검사하고 `posts/{assetId}/{imageId}.webp`에 저장합니다. 공개 URL은 `/media/{assetId}/{imageId}.webp`이고 response body는 R2에서 stream합니다.
+편집기는 plain textarea입니다. `.md` import는 공유된 1MiB 제한을 먼저 확인한 뒤 `File.text()`로 처리하며 서버의 UTF-8 byte 검증이 최종 권위입니다. 이미지 선택 시 browser-image-compression이 WebP, 긴 변 1600px, 최대 4MiB로 줄인 뒤 한 이미지씩 `/api/media/{assetId}`에 보냅니다. 서버는 MIME, 크기, WebP magic bytes를 검사하고 `posts/{assetId}/{imageId}.webp`에 저장합니다. 공개 URL은 `/media/{assetId}/{imageId}.webp`이고 response body는 R2에서 stream합니다.
 
-Image list는 삽입과 명시적 삭제만 합니다. 같은 파일도 새 UUID로 저장합니다. 화면 이탈, 글 삭제, Markdown 변경을 근거로 object를 자동 정리하지 않으며 orphan은 허용합니다.
+Image list는 responsive thumbnail grid이며 각 이미지의 선택과 삽입을 제공합니다. 선택한 1~100개 이미지는 `DELETE /api/media/{assetId}`의 한 JSON 요청과 R2 multi-delete로 지웁니다. 같은 파일도 새 UUID로 저장합니다. 화면 이탈, 글 삭제, Markdown 변경을 근거로 object를 자동 정리하지 않으며 orphan은 허용합니다.
 
 ## UI, 국제화, 시각
 

@@ -9,9 +9,15 @@ import { isUniqueConflict } from '$lib/server/db/errors';
 import type { Actions, PageServerLoad } from './$types';
 import * as m from '$lib/paraglide/messages.js';
 
+function routeId(value: string) {
+	const id = Number(value);
+	if (!Number.isInteger(id) || id <= 0) error(404, m.category_not_found());
+	return id;
+}
+
 export const load: PageServerLoad = async ({ params, platform }) => {
 	requireUser();
-	const item = await getCategory(requestDb(platform), Number(params.id));
+	const item = await getCategory(requestDb(platform), routeId(params.id));
 	if (!item) error(404, m.category_not_found());
 	return { item, form: await superValidate(item, zod4(categorySchema)) };
 };
@@ -19,10 +25,11 @@ export const load: PageServerLoad = async ({ params, platform }) => {
 export const actions: Actions = {
 	save: async ({ params, request, platform }) => {
 		requireUser();
+		const id = routeId(params.id);
 		const form = await superValidate(request, zod4(categorySchema));
 		if (!form.valid) return fail(400, { form });
 		try {
-			if (!(await saveCategory(requestDb(platform), form.data, Number(params.id))))
+			if (!(await saveCategory(requestDb(platform), form.data, id)))
 				return fail(409, { form, error: m.taxonomy_changed() });
 		} catch (cause) {
 			if (isUniqueConflict(cause)) return fail(409, { form, error: m.category_conflict() });
@@ -32,7 +39,7 @@ export const actions: Actions = {
 	},
 	delete: async ({ params, platform }) => {
 		requireUser();
-		if (!(await removeCategory(requestDb(platform), Number(params.id))))
+		if (!(await removeCategory(requestDb(platform), routeId(params.id))))
 			error(404, m.category_not_found());
 		redirect(303, '/categories');
 	}

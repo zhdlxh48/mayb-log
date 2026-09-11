@@ -23,6 +23,7 @@ export async function listPostImages(bucket: R2Bucket, assetId: string) {
 		cursor = result.truncated ? result.cursor : undefined;
 	}
 	return objects
+		.filter(({ key }) => key.endsWith('.webp'))
 		.map(({ key }) => key.slice(prefix.length, -'.webp'.length))
 		.filter((id) => UUID.test(id))
 		.map((id) => ({ id, url: mediaUrl(assetId, id) }));

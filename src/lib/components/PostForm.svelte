@@ -2,6 +2,7 @@
 	import { beforeNavigate } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import imageCompression from 'browser-image-compression';
+	import { MAX_MARKDOWN_BYTES } from '$lib/limits';
 	import * as m from '$lib/paraglide/messages.js';
 
 	type Form = {
@@ -64,7 +65,9 @@
 	let markdown = $state(initialMarkdown());
 	let textarea = $state<HTMLTextAreaElement>();
 	let images = $state<Image[]>(loadedImages());
+	let selectedImageIds = $state<string[]>([]);
 	let mediaError = $state('');
+	let importError = $state('');
 	let previewHtml = $state('');
 	let previewDiagnostics = $state<MarkdownDiagnostic[]>([]);
 	let lastPreviewSource = $state<string | null>(null);
@@ -118,17 +121,36 @@
 		}
 	}
 
-	async function remove(image: Image) {
-		if (!confirm(m.image_delete_warning())) return;
-		const response = await fetch(`/api/media/${assetId}/${image.id}`, { method: 'DELETE' });
+	function selectImage(imageId: string, selected: boolean) {
+		selectedImageIds = selected
+			? [...selectedImageIds, imageId]
+			: selectedImageIds.filter((id) => id !== imageId);
+	}
+
+	async function removeSelected() {
+		if (!selectedImageIds.length || !confirm(m.delete_selected_images_confirm())) return;
+		mediaError = '';
+		const imageIds = [...selectedImageIds];
+		const response = await fetch(`/api/media/${assetId}`, {
+			method: 'DELETE',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ imageIds })
+		});
 		if (!response.ok) {
 			mediaError = m.image_delete_error();
 			return;
 		}
-		images = images.filter(({ id }) => id !== image.id);
+		const removed = new Set(imageIds);
+		images = images.filter(({ id }) => !removed.has(id));
+		selectedImageIds = [];
 	}
 
 	async function importMarkdown(file: File) {
+		importError = '';
+		if (file.size > MAX_MARKDOWN_BYTES) {
+			importError = m.markdown_too_large();
+			return;
+		}
 		if (markdown && !confirm(m.replace_markdown())) return;
 		markdown = await file.text();
 	}
@@ -313,20 +335,34 @@
 		required
 		spellcheck="true"></textarea>
 	{#each form.errors.bodyMarkdown ?? [] as error}<small class="field-error">{error}</small>{/each}
+	{#if importError}<p role="alert">{importError}</p>{/if}
 	{#if mediaError}<p role="alert">{mediaError}</p>{/if}
 
 	{#if images.length}
-		<table class="images">
-			<caption>{m.images()}</caption>
-			<tbody
-				>{#each images as image}<tr
-						><td><img src={image.url} alt="" /></td><td><a href={image.url}>{image.url}</a></td><td
-							><button type="button" onclick={() => insert(image.url)}>{m.insert()}</button>
-							<button type="button" onclick={() => remove(image)}>{m.delete()}</button></td
-						></tr
-					>{/each}</tbody
+		<section class="images" aria-labelledby="images-heading">
+			<h2 id="images-heading">{m.images()}</h2>
+			<ul class="image-grid">
+				{#each images as image}
+					<li class="image-item" data-image-id={image.id}>
+						<input
+							type="checkbox"
+							checked={selectedImageIds.includes(image.id)}
+							aria-label={`${m.select_image()} ${image.id.slice(0, 8)}`}
+							onchange={(event) => selectImage(image.id, event.currentTarget.checked)}
+						/>
+						<img src={image.url} alt="" />
+						<button
+							type="button"
+							aria-label={`${m.insert()} ${image.id.slice(0, 8)}`}
+							onclick={() => insert(image.url)}>{m.insert()}</button
+						>
+					</li>
+				{/each}
+			</ul>
+			<button type="button" disabled={!selectedImageIds.length} onclick={removeSelected}
+				>{m.delete_selected_images()} ({selectedImageIds.length})</button
 			>
-		</table>
+		</section>
 	{/if}
 
 	<div class="actions">
@@ -410,15 +446,35 @@
 	.preview-warnings ul {
 		margin-bottom: 0;
 	}
-	.images img {
-		width: 72px;
-		height: 52px;
-		object-fit: cover;
+	.images {
+		margin-top: 1rem;
 	}
-	.images td:nth-child(2) {
-		overflow-wrap: anywhere;
+	.images h2 {
+		font-size: 1rem;
 	}
-	.images button {
+	.image-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+		gap: 0.65rem;
+		margin: 0 0 0.65rem;
+		padding: 0;
+		list-style: none;
+	}
+	.image-item {
+		display: grid;
+		gap: 0.4rem;
+		padding: 0.45rem;
+		border: 1px solid var(--line-color);
+	}
+	.image-item input {
+		justify-self: start;
+	}
+	.image-item img {
+		width: 100%;
+		height: 100px;
+		object-fit: contain;
+	}
+	.image-item button {
 		padding: 0.15rem 0.4rem;
 		font-size: 0.82rem;
 	}
@@ -431,9 +487,6 @@
 	@media (max-width: 640px) {
 		.editor-tools {
 			width: 100%;
-		}
-		.images td:nth-child(2) {
-			display: none;
 		}
 	}
 </style>
