@@ -3,16 +3,17 @@ import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { z } from 'zod';
 import { requireUser } from '$lib/server/auth/guards';
-import { isUniqueConflict } from '$lib/server/db/errors';
+import { isForeignKeyConflict, isUniqueConflict } from '$lib/server/db/errors';
 import { createPost } from '$lib/server/db/queries/posts';
 import { getEditorOptions } from '$lib/server/db/queries/taxonomy';
 import { requestDb } from '$lib/server/db/request';
 import { postSchema } from '$lib/validation/content';
 import { listPostImages } from '$lib/server/media/images';
+import { UUID } from '$lib/server/media/path';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import * as m from '$lib/paraglide/messages.js';
 
-const assetIdSchema = z.string().uuid();
+const assetIdSchema = z.string().regex(UUID);
 
 export const load: PageServerLoad = async ({ platform }) => {
 	requireUser();
@@ -38,10 +39,15 @@ async function save(event: RequestEvent, action: 'saveDraft' | 'publish') {
 	try {
 		post = await createPost(requestDb(event.platform), form.data, user.id, assetId.data, action);
 	} catch (cause) {
-		if (isUniqueConflict(cause))
+		const conflict = isUniqueConflict(cause)
+			? m.post_conflict()
+			: isForeignKeyConflict(cause)
+				? m.taxonomy_changed()
+				: null;
+		if (conflict)
 			return fail(409, {
 				form,
-				error: m.post_conflict(),
+				error: conflict,
 				assetId: assetId.data,
 				images: await listPostImages(event.platform!.env.MEDIA, assetId.data)
 			});

@@ -1,3 +1,5 @@
+import { mediaUrl, UUID } from './path';
+
 const MAX_IMAGE_SIZE = 4 * 1024 * 1024;
 
 export async function validWebp(file: File) {
@@ -11,9 +13,17 @@ export async function validWebp(file: File) {
 
 export async function listPostImages(bucket: R2Bucket, assetId: string) {
 	const prefix = `posts/${assetId}/`;
-	const result = await bucket.list({ prefix });
-	return result.objects
+	const objects: R2Object[] = [];
+	let cursor: string | undefined;
+	let truncated = true;
+	while (truncated) {
+		const result = await bucket.list(cursor ? { prefix, cursor } : { prefix });
+		objects.push(...result.objects);
+		truncated = result.truncated;
+		cursor = result.truncated ? result.cursor : undefined;
+	}
+	return objects
 		.map(({ key }) => key.slice(prefix.length, -'.webp'.length))
-		.filter((id) => /^[0-9a-f-]{36}$/i.test(id))
-		.map((id) => ({ id, url: `/media/${assetId}/${id}.webp` }));
+		.filter((id) => UUID.test(id))
+		.map((id) => ({ id, url: mediaUrl(assetId, id) }));
 }

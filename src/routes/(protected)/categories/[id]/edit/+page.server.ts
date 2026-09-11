@@ -22,7 +22,8 @@ export const actions: Actions = {
 		const form = await superValidate(request, zod4(categorySchema));
 		if (!form.valid) return fail(400, { form });
 		try {
-			await saveCategory(requestDb(platform), form.data, Number(params.id));
+			if (!(await saveCategory(requestDb(platform), form.data, Number(params.id))))
+				return fail(409, { form, error: m.taxonomy_changed() });
 		} catch (cause) {
 			if (isUniqueConflict(cause)) return fail(409, { form, error: m.category_conflict() });
 			throw cause;

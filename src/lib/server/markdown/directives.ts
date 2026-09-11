@@ -37,7 +37,7 @@ function literalDirective(node: DirectiveNode, file: ProcessorFile, message: str
 	file.message(message, node, `mayb-log:${code}`);
 	const source = directiveSource(node, file);
 	const replacement = node as unknown as Record<string, unknown>;
-	replacement.type = 'text';
+	replacement.type = node.type === 'textDirective' ? 'inlineCode' : 'code';
 	replacement.value = source;
 	delete replacement.name;
 	delete replacement.attributes;
@@ -59,7 +59,7 @@ export function remarkDirectives() {
 				literalDirective(
 					directive,
 					file,
-					`지원하지 않는 directive \`${directive.name}\`입니다.`,
+					`Unknown directive \`${directive.name}\`.`,
 					'unknown-directive'
 				);
 				return;
@@ -68,7 +68,7 @@ export function remarkDirectives() {
 				literalDirective(
 					directive,
 					file,
-					'`note`는 :::note 블록 문법을 사용해야 합니다.',
+					'The `note` directive must use container syntax (`:::note`).',
 					'directive-kind'
 				);
 				return;
@@ -78,7 +78,7 @@ export function remarkDirectives() {
 				literalDirective(
 					directive,
 					file,
-					'`note`의 type은 info, warning, success, error 중 하나여야 합니다.',
+					'The `note` type must be one of: info, warning, success, error.',
 					'directive-attributes'
 				);
 				return;
