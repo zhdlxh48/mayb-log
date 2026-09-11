@@ -78,10 +78,11 @@ export async function saveSeries(
 }
 
 export async function removeSeries(db: Database, id: number) {
-	return db.batch([
+	const [, removed] = await db.batch([
 		db.update(posts).set({ seriesId: null, seriesPosition: null }).where(eq(posts.seriesId, id)),
 		db.delete(series).where(eq(series.id, id)).returning({ id: series.id })
 	]);
+	return (removed as { id: number }[])[0] ?? null;
 }
 
 export async function getCategory(db: Database, id: number) {

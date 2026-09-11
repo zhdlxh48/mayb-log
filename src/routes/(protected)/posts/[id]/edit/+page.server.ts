@@ -3,7 +3,7 @@ import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { dateTimeLocal } from '$lib/dates';
 import { requireUser } from '$lib/server/auth/guards';
-import { isUniqueConflict } from '$lib/server/db/errors';
+import { isForeignKeyConflict, isUniqueConflict } from '$lib/server/db/errors';
 import {
 	deletePost,
 	getEditablePost,
@@ -61,6 +61,7 @@ async function save(event: RequestEvent, action: PublicationAction) {
 		post = await updatePost(requestDb(event.platform), id, form.data, action);
 	} catch (cause) {
 		if (isUniqueConflict(cause)) return fail(409, { form, error: m.post_conflict() });
+		if (isForeignKeyConflict(cause)) return fail(409, { form, error: m.taxonomy_changed() });
 		throw cause;
 	}
 	if (!post) error(404, m.post_not_found());
