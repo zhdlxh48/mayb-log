@@ -10,6 +10,7 @@ import type { Actions, PageServerLoad } from './$types';
 import * as m from '$lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async ({ params, platform }) => {
+	requireUser();
 	const item = await getCategory(requestDb(platform), Number(params.id));
 	if (!item) error(404, m.category_not_found());
 	return { item, form: await superValidate(item, zod4(categorySchema)) };

@@ -155,5 +155,9 @@
 	"markdown_too_large": "The Markdown body is too large.",
 	"markdown_required": "A Markdown body is required.",
 	"validation_name_required": "Enter a name.",
+	"validation_categories_limit": "Select no more than 30 categories per post.",
+	"validation_tags_limit": "Enter no more than 30 tags per post.",
+	"validation_tag_length": "Each tag must have no more than 64 characters.",
+	"validation_search_filters": "Check the search filters.",
 	"pagination_label": "Page navigation"
 }

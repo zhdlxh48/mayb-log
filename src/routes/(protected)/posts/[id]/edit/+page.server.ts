@@ -10,7 +10,7 @@ import {
 	updatePost,
 	type PublicationAction
 } from '$lib/server/db/queries/posts';
-import { getPostOptions } from '$lib/server/db/queries/taxonomy';
+import { getEditorOptions } from '$lib/server/db/queries/taxonomy';
 import { requestDb } from '$lib/server/db/request';
 import { listPostImages } from '$lib/server/media/images';
 import { postSchema } from '$lib/validation/content';
@@ -18,10 +18,11 @@ import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import * as m from '$lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async ({ params, platform, url }) => {
+	requireUser();
 	const id = Number(params.id);
 	if (!Number.isInteger(id) || !platform) error(404, m.post_not_found());
 	const db = requestDb(platform);
-	const [post, options] = await Promise.all([getEditablePost(db, id), getPostOptions(db)]);
+	const [post, options] = await Promise.all([getEditablePost(db, id), getEditorOptions(db)]);
 	if (!post) error(404, m.post_not_found());
 	const status: 'draft' | 'scheduled' | 'published' =
 		post.publishedAt === null ? 'draft' : post.publishedAt > new Date() ? 'scheduled' : 'published';
@@ -37,9 +38,7 @@ export const load: PageServerLoad = async ({ params, platform, url }) => {
 				bodyMarkdown: post.bodyMarkdown,
 				seriesId: post.seriesId,
 				seriesPosition: post.seriesPosition,
-				categories: options.categories
-					.filter((item) => post.categories.includes(item.name))
-					.map((item) => item.id),
+				categories: post.categoryIds,
 				tags: post.tags.join(', '),
 				publishedAt: dateTimeLocal(post.publishedAt),
 				noindex: post.noindex

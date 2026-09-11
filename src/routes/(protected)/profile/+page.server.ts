@@ -7,10 +7,13 @@ import { requireUser } from '$lib/server/auth/guards';
 import type { Actions, PageServerLoad } from './$types';
 import * as m from '$lib/paraglide/messages.js';
 
-export const load: PageServerLoad = async ({ locals }) => ({
-	profileForm: await superValidate({ name: locals.user!.name }, zod4(profileSchema)),
-	passwordForm: await superValidate(zod4(passwordSchema))
-});
+export const load: PageServerLoad = async () => {
+	const user = requireUser();
+	return {
+		profileForm: await superValidate({ name: user.name }, zod4(profileSchema)),
+		passwordForm: await superValidate(zod4(passwordSchema))
+	};
+};
 
 export const actions: Actions = {
 	profile: async ({ request, locals }) => {

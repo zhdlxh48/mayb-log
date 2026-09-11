@@ -6,7 +6,13 @@
 	const date = $derived(value ? new Date(value) : null);
 	const iso = $derived(date && !Number.isNaN(date.getTime()) ? date.toISOString() : '');
 	function initialText() {
-		return iso;
+		if (!date || !iso) return '';
+		return new Intl.DateTimeFormat(
+			getLocale(),
+			time
+				? { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Seoul' }
+				: { dateStyle: 'medium', timeZone: 'Asia/Seoul' }
+		).format(date);
 	}
 	let text = $state(initialText());
 
