@@ -72,7 +72,7 @@ export async function saveSeries(
 	value: { title: string; description: string },
 	id?: number
 ) {
-	if (id)
+	if (id !== undefined)
 		return db.update(series).set(value).where(eq(series.id, id)).returning({ id: series.id }).get();
 	return db.insert(series).values(value).returning({ id: series.id }).get();
 }
@@ -100,7 +100,7 @@ export async function saveCategory(
 	value: { name: string; description: string },
 	id?: number
 ) {
-	if (id)
+	if (id !== undefined)
 		return db
 			.update(categories)
 			.set(value)
