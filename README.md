@@ -34,7 +34,7 @@ pnpm build
 pnpm preview
 ```
 
-Paraglide 코드는 설치할 때 자동 생성됩니다. 메시지를 바꾼 뒤 즉시 타입을 갱신하려면 `pnpm i18n:compile`을 실행합니다.
+Paraglide 코드는 설치할 때 자동 생성되며 `src/lib/paraglide`는 Git에서 제외합니다. 메시지를 바꾼 뒤 즉시 타입을 갱신하려면 `pnpm i18n:compile`을 실행합니다. CLI와 Vite plugin의 locale 전략 및 출력 경로는 항상 함께 수정합니다.
 
 ## 인증과 계정 승인
 
@@ -57,6 +57,8 @@ node node_modules/wrangler/bin/wrangler.js d1 execute DB --remote --command "UPD
 - Preview를 누르면 서버의 공개 글과 같은 renderer와 sanitizer가 HTML을 만듭니다.
 - `:::note{type="warning"}`처럼 `remark-directive` 문법을 사용할 수 있습니다.
 
+본문은 UTF-8 기준 1MiB, 카테고리는 30개, 태그는 30개이며 태그 하나는 64글자까지 허용합니다. 검색은 검색어 200글자, 시리즈·카테고리·태그 각 20개, 태그 64글자, 작성자 아이디 30글자로 제한합니다. 잘못된 날짜나 상한을 넘긴 요청은 저장하거나 줄여서 해석하지 않고 400으로 거절합니다.
+
 이미지는 선택 즉시 WebP로 줄여 R2에 업로드하고 현재 cursor에 Markdown URL을 넣습니다. 글의 정수 ID와 별개인 `assetId` UUID를 사용하며 key는 `posts/{assetId}/{imageId}.webp`입니다. Image list의 Delete는 R2 object를 즉시 삭제하지만 이미 작성한 Markdown은 바꾸지 않습니다. 화면을 떠나거나 글을 삭제할 때 이미지는 자동 정리하지 않으므로 필요 없는 이미지는 목록에서 직접 삭제합니다.
 
 ## 다국어와 시각
@@ -68,6 +70,8 @@ DB 시각은 UTC instant로 저장하고 HTML과 JSON-LD에는 ISO 8601을 사�
 ## 스키마 변경과 배포
 
 Better Auth 설정을 바꾸면 공식 CLI로 schema를 생성해 diff를 검토하고, 콘텐츠 schema는 Drizzle migration으로 관리합니다.
+
+Post와 카테고리·태그 관계는 한 D1 batch에서 저장합니다. 태그는 별도 lookup table 없이 `post_tags(post_id, tag)`에 저장합니다. 보호 페이지의 server load와 모든 변경 action은 각각 `requireUser()`를 먼저 호출합니다.
 
 ```bash
 pnpm dlx auth@1.7.3 generate --config better-auth.config.ts --output generated-auth.ts --adapter drizzle --dialect sqlite --yes

@@ -12,6 +12,22 @@
 	box-sizing: border-box;
 }
 
+.app-root {
+	display: contents;
+}
+
+#svelte-announcer {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
 html {
 	overflow-x: hidden;
 	-webkit-text-size-adjust: 100%;

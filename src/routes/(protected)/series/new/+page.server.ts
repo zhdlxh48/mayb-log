@@ -9,7 +9,10 @@ import { isUniqueConflict } from '$lib/server/db/errors';
 import type { Actions, PageServerLoad } from './$types';
 import * as m from '$lib/paraglide/messages.js';
 
-export const load: PageServerLoad = async () => ({ form: await superValidate(zod4(seriesSchema)) });
+export const load: PageServerLoad = async () => {
+	requireUser();
+	return { form: await superValidate(zod4(seriesSchema)) };
+};
 
 export const actions: Actions = {
 	default: async ({ request, platform }) => {

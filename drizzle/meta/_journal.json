@@ -15,6 +15,13 @@
 			"when": 1789034320590,
 			"tag": "0001_amused_nitro",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1789074274877,
+			"tag": "0002_numerous_korvac",
+			"breakpoints": true
 		}
 	]
 }

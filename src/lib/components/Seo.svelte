@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { getLocale } from '$lib/paraglide/runtime.js';
-
 	let {
 		title,
 		description,
@@ -16,7 +14,6 @@
 		type?: 'website' | 'article';
 		image?: string | null;
 	}>();
-	const ogLocale = $derived({ ko: 'ko_KR', ja: 'ja_JP', en: 'en_US' }[getLocale()]);
 </script>
 
 <svelte:head>
@@ -25,7 +22,6 @@
 	<link rel="canonical" href={canonical} />
 	<meta property="og:type" content={type} />
 	<meta property="og:site_name" content="mayb-log" />
-	<meta property="og:locale" content={ogLocale} />
 	<meta property="og:title" content={title} />
 	<meta property="og:description" content={description} />
 	<meta property="og:url" content={canonical} />

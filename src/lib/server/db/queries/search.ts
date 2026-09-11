@@ -5,6 +5,14 @@ import { POSTS_PER_PAGE } from '$lib/pagination';
 import { user } from '$lib/server/db/schema/auth';
 import { posts, series } from '$lib/server/db/schema/content';
 import { mapPost, postSummarySelection, publicPostCondition } from './posts';
+import {
+	MAX_SEARCH_AUTHOR_LENGTH,
+	MAX_SEARCH_CATEGORIES,
+	MAX_SEARCH_QUERY_LENGTH,
+	MAX_SEARCH_SERIES,
+	MAX_SEARCH_TAG_LENGTH,
+	MAX_SEARCH_TAGS
+} from '$lib/limits';
 
 export type SearchFilters = {
 	q: string;
@@ -16,35 +24,46 @@ export type SearchFilters = {
 	author: string;
 };
 
-function repeatedNumbers(url: URL, key: string) {
-	return [
-		...new Set(
-			url.searchParams
-				.getAll(key)
-				.map(Number)
-				.filter((value) => Number.isInteger(value) && value > 0)
-		)
-	];
+function repeatedNumbers(url: URL, key: string, max: number) {
+	const raw = url.searchParams.getAll(key);
+	const values = raw.map(Number);
+	if (values.some((value) => !Number.isInteger(value) || value <= 0)) return null;
+	const unique = [...new Set(values)];
+	return unique.length <= max ? unique : null;
 }
 
-export function searchFilters(url: URL): SearchFilters {
-	return {
-		q: (url.searchParams.get('q') ?? '').trim(),
-		series: repeatedNumbers(url, 'series'),
-		categories: repeatedNumbers(url, 'category'),
-		tags: [
-			...new Set(
-				url.searchParams
-					.getAll('tag')
-					.flatMap((tag) => tag.split(','))
-					.map((tag) => tag.trim())
-					.filter(Boolean)
-			)
-		],
-		from: url.searchParams.get('from') ?? '',
-		to: url.searchParams.get('to') ?? '',
-		author: (url.searchParams.get('author') ?? '').trim()
-	};
+function length(value: string) {
+	return Array.from(value).length;
+}
+
+export function searchFilters(url: URL): SearchFilters | null {
+	const q = (url.searchParams.get('q') ?? '').trim();
+	const series = repeatedNumbers(url, 'series', MAX_SEARCH_SERIES);
+	const categories = repeatedNumbers(url, 'category', MAX_SEARCH_CATEGORIES);
+	const tags = [
+		...new Set(
+			url.searchParams
+				.getAll('tag')
+				.flatMap((tag) => tag.split(','))
+				.map((tag) => tag.trim())
+				.filter(Boolean)
+		)
+	];
+	const from = url.searchParams.get('from') ?? '';
+	const to = url.searchParams.get('to') ?? '';
+	const author = (url.searchParams.get('author') ?? '').trim();
+	if (
+		!series ||
+		!categories ||
+		length(q) > MAX_SEARCH_QUERY_LENGTH ||
+		tags.length > MAX_SEARCH_TAGS ||
+		tags.some((tag) => length(tag) > MAX_SEARCH_TAG_LENGTH) ||
+		length(author) > MAX_SEARCH_AUTHOR_LENGTH ||
+		(from !== '' && !startOfKoreanDate(from)) ||
+		(to !== '' && !startOfKoreanDate(to))
+	)
+		return null;
+	return { q, series, categories, tags, from, to, author };
 }
 
 export function searchParams(filters: SearchFilters, page?: number) {
@@ -60,7 +79,7 @@ export function searchParams(filters: SearchFilters, page?: number) {
 	return params;
 }
 
-function conditions(filters: SearchFilters, now: Date) {
+function conditions(filters: SearchFilters, now: Date, authorId?: string) {
 	const where: SQL[] = [publicPostCondition(now)!];
 
 	if (filters.q) {
@@ -92,17 +111,16 @@ function conditions(filters: SearchFilters, now: Date) {
 		where.push(sql`${posts.id} IN (
 			SELECT pt.post_id
 			FROM post_tags pt
-			INNER JOIN tags t ON t.id = pt.tag_id
-			WHERE t.name IN (SELECT value FROM json_each(${JSON.stringify(filters.tags)}))
+			WHERE pt.tag IN (SELECT value FROM json_each(${JSON.stringify(filters.tags)}))
 			GROUP BY pt.post_id
-			HAVING count(DISTINCT t.name) = ${filters.tags.length}
+			HAVING count(DISTINCT pt.tag) = ${filters.tags.length}
 		)`);
 	}
 	const from = filters.from ? startOfKoreanDate(filters.from) : null;
 	const to = filters.to ? afterKoreanDate(filters.to) : null;
 	if (from) where.push(gte(posts.publishedAt, from));
 	if (to) where.push(lt(posts.publishedAt, to));
-	if (filters.author) where.push(eq(user.username, filters.author));
+	if (authorId) where.push(eq(posts.authorId, authorId));
 	return and(...where);
 }
 
@@ -112,13 +130,12 @@ export async function searchPosts(
 	page: number,
 	now = new Date()
 ) {
-	const where = conditions(filters, now);
-	const total = await db
-		.select({ value: count() })
-		.from(posts)
-		.innerJoin(user, eq(user.id, posts.authorId))
-		.where(where)
-		.get();
+	const author = filters.author
+		? await db.select({ id: user.id }).from(user).where(eq(user.username, filters.author)).get()
+		: null;
+	if (filters.author && !author) return { total: 0, items: [] };
+	const where = conditions(filters, now, author?.id);
+	const total = await db.select({ value: count() }).from(posts).where(where).get();
 	const rows = await db
 		.select(postSummarySelection)
 		.from(posts)

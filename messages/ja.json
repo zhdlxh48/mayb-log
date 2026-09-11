@@ -155,5 +155,9 @@
 	"markdown_too_large": "Markdown本文が大きすぎます。",
 	"markdown_required": "Markdown本文が必要です。",
 	"validation_name_required": "名前を入力してください。",
+	"validation_categories_limit": "カテゴリーは記事ごとに30個まで選択できます。",
+	"validation_tags_limit": "タグは記事ごとに30個まで入力できます。",
+	"validation_tag_length": "タグは1つ64文字以内です。",
+	"validation_search_filters": "検索条件を確認してください。",
 	"pagination_label": "ページ移動"
 }

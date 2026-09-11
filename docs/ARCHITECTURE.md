@@ -4,7 +4,7 @@
 
 `src/hooks.server.ts`는 Paraglide middleware와 Better Auth handler를 연결합니다. Better Auth는 `username()`, `captcha(...)`, `sveltekitCookies(...)`만 사용하며 비밀번호, session, Turnstile을 담당합니다. 이메일은 가입 정보로 저장하지만 인증하지 않습니다. 공식 `session.cookieCache`를 120초 사용해 반복된 session D1 read를 줄입니다.
 
-mayb-log 고유 계정 상태는 `user.approved` 하나입니다. `src/lib/server/auth/guards.ts`의 `requireUser()`가 현재 request의 로그인과 승인을 확인합니다. 보호 layout은 화면 이동 편의를 위한 것이며, 모든 변경 action과 media 및 Preview endpoint가 action body 첫 단계에서 이 helper를 직접 호출합니다.
+mayb-log 고유 계정 상태는 `user.approved` 하나입니다. `src/lib/server/auth/guards.ts`의 `requireUser()`가 현재 request의 로그인과 승인을 확인합니다. 보호 layout은 화면 이동 편의를 위한 것입니다. 모든 보호 page server load는 D1/R2 접근 전에, 모든 변경 action과 media 및 Preview endpoint는 action body 첫 단계에서 이 helper를 직접 호출합니다.
 
 ## 데이터와 조회
 
@@ -16,7 +16,9 @@ mayb-log 고유 계정 상태는 `user.approved` 하나입니다. `src/lib/serve
 
 목록, 상세, 편집, RSS, sitemap query는 필요한 column만 각각 선택합니다. 목록과 sitemap은 본문을 읽지 않으며 RSS는 최근 공개 글 30개만 읽습니다. 검색의 1~2글자 query는 제목, 부제, 설명에 escaped LIKE를 사용하고 3글자 이상은 FTS trigram을 사용합니다. 작성자 filter key는 immutable username이고 화면에는 nickname을 표시합니다.
 
-Category와 Tag는 JSON aggregate로 한 번에 읽습니다. 글과 관계 변경은 D1 batch로 묶고, update/delete 존재 확인은 `RETURNING` 결과를 사용합니다. 범용 DAO나 repository 계층은 두지 않습니다.
+Category와 Tag는 JSON aggregate로 한 번에 읽습니다. Tag lookup table은 없으며 `post_tags(post_id, tag)`가 글별 문자열을 직접 저장합니다. Post insert/update, category 관계, tag 관계는 한 D1 batch로 처리합니다. 관계 insert도 Post가 존재할 때만 행을 만드는 `INSERT ... SELECT`라서 없는 Post 수정은 404가 되고 중간 실패는 전체 rollback됩니다. update/delete 존재 확인은 `RETURNING` 결과를 사용합니다. 범용 DAO나 repository 계층은 두지 않습니다.
+
+입력 상한은 `src/lib/limits.ts` 한 곳에 있습니다. Markdown은 UTF-8 1MiB, Post 카테고리·태그는 각각 30개, 태그 하나는 64글자입니다. 공개 검색은 검색어 200글자, 시리즈·카테고리·태그 각 20개, 태그 64글자, 작성자 아이디 30글자입니다. 날짜와 날짜·시각은 실제 한국 달력 값까지 엄격히 검사합니다.
 
 DB schema는 `src/lib/server/db/schema`, 목적별 query는 `src/lib/server/db/queries`, migration은 `drizzle`에 있습니다. 날짜 검색과 보관함의 달력 경계는 `Asia/Seoul`입니다.
 
@@ -34,13 +36,15 @@ Image list는 삽입과 명시적 삭제만 합니다. 같은 파일도 새 UUID
 
 공통 색, typography, semantic element는 `src/global.css`에, 컴포넌트 모양은 각 Svelte 파일의 scoped CSS에 둡니다. CSS framework는 사용하지 않습니다. 정보 중심의 간단한 header, table, form grid를 유지합니다.
 
-Paraglide message source는 `messages/{ko,ja,en}.json`입니다. 전략은 locale cookie, 브라우저 선호 언어, 기본 한국어 순서입니다. 언어 변경은 공식 setter가 cookie를 갱신하고 document를 reload합니다. locale path prefix와 Post language column은 없습니다. document `<html lang>`만 현재 UI locale을 따릅니다.
+Paraglide message source는 `messages/{ko,ja,en}.json`입니다. 전략은 locale cookie, 브라우저 선호 언어, 기본 한국어 순서입니다. 언어 변경은 공식 setter가 cookie를 갱신하고 document를 reload합니다. locale path prefix와 Post language column은 없습니다. document `<html lang>`만 현재 UI locale을 따릅니다. `src/lib/paraglide`는 생성물이므로 Git에서 제외하며, `package.json`의 compile 옵션과 `vite.config.ts`의 plugin 옵션은 같은 출력 경로·전략을 유지합니다.
 
-DB date/time은 UTC instant입니다. machine-readable 값은 ISO 8601이고 `LocalDate.svelte`가 hydration 후 현재 UI locale과 브라우저 timezone으로 화면 text를 바꿉니다.
+DB date/time은 UTC instant입니다. machine-readable 값은 ISO 8601입니다. `LocalDate.svelte`는 SSR에서 현재 UI locale의 한국 시각을 사람이 읽을 수 있게 출력하고, hydration 후 같은 locale의 브라우저 timezone 표시로 바꿉니다.
 
 ## SEO와 cache
 
-`Seo.svelte`가 canonical, Open Graph, Twitter metadata를 만들고 상세 글은 BlogPosting JSON-LD를 제공합니다. 페이지가 나뉜 글 목록은 각 page URL을 canonical로 사용합니다. sitemap은 noindex, 임시 글, 미래 글을 제외하고 `updatedAt`을 lastmod로 사용합니다. RSS는 최근 공개 글 30개와 본문을 제공합니다. RSS와 sitemap만 5분 public cache를 사용하며 HTML은 edge cache하지 않습니다. R2 image는 immutable cache header를 사용합니다.
+`Seo.svelte`가 canonical, Open Graph, Twitter metadata를 만들고 상세 글은 BlogPosting JSON-LD를 제공합니다. 페이지가 나뉜 글 목록은 각 page URL을 canonical로 사용합니다. sitemap은 noindex, 임시 글, 미래 글을 제외하고 `updatedAt`을 lastmod로 사용합니다. RSS는 최근 공개 글 30개와 본문을 제공합니다. RSS와 sitemap response는 5분 public cache header를 보냅니다. 전역 Worker cache나 HTML edge cache는 사용하지 않습니다. R2 image는 immutable cache header를 사용합니다.
+
+CSP의 `style-src`는 `self`만 허용합니다. Vite의 작은 build transform이 SvelteKit 자체 접근성 announcer의 inline style을 class로 바꾸며, 애플리케이션 스타일은 외부 CSS와 scoped CSS를 사용합니다.
 
 ## 유지보수
 
