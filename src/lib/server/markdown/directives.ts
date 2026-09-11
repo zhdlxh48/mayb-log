@@ -7,12 +7,43 @@ type DirectiveNode = {
 	name: string;
 	attributes?: Record<string, string | null>;
 	data?: { hName?: string; hProperties?: Record<string, unknown> };
+	children?: unknown[];
+	value?: string;
+	position?: {
+		start: { offset?: number };
+		end: { offset?: number };
+	};
 };
-type ProcessorFile = { fail(message: string, node: object): never };
+type ProcessorFile = {
+	value: unknown;
+	message(message: string, node: object, origin: string): unknown;
+};
 
 const noteAttributes = z
 	.object({ type: z.enum(['info', 'warning', 'success', 'error']).default('info') })
 	.strict();
+
+function directiveSource(node: DirectiveNode, file: ProcessorFile) {
+	const start = node.position?.start.offset;
+	const end = node.position?.end.offset;
+	if (typeof file.value === 'string' && typeof start === 'number' && typeof end === 'number')
+		return file.value.slice(start, end);
+	const marker =
+		node.type === 'containerDirective' ? ':::' : node.type === 'leafDirective' ? '::' : ':';
+	return `${marker}${node.name}`;
+}
+
+function literalDirective(node: DirectiveNode, file: ProcessorFile, message: string, code: string) {
+	file.message(message, node, `mayb-log:${code}`);
+	const source = directiveSource(node, file);
+	const replacement = node as unknown as Record<string, unknown>;
+	replacement.type = 'text';
+	replacement.value = source;
+	delete replacement.name;
+	delete replacement.attributes;
+	delete replacement.data;
+	delete replacement.children;
+}
 
 export function remarkDirectives() {
 	return (tree: Tree, file: ProcessorFile) => {
@@ -24,16 +55,37 @@ export function remarkDirectives() {
 			)
 				return;
 			const directive = node as DirectiveNode;
-			if (directive.name !== 'note') return;
-			if (directive.type !== 'containerDirective')
-				file.fail('`note`는 :::note 블록 문법을 사용하세요.', directive);
+			if (directive.name !== 'note') {
+				literalDirective(
+					directive,
+					file,
+					`지원하지 않는 directive \`${directive.name}\`입니다.`,
+					'unknown-directive'
+				);
+				return;
+			}
+			if (directive.type !== 'containerDirective') {
+				literalDirective(
+					directive,
+					file,
+					'`note`는 :::note 블록 문법을 사용해야 합니다.',
+					'directive-kind'
+				);
+				return;
+			}
 			const parsed = noteAttributes.safeParse(directive.attributes ?? {});
-			const type = parsed.success
-				? parsed.data.type
-				: file.fail('`note`의 type은 info, warning, success, error 중 하나여야 합니다.', directive);
+			if (!parsed.success) {
+				literalDirective(
+					directive,
+					file,
+					'`note`의 type은 info, warning, success, error 중 하나여야 합니다.',
+					'directive-attributes'
+				);
+				return;
+			}
 			directive.data = {
 				hName: 'aside',
-				hProperties: { className: ['note', `note-${type}`] }
+				hProperties: { className: ['note', `note-${parsed.data.type}`] }
 			};
 		});
 	};

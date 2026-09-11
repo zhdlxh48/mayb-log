@@ -38,7 +38,13 @@ async function save(event: RequestEvent, action: 'saveDraft' | 'publish') {
 	try {
 		post = await createPost(requestDb(event.platform), form.data, user.id, assetId.data, action);
 	} catch (cause) {
-		if (isUniqueConflict(cause)) return fail(409, { form, error: m.post_conflict() });
+		if (isUniqueConflict(cause))
+			return fail(409, {
+				form,
+				error: m.post_conflict(),
+				assetId: assetId.data,
+				images: await listPostImages(event.platform!.env.MEDIA, assetId.data)
+			});
 		throw cause;
 	}
 	if (!post.publishedAt || post.publishedAt > new Date())

@@ -102,15 +102,22 @@ function selectSummaries(db: Database) {
 		.leftJoin(series, eq(series.id, posts.seriesId));
 }
 
-export async function getPublishedPosts(db: Database, page: number, now = new Date()) {
-	const condition = publicPostCondition(now);
-	const total = await db.select({ value: count() }).from(posts).where(condition).get();
+export async function countPublishedPosts(db: Database, now = new Date()) {
+	const total = await db
+		.select({ value: count() })
+		.from(posts)
+		.where(publicPostCondition(now))
+		.get();
+	return total?.value ?? 0;
+}
+
+export async function getPublishedPostPage(db: Database, page: number, now = new Date()) {
 	const rows = await selectSummaries(db)
-		.where(condition)
+		.where(publicPostCondition(now))
 		.orderBy(desc(posts.publishedAt), desc(posts.id))
 		.limit(POSTS_PER_PAGE)
 		.offset((page - 1) * POSTS_PER_PAGE);
-	return { total: total?.value ?? 0, items: rows.map(mapPost) };
+	return rows.map(mapPost);
 }
 
 export async function getPublishedPost(db: Database, id: number, now = new Date()) {

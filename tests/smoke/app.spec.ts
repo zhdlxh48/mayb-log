@@ -118,6 +118,10 @@ test('rejects a protected mutation without a session', async () => {
 test('rejects oversized and invalid public search filters', async ({ request }) => {
 	expect((await request.get(`/search?q=${'a'.repeat(201)}`)).status()).toBe(400);
 	expect((await request.get('/search?from=2026-02-30')).status()).toBe(400);
+	for (const path of ['/posts?page=999999', '/search?page=999999']) {
+		const response = await request.get(path, { maxRedirects: 0 });
+		expect(response.status(), path).toBe(303);
+	}
 });
 
 test('auth, editor, media, preview and post lifecycle', async ({ page, context }) => {
@@ -182,6 +186,27 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 	await expect(page.getByLabel('Smoke category')).toBeChecked();
 	await page.getByLabel('Title', { exact: true }).fill('SvelteKit smoke post');
 
+	const seriesId = query<{ id: number }>(`SELECT id FROM series WHERE title = 'Smoke series'`)[0]
+		.id;
+	const blockerAssetId = crypto.randomUUID();
+	sql(`INSERT INTO posts (asset_id, author_id, title, description, body_markdown, series_id, series_position, noindex, published_at, created_at, updated_at)
+		SELECT '${blockerAssetId}', id, 'Series blocker', 'fixture', 'fixture', ${seriesId}, 1, 0, NULL, 1, 1
+		FROM user WHERE username = '${username}';`);
+	await page.locator('#seriesId').selectOption(String(seriesId));
+	await page.getByLabel('Series position').fill('1');
+	const uiConflictResponse = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/saveDraft')
+	);
+	await page.getByRole('button', { name: 'Save draft' }).click();
+	expect((await uiConflictResponse).status()).toBe(409);
+	await expect(page.locator('input[name="assetId"]')).toHaveValue(assetId);
+	await expect(page.locator('table.images a')).toHaveAttribute('href', mediaUrl!);
+	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(mediaUrl!));
+	await expect(page.getByLabel('Tags')).toHaveValue('original-tag');
+	await expect(page.getByLabel('Smoke category')).toBeChecked();
+	await page.locator('#seriesId').selectOption('');
+	await page.getByLabel('Series position').fill('');
+
 	const invalidDateAssetId = crypto.randomUUID();
 	const invalidDate = await context.request.post('/posts/new?/publish', {
 		headers: {
@@ -219,8 +244,26 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 		});
 		expect(await actionStatus(response), name).toBe(404);
 	}
+	const markdownWithWarnings = `# Smoke
+
+![image](${mediaUrl})
+
+:::note{type="banana"}
+Wrong type
+:::
+
+:::future_widget{foo="bar"}
+Unknown widget
+:::`;
+	await page.getByLabel('Body').fill(markdownWithWarnings);
 	await page.getByRole('button', { name: 'Preview' }).click();
 	await expect(page.locator('.preview h1')).toHaveText('Smoke');
+	await expect(page.locator('.preview')).toContainText(':::note{type="banana"}');
+	await expect(page.locator('.preview')).toContainText(':::future_widget{foo="bar"}');
+	await expect(page.getByRole('heading', { name: 'Warnings (2)' })).toBeVisible();
+	await expect(page.locator('.preview-warnings li')).toHaveCount(2);
+	await expect(page.getByRole('button', { name: 'Save draft' })).toBeEnabled();
+	await expect(page.getByRole('button', { name: 'Publish' })).toBeEnabled();
 	const invalidFields = await page.locator('form').evaluate((form: HTMLFormElement) =>
 		Array.from(form.elements)
 			.filter((field) => 'checkValidity' in field && !(field as HTMLInputElement).checkValidity())
@@ -241,12 +284,6 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 	const postId = editUrl.match(/\/posts\/(\d+)\/edit/)?.[1];
 	expect(postId).toBeTruthy();
 
-	const seriesId = query<{ id: number }>(`SELECT id FROM series WHERE title = 'Smoke series'`)[0]
-		.id;
-	const blockerAssetId = crypto.randomUUID();
-	sql(`INSERT INTO posts (asset_id, author_id, title, description, body_markdown, series_id, series_position, noindex, published_at, created_at, updated_at)
-		SELECT '${blockerAssetId}', id, 'Series blocker', 'fixture', 'fixture', ${seriesId}, 1, 0, NULL, 1, 1
-		FROM user WHERE username = '${username}';`);
 	const conflict = await context.request.post(`/posts/${postId}/edit?/saveDraft`, {
 		headers: {
 			origin: 'http://localhost:5173',
@@ -303,6 +340,7 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 	await expect(page).toHaveURL(`/posts/${postId}`);
 	await expect(page.getByRole('heading', { name: 'SvelteKit smoke post' })).toBeVisible();
 	await expect(page.locator('.article-body img')).toHaveAttribute('src', mediaUrl!);
+	await expect(page.locator('.article-body')).toContainText(':::note{type="banana"}');
 	await page.getByRole('link', { name: 'Smoke User' }).click();
 	await expect(page).toHaveURL('/search?author=smoke_user');
 	await expect(page.getByRole('link', { name: 'SvelteKit smoke post' })).toBeVisible();
