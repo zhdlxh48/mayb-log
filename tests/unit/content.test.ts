@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { afterKoreanDate, parseKoreanDateTimeLocal, startOfKoreanDate } from '$lib/dates';
 import { pagination } from '$lib/pagination';
-import { renderMarkdown } from '$lib/server/markdown/render';
+import { renderMarkdown, renderMarkdownDocument } from '$lib/server/markdown/render';
 import { postSchema, tagNames } from '$lib/validation/content';
-import { MAX_MARKDOWN_BYTES } from '$lib/limits';
+import { MAX_MARKDOWN_BYTES, MAX_PREVIEW_REQUEST_BYTES, MAX_TAGS_INPUT_LENGTH } from '$lib/limits';
 
 describe('Markdown policy', () => {
 	it('shows ordinary raw HTML as text', async () => {
@@ -14,12 +14,13 @@ describe('Markdown policy', () => {
 
 	it('keeps a safe iframe and removes unsafe attributes', async () => {
 		const html = await renderMarkdown(
-			'<iframe src="https://example.com/embed" title="Demo" loading="lazy" srcdoc="bad" onload="bad()" allowfullscreen></iframe>'
+			'<iframe src="https://example.com/embed" title="Demo" loading="lazy" srcdoc="bad" style="color:red" onload="bad()" allowfullscreen></iframe>'
 		);
 		expect(html).toContain('<iframe');
 		expect(html).toContain('src="https://example.com/embed"');
 		expect(html).toContain('title="Demo"');
 		expect(html).not.toContain('srcdoc');
+		expect(html).not.toContain('style=');
 		expect(html).not.toContain('onload');
 	});
 
@@ -37,9 +38,40 @@ describe('Markdown policy', () => {
 	});
 
 	it('renders the supported note directive through the shared pipeline', async () => {
-		const html = await renderMarkdown(':::note{type="warning"}\n**Careful**\n:::');
-		expect(html).toContain('<aside class="note note-warning">');
-		expect(html).toContain('<strong>Careful</strong>');
+		const result = await renderMarkdownDocument(':::note{type="warning"}\n**Careful**\n:::');
+		expect(result.html).toContain('<aside class="note note-warning">');
+		expect(result.html).toContain('<strong>Careful</strong>');
+		expect(result.diagnostics).toEqual([]);
+	});
+
+	it('shows an invalid note configuration literally with a diagnostic', async () => {
+		const source = ':::note{type="banana"}\nWrong type\n:::';
+		const result = await renderMarkdownDocument(source);
+		expect(result.html).toContain(source);
+		expect(result.html).not.toContain('<aside');
+		expect(result.diagnostics).toHaveLength(1);
+		expect(result.diagnostics[0]).toMatchObject({
+			line: 1,
+			column: 1,
+			code: 'directive-attributes'
+		});
+	});
+
+	it('shows the wrong note kind literally with a diagnostic', async () => {
+		const source = '::note[Wrong kind]';
+		const result = await renderMarkdownDocument(source);
+		expect(result.html).toContain(source);
+		expect(result.diagnostics).toHaveLength(1);
+		expect(result.diagnostics[0]?.code).toBe('directive-kind');
+	});
+
+	it('shows an unknown directive literally with a diagnostic', async () => {
+		const source = ':::future_widget{foo="bar"}\nContents\n:::';
+		const result = await renderMarkdownDocument(source);
+		expect(result.html).toContain(source);
+		expect(result.html).not.toContain('<future_widget');
+		expect(result.diagnostics).toHaveLength(1);
+		expect(result.diagnostics[0]?.code).toBe('unknown-directive');
 	});
 });
 
@@ -105,6 +137,9 @@ describe('Post input limits', () => {
 			}).success
 		).toBe(false);
 		expect(postSchema.safeParse({ ...validPost, tags: '가'.repeat(65) }).success).toBe(false);
+		expect(
+			postSchema.safeParse({ ...validPost, tags: ','.repeat(MAX_TAGS_INPUT_LENGTH + 1) }).success
+		).toBe(false);
 	});
 
 	it('limits Markdown by UTF-8 bytes', () => {
@@ -117,5 +152,14 @@ describe('Post input limits', () => {
 				bodyMarkdown: '가'.repeat(Math.floor(MAX_MARKDOWN_BYTES / 3) + 1)
 			}).success
 		).toBe(false);
+	});
+
+	it('allows JSON overhead without increasing the Markdown content limit', () => {
+		const bodyMarkdown = '"'.repeat(MAX_MARKDOWN_BYTES);
+		const encoder = new TextEncoder();
+		expect(encoder.encode(bodyMarkdown).byteLength).toBe(MAX_MARKDOWN_BYTES);
+		expect(encoder.encode(JSON.stringify({ bodyMarkdown })).byteLength).toBeLessThan(
+			MAX_PREVIEW_REQUEST_BYTES
+		);
 	});
 });

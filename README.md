@@ -55,7 +55,7 @@ node node_modules/wrangler/bin/wrangler.js d1 execute DB --remote --command "UPD
 - `No index`는 공개와 사이트 검색 및 RSS에는 포함하되 검색엔진 sitemap에서 제외합니다.
 - 본문은 일반 textarea에 Markdown으로 작성합니다. `.md` 파일을 브라우저에서 바로 불러올 수 있습니다.
 - Preview를 누르면 서버의 공개 글과 같은 renderer와 sanitizer가 HTML을 만듭니다.
-- `:::note{type="warning"}`처럼 `remark-directive` 문법을 사용할 수 있습니다.
+- `:::note{type="warning"}`처럼 `remark-directive` 문법을 사용할 수 있습니다. 지원하지 않거나 잘못 작성한 directive는 원문으로 표시되고 Preview에 경고가 나오지만 저장과 발행은 가능합니다.
 
 본문은 UTF-8 기준 1MiB, 카테고리는 30개, 태그는 30개이며 태그 하나는 64글자까지 허용합니다. 검색은 검색어 200글자, 시리즈·카테고리·태그 각 20개, 태그 64글자, 작성자 아이디 30글자로 제한합니다. 잘못된 날짜나 상한을 넘긴 요청은 저장하거나 줄여서 해석하지 않고 400으로 거절합니다.
 

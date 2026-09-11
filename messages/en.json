@@ -90,6 +90,7 @@
 	"preview": "Preview",
 	"preview_loading": "Generating preview.",
 	"preview_error": "Could not generate preview.",
+	"preview_warnings": "Warnings",
 	"import_markdown": "Import .md",
 	"replace_markdown": "Replace the current body with this file?",
 	"upload_image": "Upload image",
@@ -158,6 +159,7 @@
 	"validation_categories_limit": "Select no more than 30 categories per post.",
 	"validation_tags_limit": "Enter no more than 30 tags per post.",
 	"validation_tag_length": "Each tag must have no more than 64 characters.",
+	"validation_tags_input_length": "The raw tag input must have no more than 4096 characters.",
 	"validation_search_filters": "Check the search filters.",
 	"pagination_label": "Page navigation"
 }
