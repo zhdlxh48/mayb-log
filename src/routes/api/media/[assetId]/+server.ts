@@ -1,14 +1,14 @@
 import { error, json } from '@sveltejs/kit';
 import { z } from 'zod';
+import { IMAGE_EDITOR_PAGE_SIZE } from '$lib/limits';
 import { requireUser } from '$lib/server/auth/guards';
 import { listPostImages, validWebp } from '$lib/server/media/images';
 import { mediaKey, mediaUrl, UUID } from '$lib/server/media/path';
 import type { RequestHandler } from './$types';
 import * as m from '$lib/paraglide/messages.js';
 
-const MAX_DELETE_IMAGES = 100;
 const deleteSchema = z
-	.object({ imageIds: z.array(z.string().regex(UUID)).min(1).max(MAX_DELETE_IMAGES) })
+	.object({ imageIds: z.array(z.string().regex(UUID)).min(1).max(IMAGE_EDITOR_PAGE_SIZE) })
 	.strict();
 
 export const GET: RequestHandler = async ({ params, platform }) => {

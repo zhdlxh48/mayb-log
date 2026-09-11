@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { afterKoreanDate, parseKoreanDateTimeLocal, startOfKoreanDate } from '$lib/dates';
+import { clampImagePage, imagePageCount } from '$lib/image-pages';
 import { pagination } from '$lib/pagination';
+import { positiveIntegerParam } from '$lib/params';
 import { renderMarkdown, renderMarkdownDocument } from '$lib/server/markdown/render';
 import { listPostImages } from '$lib/server/media/images';
 import { postSchema, tagNames } from '$lib/validation/content';
@@ -137,6 +139,24 @@ describe('pagination blocks', () => {
 
 	it('always exposes at least one page', () => {
 		expect(pagination(99, 0)).toMatchObject({ current: 1, last: 1, pages: [1] });
+	});
+});
+
+describe('image pagination', () => {
+	it('keeps a valid page when images are added or removed', () => {
+		expect(imagePageCount(0)).toBe(1);
+		expect(imagePageCount(21)).toBe(2);
+		expect(clampImagePage(2, 21)).toBe(2);
+		expect(clampImagePage(2, 20)).toBe(1);
+	});
+});
+
+describe('numeric route parameters', () => {
+	it('accepts only safe positive integers', () => {
+		expect(positiveIntegerParam('1')).toBe(1);
+		expect(positiveIntegerParam('42')).toBe(42);
+		for (const value of ['0', '-1', '1.5', 'abc', '9007199254740992'])
+			expect(positiveIntegerParam(value), value).toBeNull();
 	});
 });
 

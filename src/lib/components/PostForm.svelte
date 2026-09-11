@@ -2,7 +2,8 @@
 	import { beforeNavigate } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import imageCompression from 'browser-image-compression';
-	import { MAX_MARKDOWN_BYTES } from '$lib/limits';
+	import { clampImagePage, imagePageCount as countImagePages } from '$lib/image-pages';
+	import { IMAGE_EDITOR_PAGE_SIZE, MAX_IMAGE_BYTES, MAX_MARKDOWN_BYTES } from '$lib/limits';
 	import * as m from '$lib/paraglide/messages.js';
 
 	type Form = {
@@ -66,6 +67,12 @@
 	let textarea = $state<HTMLTextAreaElement>();
 	let images = $state<Image[]>(loadedImages());
 	let selectedImageIds = $state<string[]>([]);
+	let imagePage = $state(1);
+	let deletingImages = $state(false);
+	let imagePageCount = $derived(countImagePages(images.length));
+	let visibleImages = $derived(
+		images.slice((imagePage - 1) * IMAGE_EDITOR_PAGE_SIZE, imagePage * IMAGE_EDITOR_PAGE_SIZE)
+	);
 	let mediaError = $state('');
 	let importError = $state('');
 	let previewHtml = $state('');
@@ -103,7 +110,7 @@
 		mediaError = '';
 		try {
 			const compressed = await imageCompression(file, {
-				maxSizeMB: 4,
+				maxSizeMB: MAX_IMAGE_BYTES / 1024 / 1024,
 				maxWidthOrHeight: 1600,
 				initialQuality: 0.82,
 				fileType: 'image/webp',
@@ -114,7 +121,9 @@
 			const response = await fetch(`/api/media/${assetId}`, { method: 'POST', body });
 			if (!response.ok) throw new Error(m.image_upload_error());
 			const image: Image = await response.json();
-			images = [...images, image];
+			const nextImages = [...images, image];
+			images = nextImages;
+			goToImagePage(countImagePages(nextImages.length));
 			insert(image.url);
 		} catch (error) {
 			mediaError = error instanceof Error ? error.message : m.image_upload_error();
@@ -127,22 +136,35 @@
 			: selectedImageIds.filter((id) => id !== imageId);
 	}
 
+	function goToImagePage(page: number) {
+		const nextPage = clampImagePage(page, images.length);
+		if (nextPage === imagePage) return;
+		imagePage = nextPage;
+		selectedImageIds = [];
+	}
+
 	async function removeSelected() {
-		if (!selectedImageIds.length || !confirm(m.delete_selected_images_confirm())) return;
+		if (deletingImages || !selectedImageIds.length || !confirm(m.delete_selected_images_confirm()))
+			return;
 		mediaError = '';
 		const imageIds = [...selectedImageIds];
-		const response = await fetch(`/api/media/${assetId}`, {
-			method: 'DELETE',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ imageIds })
-		});
-		if (!response.ok) {
+		deletingImages = true;
+		try {
+			const response = await fetch(`/api/media/${assetId}`, {
+				method: 'DELETE',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ imageIds })
+			});
+			if (!response.ok) throw new Error();
+			const removed = new Set(imageIds);
+			images = images.filter(({ id }) => !removed.has(id));
+			selectedImageIds = [];
+			imagePage = clampImagePage(imagePage, images.length);
+		} catch {
 			mediaError = m.image_delete_error();
-			return;
+		} finally {
+			deletingImages = false;
 		}
-		const removed = new Set(imageIds);
-		images = images.filter(({ id }) => !removed.has(id));
-		selectedImageIds = [];
 	}
 
 	async function importMarkdown(file: File) {
@@ -342,10 +364,11 @@
 		<section class="images" aria-labelledby="images-heading">
 			<h2 id="images-heading">{m.images()}</h2>
 			<ul class="image-grid">
-				{#each images as image}
+				{#each visibleImages as image}
 					<li class="image-item" data-image-id={image.id}>
 						<input
 							type="checkbox"
+							disabled={deletingImages}
 							checked={selectedImageIds.includes(image.id)}
 							aria-label={`${m.select_image()} ${image.id.slice(0, 8)}`}
 							onchange={(event) => selectImage(image.id, event.currentTarget.checked)}
@@ -359,8 +382,25 @@
 					</li>
 				{/each}
 			</ul>
-			<button type="button" disabled={!selectedImageIds.length} onclick={removeSelected}
-				>{m.delete_selected_images()} ({selectedImageIds.length})</button
+			{#if imagePageCount > 1}
+				<nav class="image-pager" aria-label={m.pagination_label()}>
+					<button
+						type="button"
+						disabled={deletingImages || imagePage === 1}
+						onclick={() => goToImagePage(imagePage - 1)}>{m.previous_image_page()}</button
+					>
+					<span>{m.image_page()} {imagePage} / {imagePageCount}</span>
+					<button
+						type="button"
+						disabled={deletingImages || imagePage === imagePageCount}
+						onclick={() => goToImagePage(imagePage + 1)}>{m.next_image_page()}</button
+					>
+				</nav>
+			{/if}
+			<button
+				type="button"
+				disabled={deletingImages || !selectedImageIds.length}
+				onclick={removeSelected}>{m.delete_selected_images()} ({selectedImageIds.length})</button
 			>
 		</section>
 	{/if}
@@ -477,6 +517,12 @@
 	.image-item button {
 		padding: 0.15rem 0.4rem;
 		font-size: 0.82rem;
+	}
+	.image-pager {
+		display: flex;
+		align-items: center;
+		gap: 0.65rem;
+		margin-bottom: 0.65rem;
 	}
 	.actions {
 		margin-top: 1rem;
