@@ -29,6 +29,12 @@
 	};
 
 	type Image = { id: string; url: string };
+	type MarkdownDiagnostic = {
+		line?: number;
+		column?: number;
+		message: string;
+		code?: string;
+	};
 
 	let {
 		form,
@@ -60,6 +66,7 @@
 	let images = $state<Image[]>(loadedImages());
 	let mediaError = $state('');
 	let previewHtml = $state('');
+	let previewDiagnostics = $state<MarkdownDiagnostic[]>([]);
 	let lastPreviewSource = $state<string | null>(null);
 	let previewLoading = $state(false);
 	let previewError = $state('');
@@ -138,7 +145,12 @@
 				body: JSON.stringify({ bodyMarkdown: markdown })
 			});
 			if (!response.ok) throw new Error(m.preview_error());
-			previewHtml = ((await response.json()) as { html: string }).html;
+			const result = (await response.json()) as {
+				html: string;
+				diagnostics: MarkdownDiagnostic[];
+			};
+			previewHtml = result.html;
+			previewDiagnostics = result.diagnostics;
 			lastPreviewSource = markdown;
 		} catch (error) {
 			previewError = error instanceof Error ? error.message : m.preview_error();
@@ -269,10 +281,27 @@
 			>
 		</div>
 	</div>
-	<div class:hidden={!previewVisible} class="preview article-body" aria-live="polite">
+	<div class:hidden={!previewVisible} class="preview" aria-live="polite">
 		{#if previewLoading}<p>{m.preview_loading()}</p>{:else if previewError}<p role="alert">
 				{previewError}
-			</p>{:else}{@html previewHtml}{/if}
+			</p>{:else}
+			<div class="article-body">{@html previewHtml}</div>
+			{#if previewDiagnostics.length}
+				<section class="preview-warnings" aria-labelledby="preview-warnings-heading">
+					<h2 id="preview-warnings-heading">
+						{m.preview_warnings()} ({previewDiagnostics.length})
+					</h2>
+					<ul>
+						{#each previewDiagnostics as diagnostic}
+							<li>
+								{#if diagnostic.line}{diagnostic.line}:{diagnostic.column ?? 1}
+								{/if}{diagnostic.message}
+							</li>
+						{/each}
+					</ul>
+				</section>
+			{/if}
+		{/if}
 	</div>
 	<textarea
 		class:hidden={previewVisible}
@@ -369,6 +398,17 @@
 		padding: 0.5rem;
 		border: 1px solid var(--line-color);
 		overflow: auto;
+	}
+	.preview-warnings {
+		margin-top: 1.25rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid var(--line-color);
+	}
+	.preview-warnings h2 {
+		font-size: 1rem;
+	}
+	.preview-warnings ul {
+		margin-bottom: 0;
 	}
 	.images img {
 		width: 72px;

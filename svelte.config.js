@@ -11,6 +11,7 @@ const config = {
 				'default-src': ['self'],
 				'script-src': ['self', 'https://challenges.cloudflare.com'],
 				'style-src': ['self'],
+				'style-src-attr': ['unsafe-inline'],
 				'img-src': ['self', 'data:', 'blob:', 'http:', 'https:'],
 				'frame-src': ['http:', 'https:'],
 				'connect-src': ['self', 'https://challenges.cloudflare.com'],

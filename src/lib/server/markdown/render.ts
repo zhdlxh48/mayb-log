@@ -15,6 +15,13 @@ type MarkdownNode = { type: string; value?: string };
 type Tree = Parameters<typeof visit>[0];
 type HastElement = { type: string; tagName: string; properties: Record<string, unknown> };
 type ProcessorFile = { data: Record<string, unknown> };
+
+export type MarkdownDiagnostic = {
+	line?: number;
+	column?: number;
+	message: string;
+	code?: string;
+};
 function allowOnlyIframeHtml() {
 	return (tree: Tree) => {
 		visit(tree, 'html', (node) => {
@@ -95,7 +102,13 @@ export async function renderMarkdownDocument(markdown: string) {
 	const file = await renderer.process(markdown);
 	return {
 		html: String(file),
-		firstImage: typeof file.data.firstImage === 'string' ? file.data.firstImage : null
+		firstImage: typeof file.data.firstImage === 'string' ? file.data.firstImage : null,
+		diagnostics: file.messages.map((message): MarkdownDiagnostic => ({
+			...(message.line === undefined ? {} : { line: message.line }),
+			...(message.column === undefined ? {} : { column: message.column }),
+			message: message.reason,
+			...(message.ruleId ? { code: message.ruleId } : {})
+		}))
 	};
 }
 

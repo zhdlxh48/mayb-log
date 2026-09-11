@@ -5,6 +5,7 @@ import {
 	MAX_CATEGORIES_PER_POST,
 	MAX_MARKDOWN_BYTES,
 	MAX_TAG_LENGTH,
+	MAX_TAGS_INPUT_LENGTH,
 	MAX_TAGS_PER_POST
 } from '$lib/limits';
 
@@ -40,6 +41,7 @@ export const postSchema = z
 			.default([]),
 		tags: z
 			.string()
+			.max(MAX_TAGS_INPUT_LENGTH, { error: () => m.validation_tags_input_length() })
 			.superRefine((value, context) => {
 				const names = tagNames(value);
 				if (names.length > MAX_TAGS_PER_POST)

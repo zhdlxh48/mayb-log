@@ -90,6 +90,7 @@
 	"preview": "미리보기",
 	"preview_loading": "미리보기를 만드는 중입니다.",
 	"preview_error": "미리보기를 만들지 못했습니다.",
+	"preview_warnings": "경고",
 	"import_markdown": ".md 가져오기",
 	"replace_markdown": "현재 본문을 가져온 파일로 바꾸시겠습니까?",
 	"upload_image": "이미지 업로드",
@@ -158,6 +159,7 @@
 	"validation_categories_limit": "카테고리는 글 하나에 최대 30개까지 선택할 수 있습니다.",
 	"validation_tags_limit": "태그는 글 하나에 최대 30개까지 입력할 수 있습니다.",
 	"validation_tag_length": "태그 하나는 64글자 이하여야 합니다.",
+	"validation_tags_input_length": "태그 입력 전체는 4096글자 이하여야 합니다.",
 	"validation_search_filters": "검색 조건을 확인하세요.",
 	"pagination_label": "페이지 이동"
 }

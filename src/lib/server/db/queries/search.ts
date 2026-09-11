@@ -124,18 +124,25 @@ function conditions(filters: SearchFilters, now: Date, authorId?: string) {
 	return and(...where);
 }
 
+export async function countSearchPosts(db: Database, filters: SearchFilters, now = new Date()) {
+	const author = filters.author
+		? await db.select({ id: user.id }).from(user).where(eq(user.username, filters.author)).get()
+		: null;
+	if (filters.author && !author) return { total: 0, authorId: null };
+	const where = conditions(filters, now, author?.id);
+	const total = await db.select({ value: count() }).from(posts).where(where).get();
+	return { total: total?.value ?? 0, authorId: author?.id ?? null };
+}
+
 export async function searchPosts(
 	db: Database,
 	filters: SearchFilters,
 	page: number,
+	authorId: string | null,
 	now = new Date()
 ) {
-	const author = filters.author
-		? await db.select({ id: user.id }).from(user).where(eq(user.username, filters.author)).get()
-		: null;
-	if (filters.author && !author) return { total: 0, items: [] };
-	const where = conditions(filters, now, author?.id);
-	const total = await db.select({ value: count() }).from(posts).where(where).get();
+	if (filters.author && !authorId) return [];
+	const where = conditions(filters, now, authorId ?? undefined);
 	const rows = await db
 		.select(postSummarySelection)
 		.from(posts)
@@ -145,5 +152,5 @@ export async function searchPosts(
 		.orderBy(desc(posts.publishedAt), desc(posts.id))
 		.limit(POSTS_PER_PAGE)
 		.offset((page - 1) * POSTS_PER_PAGE);
-	return { total: total?.value ?? 0, items: rows.map(mapPost) };
+	return rows.map(mapPost);
 }
