@@ -22,7 +22,8 @@ export const actions: Actions = {
 		const form = await superValidate(request, zod4(seriesSchema));
 		if (!form.valid) return fail(400, { form });
 		try {
-			await saveSeries(requestDb(platform), form.data, Number(params.id));
+			if (!(await saveSeries(requestDb(platform), form.data, Number(params.id))))
+				return fail(409, { form, error: m.taxonomy_changed() });
 		} catch (cause) {
 			if (isUniqueConflict(cause)) return fail(409, { form, error: m.series_conflict() });
 			throw cause;
@@ -31,7 +32,8 @@ export const actions: Actions = {
 	},
 	delete: async ({ params, platform }) => {
 		requireUser();
-		await removeSeries(requestDb(platform), Number(params.id));
+		if (!(await removeSeries(requestDb(platform), Number(params.id))))
+			error(404, m.series_not_found());
 		redirect(303, '/series');
 	}
 };

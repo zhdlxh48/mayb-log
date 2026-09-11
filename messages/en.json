@@ -146,6 +146,7 @@
 	"category_conflict": "A category with this name already exists.",
 	"series_conflict": "A series with this title already exists.",
 	"post_conflict": "This series position is already in use.",
+	"taxonomy_changed": "Classification information changed. Reload the page and check.",
 	"post_not_found": "Post not found.",
 	"series_not_found": "Series not found.",
 	"category_not_found": "Category not found.",

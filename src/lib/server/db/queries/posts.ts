@@ -233,16 +233,11 @@ function relationStatements(
 	const tags = tagNames(input.tags);
 	const postCondition = 'id' in where ? eq(posts.id, where.id) : eq(posts.assetId, where.assetId);
 	return [
-		db.insert(postCategories).select(
-			db
-				.select({ postId: posts.id, categoryId: categories.id })
-				.from(posts)
-				.innerJoin(
-					categories,
-					sql`${categories.id} IN (SELECT value FROM json_each(${JSON.stringify(categoryIds)}))`
-				)
-				.where(postCondition)
-		),
+		db
+			.insert(postCategories)
+			.select(
+				sql`SELECT ${posts.id}, value FROM ${posts}, json_each(${JSON.stringify(categoryIds)}) WHERE ${postCondition}`
+			),
 		db
 			.insert(postTags)
 			.select(

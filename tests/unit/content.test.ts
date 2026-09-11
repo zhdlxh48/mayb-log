@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { afterKoreanDate, parseKoreanDateTimeLocal, startOfKoreanDate } from '$lib/dates';
 import { pagination } from '$lib/pagination';
 import { renderMarkdown, renderMarkdownDocument } from '$lib/server/markdown/render';
+import { listPostImages } from '$lib/server/media/images';
 import { postSchema, tagNames } from '$lib/validation/content';
 import { MAX_MARKDOWN_BYTES, MAX_PREVIEW_REQUEST_BYTES, MAX_TAGS_INPUT_LENGTH } from '$lib/limits';
 
@@ -47,13 +48,15 @@ describe('Markdown policy', () => {
 	it('shows an invalid note configuration literally with a diagnostic', async () => {
 		const source = ':::note{type="banana"}\nWrong type\n:::';
 		const result = await renderMarkdownDocument(source);
+		expect(result.html).toContain(`<pre><code>${source}\n</code></pre>`);
 		expect(result.html).toContain(source);
 		expect(result.html).not.toContain('<aside');
 		expect(result.diagnostics).toHaveLength(1);
 		expect(result.diagnostics[0]).toMatchObject({
 			line: 1,
 			column: 1,
-			code: 'directive-attributes'
+			code: 'directive-attributes',
+			message: 'The `note` type must be one of: info, warning, success, error.'
 		});
 	});
 
@@ -62,7 +65,10 @@ describe('Markdown policy', () => {
 		const result = await renderMarkdownDocument(source);
 		expect(result.html).toContain(source);
 		expect(result.diagnostics).toHaveLength(1);
-		expect(result.diagnostics[0]?.code).toBe('directive-kind');
+		expect(result.diagnostics[0]).toMatchObject({
+			code: 'directive-kind',
+			message: 'The `note` directive must use container syntax (`:::note`).'
+		});
 	});
 
 	it('shows an unknown directive literally with a diagnostic', async () => {
@@ -71,7 +77,54 @@ describe('Markdown policy', () => {
 		expect(result.html).toContain(source);
 		expect(result.html).not.toContain('<future_widget');
 		expect(result.diagnostics).toHaveLength(1);
-		expect(result.diagnostics[0]?.code).toBe('unknown-directive');
+		expect(result.diagnostics[0]).toMatchObject({
+			code: 'unknown-directive',
+			message: 'Unknown directive `future_widget`.'
+		});
+	});
+});
+
+describe('R2 image listing', () => {
+	it('follows cursors and keeps only strict UUID v4 image IDs', async () => {
+		const assetId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+		const firstId = '11111111-1111-4111-8111-111111111111';
+		const secondId = '22222222-2222-4222-a222-222222222222';
+		const prefix = `posts/${assetId}/`;
+		const calls: { prefix?: string; cursor?: string }[] = [];
+		const bucket = {
+			async list(options: { prefix?: string; cursor?: string }) {
+				calls.push(options);
+				return options.cursor
+					? { objects: [{ key: `${prefix}${secondId}.webp` }], truncated: false }
+					: {
+							objects: [
+								{ key: `${prefix}${firstId}.webp` },
+								{ key: `${prefix}33333333-3333-1333-8333-333333333333.webp` },
+								{ key: `${prefix}not-a-uuid.webp` }
+							],
+							truncated: true,
+							cursor: 'next'
+						};
+			}
+		} as unknown as R2Bucket;
+
+		expect(await listPostImages(bucket, assetId)).toEqual([
+			{ id: firstId, url: `/media/${assetId}/${firstId}.webp` },
+			{ id: secondId, url: `/media/${assetId}/${secondId}.webp` }
+		]);
+		expect(calls).toEqual([{ prefix }, { prefix, cursor: 'next' }]);
+
+		let singlePageCalls = 0;
+		await listPostImages(
+			{
+				async list() {
+					singlePageCalls += 1;
+					return { objects: [], truncated: false };
+				}
+			} as unknown as R2Bucket,
+			assetId
+		);
+		expect(singlePageCalls).toBe(1);
 	});
 });
 

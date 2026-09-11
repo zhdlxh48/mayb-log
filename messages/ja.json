@@ -146,6 +146,7 @@
 	"category_conflict": "同じ名前のカテゴリーがあります。",
 	"series_conflict": "同じタイトルのシリーズがあります。",
 	"post_conflict": "同じシリーズ順が使用されています。",
+	"taxonomy_changed": "分類情報が変更されました。ページを再読み込みして確認してください。",
 	"post_not_found": "記事が見つかりません。",
 	"series_not_found": "シリーズが見つかりません。",
 	"category_not_found": "カテゴリーが見つかりません。",

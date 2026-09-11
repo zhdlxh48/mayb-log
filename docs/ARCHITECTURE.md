@@ -16,7 +16,7 @@ mayb-log 고유 계정 상태는 `user.approved` 하나입니다. `src/lib/serve
 
 목록, 상세, 편집, RSS, sitemap query는 필요한 column만 각각 선택합니다. 목록과 sitemap은 본문을 읽지 않으며 RSS는 최근 공개 글 30개만 읽습니다. 검색의 1~2글자 query는 제목, 부제, 설명에 escaped LIKE를 사용하고 3글자 이상은 FTS trigram을 사용합니다. 작성자 filter key는 immutable username이고 화면에는 nickname을 표시합니다.
 
-Category와 Tag는 JSON aggregate로 한 번에 읽습니다. Tag lookup table은 없으며 `post_tags(post_id, tag)`가 글별 문자열을 직접 저장합니다. Post insert/update, category 관계, tag 관계는 한 D1 batch로 처리합니다. 관계 insert도 Post가 존재할 때만 행을 만드는 `INSERT ... SELECT`라서 없는 Post 수정은 404가 되고 중간 실패는 전체 rollback됩니다. update/delete 존재 확인은 `RETURNING` 결과를 사용합니다. 범용 DAO나 repository 계층은 두지 않습니다.
+Category와 Tag는 JSON aggregate로 한 번에 읽습니다. Tag lookup table은 없으며 `post_tags(post_id, tag)`가 글별 문자열을 직접 저장합니다. Post insert/update, category 관계, tag 관계는 한 D1 batch로 처리합니다. 관계 insert도 Post가 존재할 때만 행을 만드는 `INSERT ... SELECT`라서 없는 Post 수정은 404가 되고 중간 실패는 전체 rollback됩니다. 전달된 Category ID는 관계 테이블에 직접 insert하여 편집 중 삭제된 분류가 있으면 FK 오류와 409 응답으로 저장 전체를 취소합니다. update/delete 존재 확인은 `RETURNING` 결과를 사용합니다. 범용 DAO나 repository 계층은 두지 않습니다.
 
 입력 상한은 `src/lib/limits.ts` 한 곳에 있습니다. Markdown은 UTF-8 1MiB이고 Preview의 JSON request에는 별도의 4MiB 상한을 둡니다. Post 카테고리·태그는 각각 30개, 태그 하나는 64글자이며 쉼표로 구분한 원본 태그 입력은 4096글자까지입니다. 공개 검색은 검색어 200글자, 시리즈·카테고리·태그 각 20개, 태그 64글자, 작성자 아이디 30글자입니다. 날짜와 날짜·시각은 실제 한국 달력 값까지 엄격히 검사합니다.
 
@@ -24,7 +24,7 @@ DB schema는 `src/lib/server/db/schema`, 목적별 query는 `src/lib/server/db/q
 
 ## Markdown과 이미지
 
-`src/lib/server/markdown/render.ts`가 Markdown HTML의 유일한 source입니다. unified pipeline은 GFM, `remark-directive`, raw HTML 처리, `rehype-sanitize`, highlight 순서로 안전한 HTML을 만듭니다. `src/lib/server/markdown/directives.ts`가 directive 추가 위치입니다. 지원하지 않거나 잘못 작성한 directive는 원문을 literal text로 보존하고 non-fatal diagnostic을 남깁니다. Preview는 이 경고를 표시하지만 저장과 발행을 막지 않으며 공개 글과 RSS는 같은 최종 HTML만 사용합니다.
+`src/lib/server/markdown/render.ts`가 Markdown HTML의 유일한 source입니다. unified pipeline은 GFM, `remark-directive`, raw HTML 처리, `rehype-sanitize`, highlight 순서로 안전한 HTML을 만듭니다. `src/lib/server/markdown/directives.ts`가 directive 추가 위치입니다. 지원하지 않거나 잘못 작성한 block directive는 줄바꿈을 유지하는 code block으로 원문을 보존하고 non-fatal diagnostic을 남깁니다. Preview의 Warnings heading은 UI locale로 번역하지만 renderer가 만드는 기술 diagnostic은 canonical English를 그대로 표시합니다. 경고는 저장과 발행을 막지 않으며 공개 글과 RSS는 같은 최종 HTML만 사용합니다.
 
 raw fragment는 HAST로 parse합니다. 공백을 제외한 top-level element가 iframe 하나일 때만 제한된 HTTP(S) iframe을 허용하고 나머지는 원문 글자로 표시합니다. `/api/markdown-preview`와 공개 글은 같은 renderer와 sanitizer를 사용합니다. Preview는 버튼을 눌렀고 본문이 직전 Preview와 달라졌을 때만 요청하며 HTML과 간단한 line/column diagnostic을 받습니다.
 
@@ -44,7 +44,7 @@ DB date/time은 UTC instant입니다. machine-readable 값은 ISO 8601입니다.
 
 `Seo.svelte`가 canonical, Open Graph, Twitter metadata를 만들고 상세 글은 BlogPosting JSON-LD를 제공합니다. 페이지가 나뉜 글 목록은 각 page URL을 canonical로 사용합니다. sitemap은 noindex, 임시 글, 미래 글을 제외하고 `updatedAt`을 lastmod로 사용합니다. RSS는 최근 공개 글 30개와 본문을 제공합니다. RSS와 sitemap response는 5분 public cache header를 보냅니다. 전역 Worker cache나 HTML edge cache는 사용하지 않습니다. R2 image는 immutable cache header를 사용합니다.
 
-CSP의 `style-src`는 `self`만 허용하고 `style-src-attr 'unsafe-inline'`은 SvelteKit이 생성하는 접근성 announcer의 inline style attribute에만 사용합니다. `script-src`는 inline script를 허용하지 않으며 Markdown sanitizer도 사용자 `style` attribute를 허용하지 않습니다. framework 생성 source를 수정하는 build transform은 사용하지 않습니다.
+CSP의 `style-src`는 `self`만 허용합니다. `style-src-attr 'unsafe-inline'`은 SvelteKit generated UI를 포함한 document 전체의 inline style attribute 호환성을 위한 정책이며 app 코드에서 inline style 사용을 권장한다는 뜻은 아닙니다. `script-src`는 inline script를 허용하지 않으며 Markdown sanitizer도 사용자 `style` attribute를 허용하지 않습니다. framework 생성 source를 수정하는 build transform은 사용하지 않습니다.
 
 ## Migration 운영 규칙
 

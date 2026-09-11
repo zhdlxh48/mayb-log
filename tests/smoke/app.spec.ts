@@ -68,10 +68,22 @@ async function actionStatus(response: APIResponse) {
 test.beforeAll(async ({ request }) => {
 	sql(`DELETE FROM posts WHERE author_id IN (SELECT id FROM user WHERE username = '${username}');`);
 	sql(`DELETE FROM user WHERE username = '${username}';`);
-	sql(`DELETE FROM categories WHERE name = 'Smoke category';`);
-	sql(`DELETE FROM series WHERE title = 'Smoke series';`);
-	sql(`INSERT INTO categories (name, description) VALUES ('Smoke category', 'fixture');`);
-	sql(`INSERT INTO series (title, description) VALUES ('Smoke series', 'fixture');`);
+	sql(
+		`DELETE FROM categories WHERE name IN ('Smoke category', 'Stale new category', 'Stale post category', 'Stale edit category');`
+	);
+	sql(
+		`DELETE FROM series WHERE title IN ('Smoke series', 'Stale post series', 'Stale edit series', 'Stale delete series');`
+	);
+	sql(`INSERT INTO categories (name, description) VALUES
+		('Smoke category', 'fixture'),
+		('Stale new category', 'fixture'),
+		('Stale post category', 'fixture'),
+		('Stale edit category', 'fixture');`);
+	sql(`INSERT INTO series (title, description) VALUES
+		('Smoke series', 'fixture'),
+		('Stale post series', 'fixture'),
+		('Stale edit series', 'fixture'),
+		('Stale delete series', 'fixture');`);
 	const response = await request.post('/signup', {
 		headers: { origin: 'http://localhost:5173' },
 		form: {
@@ -95,8 +107,12 @@ test.beforeAll(async ({ request }) => {
 test.afterAll(() => {
 	sql(`DELETE FROM posts WHERE author_id IN (SELECT id FROM user WHERE username = '${username}');`);
 	sql(`DELETE FROM user WHERE username = '${username}';`);
-	sql(`DELETE FROM categories WHERE name = 'Smoke category';`);
-	sql(`DELETE FROM series WHERE title = 'Smoke series';`);
+	sql(
+		`DELETE FROM categories WHERE name IN ('Smoke category', 'Stale new category', 'Stale post category', 'Stale edit category');`
+	);
+	sql(
+		`DELETE FROM series WHERE title IN ('Smoke series', 'Stale post series', 'Stale edit series', 'Stale delete series');`
+	);
 });
 
 test('rejects a protected mutation without a session', async () => {
@@ -125,6 +141,7 @@ test('rejects oversized and invalid public search filters', async ({ request }) 
 });
 
 test('auth, editor, media, preview and post lifecycle', async ({ page, context }) => {
+	test.setTimeout(60_000);
 	const cspErrors: string[] = [];
 	page.on('console', (message) => {
 		if (/content security policy|refused to apply.*style/i.test(message.text()))
@@ -161,6 +178,7 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 	await page.getByLabel('Description').fill('Post lifecycle smoke test.');
 	await page.getByLabel('Tags').fill('original-tag');
 	await page.getByLabel('Smoke category').check();
+	await page.getByLabel('Stale new category').check();
 	await page.getByLabel('Body').fill('# Smoke\n\nPreview body');
 	await page
 		.getByLabel('Upload image')
@@ -184,7 +202,31 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(mediaUrl!));
 	await expect(page.getByLabel('Tags')).toHaveValue('original-tag');
 	await expect(page.getByLabel('Smoke category')).toBeChecked();
+	await expect(page.getByLabel('Stale new category')).toBeChecked();
 	await page.getByLabel('Title', { exact: true }).fill('SvelteKit smoke post');
+
+	const staleNewCategoryId = query<{ id: number }>(
+		`SELECT id FROM categories WHERE name = 'Stale new category'`
+	)[0].id;
+	sql(`DELETE FROM categories WHERE id = ${staleNewCategoryId};`);
+	const staleNewResponse = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/saveDraft')
+	);
+	await page.getByRole('button', { name: 'Save draft' }).click();
+	expect((await staleNewResponse).status()).toBe(409);
+	await expect(page.getByRole('alert')).toHaveText(
+		'Classification information changed. Reload the page and check.'
+	);
+	await expect(page.locator('input[name="assetId"]')).toHaveValue(assetId);
+	await expect(page.locator('table.images a')).toHaveAttribute('href', mediaUrl!);
+	await expect(page.getByLabel('Title', { exact: true })).toHaveValue('SvelteKit smoke post');
+	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(mediaUrl!));
+	await expect(page.getByLabel('Tags')).toHaveValue('original-tag');
+	await expect(page.getByLabel('Smoke category')).toBeChecked();
+	expect(
+		query<{ value: number }>(`SELECT count(*) AS value FROM posts WHERE asset_id = '${assetId}'`)[0]
+			.value
+	).toBe(0);
 
 	const seriesId = query<{ id: number }>(`SELECT id FROM series WHERE title = 'Smoke series'`)[0]
 		.id;
@@ -260,8 +302,18 @@ Unknown widget
 	await expect(page.locator('.preview h1')).toHaveText('Smoke');
 	await expect(page.locator('.preview')).toContainText(':::note{type="banana"}');
 	await expect(page.locator('.preview')).toContainText(':::future_widget{foo="bar"}');
+	await expect(page.locator('.preview .article-body pre code')).toHaveCount(2);
+	expect(await page.locator('.preview .article-body pre code').first().textContent()).toContain(
+		':::note{type="banana"}\nWrong type\n:::'
+	);
 	await expect(page.getByRole('heading', { name: 'Warnings (2)' })).toBeVisible();
 	await expect(page.locator('.preview-warnings li')).toHaveCount(2);
+	await expect(page.locator('.preview-warnings li').first()).toContainText(
+		'The `note` type must be one of: info, warning, success, error.'
+	);
+	await expect(page.locator('.preview-warnings li').nth(1)).toContainText(
+		'Unknown directive `future_widget`.'
+	);
 	await expect(page.getByRole('button', { name: 'Save draft' })).toBeEnabled();
 	await expect(page.getByRole('button', { name: 'Publish' })).toBeEnabled();
 	const invalidFields = await page.locator('form').evaluate((form: HTMLFormElement) =>
@@ -283,6 +335,75 @@ Unknown widget
 	const editUrl = page.url();
 	const postId = editUrl.match(/\/posts\/(\d+)\/edit/)?.[1];
 	expect(postId).toBeTruthy();
+
+	const stalePostCategoryId = query<{ id: number }>(
+		`SELECT id FROM categories WHERE name = 'Stale post category'`
+	)[0].id;
+	await page.getByLabel('Stale post category').check();
+	await page.getByLabel('Title', { exact: true }).fill('Stale category should roll back');
+	await page.getByLabel('Tags').fill('stale-category-tag');
+	sql(`DELETE FROM categories WHERE id = ${stalePostCategoryId};`);
+	const staleCategoryResponse = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/saveDraft')
+	);
+	await page.getByRole('button', { name: 'Save draft' }).click();
+	expect((await staleCategoryResponse).status()).toBe(409);
+	await expect(page.getByRole('alert')).toHaveText(
+		'Classification information changed. Reload the page and check.'
+	);
+	await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
+		'Stale category should roll back'
+	);
+	await expect(page.getByLabel('Tags')).toHaveValue('stale-category-tag');
+	expect(query<{ title: string }>(`SELECT title FROM posts WHERE id = ${postId}`)[0].title).toBe(
+		'SvelteKit smoke post'
+	);
+	expect(
+		query<{ value: number }>(
+			`SELECT count(*) AS value FROM post_categories WHERE post_id = ${postId}`
+		)[0].value
+	).toBe(1);
+	expect(query<{ tag: string }>(`SELECT tag FROM post_tags WHERE post_id = ${postId}`)).toEqual([
+		{ tag: 'original-tag' }
+	]);
+	await page.getByLabel('Title', { exact: true }).fill('SvelteKit smoke post');
+	await page.getByLabel('Tags').fill('original-tag');
+
+	const stalePostSeriesId = query<{ id: number }>(
+		`SELECT id FROM series WHERE title = 'Stale post series'`
+	)[0].id;
+	await page.locator('#seriesId').selectOption(String(stalePostSeriesId));
+	await page.getByLabel('Series position').fill('2');
+	await page.getByLabel('Title', { exact: true }).fill('Stale series should roll back');
+	await page.getByLabel('Tags').fill('stale-series-tag');
+	sql(`DELETE FROM series WHERE id = ${stalePostSeriesId};`);
+	const staleSeriesResponse = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/saveDraft')
+	);
+	await page.getByRole('button', { name: 'Save draft' }).click();
+	expect((await staleSeriesResponse).status()).toBe(409);
+	await expect(page.getByRole('alert')).toHaveText(
+		'Classification information changed. Reload the page and check.'
+	);
+	await expect(page.getByLabel('Title', { exact: true })).toHaveValue(
+		'Stale series should roll back'
+	);
+	await expect(page.getByLabel('Tags')).toHaveValue('stale-series-tag');
+	expect(query<{ title: string }>(`SELECT title FROM posts WHERE id = ${postId}`)[0].title).toBe(
+		'SvelteKit smoke post'
+	);
+	expect(
+		query<{ value: number }>(
+			`SELECT count(*) AS value FROM post_categories WHERE post_id = ${postId}`
+		)[0].value
+	).toBe(1);
+	expect(query<{ tag: string }>(`SELECT tag FROM post_tags WHERE post_id = ${postId}`)).toEqual([
+		{ tag: 'original-tag' }
+	]);
+	await page.getByLabel('Title', { exact: true }).fill('SvelteKit smoke post');
+	await page.getByLabel('Tags').fill('original-tag');
+	await page.locator('#seriesId').selectOption('');
+	await page.getByLabel('Series position').fill('');
 
 	const conflict = await context.request.post(`/posts/${postId}/edit?/saveDraft`, {
 		headers: {
@@ -336,11 +457,51 @@ Unknown widget
 		)[0].value
 	).toBe(0);
 
+	const staleEditCategoryId = query<{ id: number }>(
+		`SELECT id FROM categories WHERE name = 'Stale edit category'`
+	)[0].id;
+	sql(`DELETE FROM categories WHERE id = ${staleEditCategoryId};`);
+	const staleCategoryEdit = await context.request.post(
+		`/categories/${staleEditCategoryId}/edit?/save`,
+		{
+			headers: { origin: 'http://localhost:5173' },
+			form: { name: 'Changed stale category', description: 'changed' }
+		}
+	);
+	expect(await actionStatus(staleCategoryEdit)).toBe(409);
+
+	const staleEditSeriesId = query<{ id: number }>(
+		`SELECT id FROM series WHERE title = 'Stale edit series'`
+	)[0].id;
+	sql(`DELETE FROM series WHERE id = ${staleEditSeriesId};`);
+	const staleSeriesEdit = await context.request.post(`/series/${staleEditSeriesId}/edit?/save`, {
+		headers: { origin: 'http://localhost:5173' },
+		form: { title: 'Changed stale series', description: 'changed' }
+	});
+	expect(await actionStatus(staleSeriesEdit)).toBe(409);
+
+	const staleDeleteSeriesId = query<{ id: number }>(
+		`SELECT id FROM series WHERE title = 'Stale delete series'`
+	)[0].id;
+	sql(`DELETE FROM series WHERE id = ${staleDeleteSeriesId};`);
+	const staleSeriesDelete = await context.request.post(
+		`/series/${staleDeleteSeriesId}/edit?/delete`,
+		{ headers: { origin: 'http://localhost:5173' }, form: {} }
+	);
+	expect(await actionStatus(staleSeriesDelete)).toBe(404);
+
 	await page.getByRole('button', { name: 'Publish' }).click();
 	await expect(page).toHaveURL(`/posts/${postId}`);
 	await expect(page.getByRole('heading', { name: 'SvelteKit smoke post' })).toBeVisible();
 	await expect(page.locator('.article-body img')).toHaveAttribute('src', mediaUrl!);
 	await expect(page.locator('.article-body')).toContainText(':::note{type="banana"}');
+	await expect(page.locator('.article-body pre code')).toHaveCount(2);
+	expect(await page.locator('.article-body pre code').first().textContent()).toContain(
+		':::note{type="banana"}\nWrong type\n:::'
+	);
+	await page.goto('/search?q=Smoke');
+	await expect(page.getByRole('link', { name: 'SvelteKit smoke post' })).toBeVisible();
+	await page.goto(`/posts/${postId}`);
 	await page.getByRole('link', { name: 'Smoke User' }).click();
 	await expect(page).toHaveURL('/search?author=smoke_user');
 	await expect(page.getByRole('link', { name: 'SvelteKit smoke post' })).toBeVisible();
