@@ -34,20 +34,27 @@ export async function getCategoryList(db: Database) {
 		.orderBy(categories.name);
 }
 
-export async function getPostOptions(db: Database) {
-	const [allSeries, allCategories, authors] = await Promise.all([
+export async function getEditorOptions(db: Database) {
+	const [allSeries, allCategories] = await Promise.all([
 		db.select({ id: series.id, title: series.title }).from(series).orderBy(series.title),
 		db
 			.select({ id: categories.id, name: categories.name })
 			.from(categories)
-			.orderBy(categories.name),
+			.orderBy(categories.name)
+	]);
+	return { series: allSeries, categories: allCategories };
+}
+
+export async function getSearchOptions(db: Database) {
+	const [options, authors] = await Promise.all([
+		getEditorOptions(db),
 		db
 			.select({ username: user.username, name: user.name })
 			.from(user)
 			.where(eq(user.approved, true))
 			.orderBy(user.name)
 	]);
-	return { series: allSeries, categories: allCategories, authors };
+	return { ...options, authors };
 }
 
 export async function getSeries(db: Database, id: number) {

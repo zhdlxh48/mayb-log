@@ -3,8 +3,7 @@ import { requireUser } from '$lib/server/auth/guards';
 import { renderMarkdown } from '$lib/server/markdown/render';
 import type { RequestHandler } from './$types';
 import * as m from '$lib/paraglide/messages.js';
-
-const MAX_MARKDOWN_BYTES = 1024 * 1024;
+import { MAX_MARKDOWN_BYTES } from '$lib/limits';
 
 export const POST: RequestHandler = async ({ request }) => {
 	requireUser();

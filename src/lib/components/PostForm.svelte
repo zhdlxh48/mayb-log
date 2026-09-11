@@ -23,6 +23,7 @@
 			bodyMarkdown?: string[];
 			seriesPosition?: string[];
 			tags?: string[];
+			categories?: { _errors?: string[] };
 			publishedAt?: string[];
 		};
 	};
@@ -51,33 +52,10 @@
 	function initialMarkdown() {
 		return form.data.bodyMarkdown;
 	}
-	function initialFields() {
-		return {
-			title: form.data.title,
-			subtitle: form.data.subtitle,
-			description: form.data.description,
-			seriesId: form.data.seriesId ?? '',
-			seriesPosition: form.data.seriesPosition ?? '',
-			categories: [...form.data.categories],
-			tags: form.data.tags,
-			publishedAt: form.data.publishedAt,
-			noindex: form.data.noindex
-		};
-	}
 	function loadedImages() {
 		return [...initialImages];
 	}
 	let markdown = $state(initialMarkdown());
-	const initial = initialFields();
-	let title = $state(initial.title);
-	let subtitle = $state(initial.subtitle);
-	let description = $state(initial.description);
-	let seriesId = $state<number | ''>(initial.seriesId);
-	let seriesPosition = $state<number | ''>(initial.seriesPosition);
-	let selectedCategories = $state(initial.categories);
-	let tags = $state(initial.tags);
-	let publishedAt = $state(initial.publishedAt);
-	let noindex = $state(initial.noindex);
 	let textarea = $state<HTMLTextAreaElement>();
 	let images = $state<Image[]>(loadedImages());
 	let mediaError = $state('');
@@ -119,7 +97,7 @@
 				maxWidthOrHeight: 1600,
 				initialQuality: 0.82,
 				fileType: 'image/webp',
-				useWebWorker: true
+				useWebWorker: false
 			});
 			const body = new FormData();
 			body.set('file', compressed, 'image.webp');
@@ -184,28 +162,31 @@
 	<div class="form-grid">
 		<label for="title">{m.title()}</label>
 		<div>
-			<input id="title" name="title" bind:value={title} required />
+			<input id="title" name="title" defaultValue={form.data.title} required />
 			{#each form.errors.title ?? [] as error}<small class="field-error">{error}</small>{/each}
 		</div>
 		<label for="subtitle">{m.subtitle()}</label><input
 			id="subtitle"
 			name="subtitle"
-			bind:value={subtitle}
+			defaultValue={form.data.subtitle}
 		/>
 		<label for="description">{m.description()}</label>
 		<div>
-			<textarea id="description" name="description" rows="2" bind:value={description} required
-			></textarea>
+			<textarea
+				id="description"
+				name="description"
+				rows="2"
+				defaultValue={form.data.description}
+				required></textarea>
 			{#each form.errors.description ?? [] as error}<small class="field-error">{error}</small
 				>{/each}
 		</div>
-		<label for="seriesId">{m.series_title()}</label><select
-			id="seriesId"
-			name="seriesId"
-			bind:value={seriesId}
-		>
-			<option value="">{m.none()}</option>
-			{#each options.series as item}<option value={item.id}>{item.title}</option>{/each}
+		<label for="seriesId">{m.series_title()}</label><select id="seriesId" name="seriesId">
+			<option value="" selected={form.data.seriesId === null}>{m.none()}</option>
+			{#each options.series as item}<option
+					value={item.id}
+					selected={form.data.seriesId === item.id}>{item.title}</option
+				>{/each}
 		</select>
 		<label for="seriesPosition">{m.series_position()}</label>
 		<div>
@@ -214,7 +195,7 @@
 				type="number"
 				min="1"
 				name="seriesPosition"
-				bind:value={seriesPosition}
+				defaultValue={form.data.seriesPosition ?? ''}
 			/>
 			{#each form.errors.seriesPosition ?? [] as error}<small class="field-error">{error}</small
 				>{/each}
@@ -226,24 +207,31 @@
 						type="checkbox"
 						name="categories"
 						value={item.id}
-						bind:group={selectedCategories}
+						defaultChecked={form.data.categories.includes(item.id)}
 					/>
 					{item.name}</label
 				>{/each}
 		</fieldset>
+		{#each form.errors.categories?._errors ?? [] as error}<small class="field-error">{error}</small
+			>{/each}
 		<label for="tags">{m.tags()}</label>
 		<div>
-			<input id="tags" name="tags" bind:value={tags} placeholder="tag-1, tag-2" />
+			<input id="tags" name="tags" defaultValue={form.data.tags} placeholder="tag-1, tag-2" />
 			{#each form.errors.tags ?? [] as error}<small class="field-error">{error}</small>{/each}
 		</div>
 		<label for="publishedAt">{m.publish_at()}</label>
 		<div>
-			<input id="publishedAt" type="datetime-local" name="publishedAt" bind:value={publishedAt} />
+			<input
+				id="publishedAt"
+				type="datetime-local"
+				name="publishedAt"
+				defaultValue={form.data.publishedAt}
+			/>
 			{#each form.errors.publishedAt ?? [] as error}<small class="field-error">{error}</small
 				>{/each}
 		</div>
 		<label for="noindex">{m.no_index()}</label><label
-			><input id="noindex" type="checkbox" name="noindex" bind:checked={noindex} />
+			><input id="noindex" type="checkbox" name="noindex" defaultChecked={form.data.noindex} />
 			{m.no_index_help()}</label
 		>
 	</div>

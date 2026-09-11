@@ -1,27 +1,8 @@
-import {
-	and,
-	asc,
-	count,
-	desc,
-	eq,
-	gt,
-	inArray,
-	isNotNull,
-	isNull,
-	lte,
-	or,
-	sql
-} from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
+import { parseKoreanDateTimeLocal } from '$lib/dates';
 import { user } from '$lib/server/db/schema/auth';
-import {
-	categories,
-	postCategories,
-	posts,
-	postTags,
-	series,
-	tags
-} from '$lib/server/db/schema/content';
+import { categories, postCategories, posts, postTags, series } from '$lib/server/db/schema/content';
 import { POSTS_PER_PAGE } from '$lib/pagination';
 import { tagNames } from '$lib/validation/content';
 
@@ -31,10 +12,14 @@ const categoryNames = sql<string>`COALESCE((SELECT json_group_array(name) FROM (
 	WHERE ${postCategories.postId} = ${posts.id} ORDER BY ${categories.name}
 )), '[]')`;
 
-const joinedTagNames = sql<string>`COALESCE((SELECT json_group_array(name) FROM (
-	SELECT ${tags.name} AS name FROM ${postTags}
-	INNER JOIN ${tags} ON ${tags.id} = ${postTags.tagId}
-	WHERE ${postTags.postId} = ${posts.id} ORDER BY ${tags.name}
+const joinedTagNames = sql<string>`COALESCE((SELECT json_group_array(tag) FROM (
+	SELECT ${postTags.tag} AS tag FROM ${postTags}
+	WHERE ${postTags.postId} = ${posts.id} ORDER BY ${postTags.tag}
+)), '[]')`;
+
+const categoryIds = sql<string>`COALESCE((SELECT json_group_array(category_id) FROM (
+	SELECT ${postCategories.categoryId} AS category_id FROM ${postCategories}
+	WHERE ${postCategories.postId} = ${posts.id} ORDER BY ${postCategories.categoryId}
 )), '[]')`;
 
 export const postSummarySelection = {
@@ -72,25 +57,37 @@ const postEditorSelection = {
 	noindex: posts.noindex,
 	publishedAt: posts.publishedAt,
 	updatedAt: posts.updatedAt,
-	categories: categoryNames,
+	categoryIds,
 	tags: joinedTagNames
 };
 
 export type Post = NonNullable<Awaited<ReturnType<typeof getPublishedPost>>>;
 
-function parseNames(value: string) {
+function parseValues(value: string) {
 	try {
 		const parsed: unknown = JSON.parse(value);
-		return Array.isArray(parsed)
-			? parsed.filter((name): name is string => typeof name === 'string')
-			: [];
+		return Array.isArray(parsed) ? parsed : [];
 	} catch {
 		return [];
 	}
 }
 
+function parseNames(value: string) {
+	return parseValues(value).filter((name): name is string => typeof name === 'string');
+}
+
 export function mapPost<T extends { categories: string; tags: string }>(post: T) {
 	return { ...post, categories: parseNames(post.categories), tags: parseNames(post.tags) };
+}
+
+function mapEditorPost<T extends { categoryIds: string; tags: string }>(post: T) {
+	return {
+		...post,
+		categoryIds: parseValues(post.categoryIds).filter(
+			(value): value is number => typeof value === 'number'
+		),
+		tags: parseNames(post.tags)
+	};
 }
 
 export function publicPostCondition(now = new Date()) {
@@ -129,7 +126,7 @@ export async function getPublishedPost(db: Database, id: number, now = new Date(
 
 export async function getEditablePost(db: Database, id: number) {
 	const row = await db.select(postEditorSelection).from(posts).where(eq(posts.id, id)).get();
-	return row ? mapPost(row) : null;
+	return row ? mapEditorPost(row) : null;
 }
 
 export async function getDrafts(db: Database, now = new Date()) {
@@ -197,11 +194,16 @@ export type PublicationAction = 'saveDraft' | 'publish' | 'save' | 'moveToDraft'
 function publication(value: string, action: PublicationAction) {
 	if (action === 'saveDraft' || action === 'moveToDraft') return null;
 	if (!value) return new Date();
-	const date = new Date(`${value}:00+09:00`);
-	return Number.isNaN(date.getTime()) ? null : date;
+	const date = parseKoreanDateTimeLocal(value);
+	if (!date) throw new Error('publishedAt passed validation but could not be parsed');
+	return date;
 }
 
-function postValues(input: PostInput, action: PublicationAction) {
+function postValues(
+	input: PostInput,
+	action: PublicationAction,
+	publishedAt = publication(input.publishedAt, action)
+) {
 	return {
 		title: input.title,
 		subtitle: input.subtitle || null,
@@ -210,52 +212,35 @@ function postValues(input: PostInput, action: PublicationAction) {
 		seriesId: input.seriesId,
 		seriesPosition: input.seriesId ? input.seriesPosition : null,
 		noindex: input.noindex,
-		publishedAt: publication(input.publishedAt, action),
+		publishedAt,
 		updatedAt: new Date()
-	};
-}
-
-async function relationsFor(db: Database, categoryIds: number[], rawTags: string) {
-	const uniqueCategoryIds = [...new Set(categoryIds)];
-	const validCategories = uniqueCategoryIds.length
-		? await db
-				.select({ id: categories.id })
-				.from(categories)
-				.where(inArray(categories.id, uniqueCategoryIds))
-		: [];
-	const names = tagNames(rawTags);
-	if (names.length)
-		await db
-			.insert(tags)
-			.values(names.map((name) => ({ name })))
-			.onConflictDoNothing();
-	const savedTags = names.length
-		? await db.select({ id: tags.id }).from(tags).where(inArray(tags.name, names))
-		: [];
-	return {
-		categoryIds: validCategories.map(({ id }) => id),
-		tagIds: savedTags.map(({ id }) => id)
 	};
 }
 
 function relationStatements(
 	db: Database,
-	postId: number,
-	relations: { categoryIds: number[]; tagIds: number[] }
+	where: { id: number } | { assetId: string },
+	input: PostInput
 ) {
+	const categoryIds = [...new Set(input.categories)];
+	const tags = tagNames(input.tags);
+	const postCondition = 'id' in where ? eq(posts.id, where.id) : eq(posts.assetId, where.assetId);
 	return [
-		db.delete(postCategories).where(eq(postCategories.postId, postId)),
-		db.delete(postTags).where(eq(postTags.postId, postId)),
-		...(relations.categoryIds.length
-			? [
-					db
-						.insert(postCategories)
-						.values(relations.categoryIds.map((categoryId) => ({ postId, categoryId })))
-				]
-			: []),
-		...(relations.tagIds.length
-			? [db.insert(postTags).values(relations.tagIds.map((tagId) => ({ postId, tagId })))]
-			: [])
+		db.insert(postCategories).select(
+			db
+				.select({ postId: posts.id, categoryId: categories.id })
+				.from(posts)
+				.innerJoin(
+					categories,
+					sql`${categories.id} IN (SELECT value FROM json_each(${JSON.stringify(categoryIds)}))`
+				)
+				.where(postCondition)
+		),
+		db
+			.insert(postTags)
+			.select(
+				sql`SELECT ${posts.id}, value FROM ${posts}, json_each(${JSON.stringify(tags)}) WHERE ${postCondition}`
+			)
 	];
 }
 
@@ -266,22 +251,23 @@ export async function createPost(
 	assetId: string,
 	action: 'saveDraft' | 'publish'
 ) {
-	const relations = await relationsFor(db, input.categories, input.tags);
 	const now = new Date();
-	const created = await db
+	const publishedAt = publication(input.publishedAt, action);
+	const insert = db
 		.insert(posts)
-		.values({ ...postValues(input, action), authorId, assetId, createdAt: now, updatedAt: now })
-		.returning({ id: posts.id })
-		.get();
-	try {
-		await db.batch(
-			relationStatements(db, created.id, relations) as unknown as Parameters<Database['batch']>[0]
-		);
-	} catch (cause) {
-		await db.delete(posts).where(eq(posts.id, created.id));
-		throw cause;
-	}
-	return { id: created.id, publishedAt: publication(input.publishedAt, action) };
+		.values({
+			...postValues(input, action, publishedAt),
+			authorId,
+			assetId,
+			createdAt: now,
+			updatedAt: now
+		})
+		.returning({ id: posts.id });
+	const [created] = await db.batch([
+		insert,
+		...relationStatements(db, { assetId }, input)
+	] as Parameters<Database['batch']>[0]);
+	return { id: (created as { id: number }[])[0].id, publishedAt };
 }
 
 export async function updatePost(
@@ -290,17 +276,20 @@ export async function updatePost(
 	input: PostInput,
 	action: PublicationAction
 ) {
-	const relations = await relationsFor(db, input.categories, input.tags);
+	const publishedAt = publication(input.publishedAt, action);
 	const update = db
 		.update(posts)
-		.set(postValues(input, action))
+		.set(postValues(input, action, publishedAt))
 		.where(eq(posts.id, id))
 		.returning({ id: posts.id });
-	const [updated] = await db.batch([update, ...relationStatements(db, id, relations)] as Parameters<
-		Database['batch']
-	>[0]);
+	const [updated] = await db.batch([
+		update,
+		db.delete(postCategories).where(eq(postCategories.postId, id)),
+		db.delete(postTags).where(eq(postTags.postId, id)),
+		...relationStatements(db, { id }, input)
+	] as Parameters<Database['batch']>[0]);
 	if (!(updated as { id: number }[]).length) return null;
-	return { id, publishedAt: publication(input.publishedAt, action) };
+	return { id, publishedAt };
 }
 
 export async function deletePost(db: Database, id: number) {

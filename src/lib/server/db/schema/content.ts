@@ -54,11 +54,6 @@ export const categories = sqliteTable('categories', {
 	description: text('description').notNull().default('')
 });
 
-export const tags = sqliteTable('tags', {
-	id: integer('id').primaryKey({ autoIncrement: true }),
-	name: text('name').notNull().unique()
-});
-
 export const postCategories = sqliteTable(
 	'post_categories',
 	{
@@ -81,13 +76,11 @@ export const postTags = sqliteTable(
 		postId: integer('post_id')
 			.notNull()
 			.references(() => posts.id, { onDelete: 'cascade' }),
-		tagId: integer('tag_id')
-			.notNull()
-			.references(() => tags.id, { onDelete: 'cascade' })
+		tag: text('tag').notNull()
 	},
 	(table) => [
-		primaryKey({ columns: [table.postId, table.tagId] }),
-		index('post_tags_tag_idx').on(table.tagId, table.postId)
+		primaryKey({ columns: [table.postId, table.tag] }),
+		index('post_tags_tag_idx').on(table.tag, table.postId)
 	]
 );
 
@@ -104,14 +97,11 @@ export const categoryRelations = relations(categories, ({ many }) => ({
 	posts: many(postCategories)
 }));
 
-export const tagRelations = relations(tags, ({ many }) => ({ posts: many(postTags) }));
-
 export const postCategoryRelations = relations(postCategories, ({ one }) => ({
 	post: one(posts, { fields: [postCategories.postId], references: [posts.id] }),
 	category: one(categories, { fields: [postCategories.categoryId], references: [categories.id] })
 }));
 
 export const postTagRelations = relations(postTags, ({ one }) => ({
-	post: one(posts, { fields: [postTags.postId], references: [posts.id] }),
-	tag: one(tags, { fields: [postTags.tagId], references: [tags.id] })
+	post: one(posts, { fields: [postTags.postId], references: [posts.id] })
 }));

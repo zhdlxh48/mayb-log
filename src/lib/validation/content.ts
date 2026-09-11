@@ -1,5 +1,12 @@
 import { z } from 'zod';
 import * as m from '$lib/paraglide/messages.js';
+import { parseKoreanDateTimeLocal } from '$lib/dates';
+import {
+	MAX_CATEGORIES_PER_POST,
+	MAX_MARKDOWN_BYTES,
+	MAX_TAG_LENGTH,
+	MAX_TAGS_PER_POST
+} from '$lib/limits';
 
 const optionalInteger = z.preprocess(
 	(value) => (value === '' || value === null || value === undefined ? null : Number(value)),
@@ -19,14 +26,33 @@ export const postSchema = z
 			.trim()
 			.min(1, { error: () => m.validation_description_required() })
 			.max(500),
-		bodyMarkdown: z.string().min(1, { error: () => m.validation_body_required() }),
+		bodyMarkdown: z
+			.string()
+			.min(1, { error: () => m.validation_body_required() })
+			.refine((value) => new TextEncoder().encode(value).byteLength <= MAX_MARKDOWN_BYTES, {
+				error: () => m.markdown_too_large()
+			}),
 		seriesId: optionalInteger,
 		seriesPosition: optionalInteger,
-		categories: z.array(z.coerce.number().int().positive()).default([]),
-		tags: z.string().max(1000).default(''),
+		categories: z
+			.array(z.coerce.number().int().positive())
+			.max(MAX_CATEGORIES_PER_POST, { error: () => m.validation_categories_limit() })
+			.default([]),
+		tags: z
+			.string()
+			.superRefine((value, context) => {
+				const names = tagNames(value);
+				if (names.length > MAX_TAGS_PER_POST)
+					context.addIssue({ code: 'custom', message: m.validation_tags_limit() });
+				if (names.some((name) => Array.from(name).length > MAX_TAG_LENGTH))
+					context.addIssue({ code: 'custom', message: m.validation_tag_length() });
+			})
+			.default(''),
 		publishedAt: z
 			.string()
-			.regex(/^$|^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, { error: () => m.validation_publish_time() })
+			.refine((value) => value === '' || parseKoreanDateTimeLocal(value) !== null, {
+				error: () => m.validation_publish_time()
+			})
 			.default(''),
 		noindex: z.boolean().default(false)
 	})
