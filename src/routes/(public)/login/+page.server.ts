@@ -6,9 +6,11 @@ import { authHeaders, authMessage, redactSensitiveAuthForm } from '$lib/server/a
 import { requireAuth } from '$lib/server/auth/guards';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ url }) => ({
-	form: await superValidate({ next: url.searchParams.get('next') ?? '' }, zod4(loginSchema))
-});
+export const load: PageServerLoad = async ({ url }) => {
+	const form = await superValidate(zod4(loginSchema));
+	form.data.next = url.searchParams.get('next') ?? '';
+	return { form };
+};
 
 export const actions: Actions = {
 	default: async ({ request, url }) => {
