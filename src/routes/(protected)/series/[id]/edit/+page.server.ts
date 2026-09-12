@@ -6,12 +6,13 @@ import { requestDb } from '$lib/server/db/request';
 import { seriesSchema } from '$lib/validation/content';
 import { requireUser } from '$lib/server/auth/guards';
 import { isUniqueConflict } from '$lib/server/db/errors';
+import { positiveIntegerParam } from '$lib/params';
 import type { Actions, PageServerLoad } from './$types';
 import * as m from '$lib/paraglide/messages.js';
 
 function routeId(value: string) {
-	const id = Number(value);
-	if (!Number.isInteger(id) || id <= 0) error(404, m.series_not_found());
+	const id = positiveIntegerParam(value);
+	if (id === null) error(404, m.series_not_found());
 	return id;
 }
 
