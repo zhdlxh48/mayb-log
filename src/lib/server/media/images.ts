@@ -23,7 +23,13 @@ export async function listPostImages(bucket: R2Bucket, assetId: string) {
 	}
 	return objects
 		.filter(({ key }) => key.endsWith('.webp'))
-		.map(({ key }) => key.slice(prefix.length, -'.webp'.length))
-		.filter((id) => UUID.test(id))
-		.map((id) => ({ id, url: mediaUrl(assetId, id) }));
+		.filter(({ key }) => UUID.test(key.slice(prefix.length, -'.webp'.length)))
+		.sort(
+			(a, b) =>
+				a.uploaded.getTime() - b.uploaded.getTime() || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)
+		)
+		.map(({ key }) => {
+			const id = key.slice(prefix.length, -'.webp'.length);
+			return { id, url: mediaUrl(assetId, id) };
+		});
 }

@@ -1,7 +1,6 @@
-import { fromHtml } from 'hast-util-from-html';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
-import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+import rehypeSanitize from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 import remarkDirective from 'remark-directive';
 import remarkGfm from 'remark-gfm';
@@ -10,10 +9,9 @@ import remarkRehype from 'remark-rehype';
 import { unified } from 'unified';
 import { visit } from 'unist-util-visit';
 import { remarkDirectives } from './directives';
+import { allowOnlyIframeHtml, htmlSanitizerSchema, secureIframeSources } from './html-policy';
 
-type MarkdownNode = { type: string; value?: string };
 type Tree = Parameters<typeof visit>[0];
-type HastElement = { type: string; tagName: string; properties: Record<string, unknown> };
 type ProcessorFile = { data: Record<string, unknown> };
 
 export type MarkdownDiagnostic = {
@@ -22,35 +20,6 @@ export type MarkdownDiagnostic = {
 	message: string;
 	code?: string;
 };
-function allowOnlyIframeHtml() {
-	return (tree: Tree) => {
-		visit(tree, 'html', (node) => {
-			const html = node as MarkdownNode;
-			const fragment = fromHtml(html.value ?? '', { fragment: true });
-			const content = fragment.children.filter(
-				(child) => child.type !== 'text' || child.value.trim().length > 0
-			);
-			if (
-				content.length !== 1 ||
-				content[0]?.type !== 'element' ||
-				content[0].tagName !== 'iframe'
-			) {
-				html.type = 'text';
-			}
-		});
-	};
-}
-
-function secureIframeSources() {
-	return (tree: Tree) => {
-		visit(tree, 'element', (node) => {
-			const element = node as HastElement;
-			if (element.tagName !== 'iframe') return;
-			const src = element.properties.src;
-			if (typeof src !== 'string' || !/^https?:\/\//i.test(src)) delete element.properties.src;
-		});
-	};
-}
 
 function findFirstImage() {
 	return (tree: Tree, file: ProcessorFile) => {
@@ -63,27 +32,6 @@ function findFirstImage() {
 	};
 }
 
-const schema = {
-	...defaultSchema,
-	tagNames: [...(defaultSchema.tagNames ?? []), 'iframe', 'aside'],
-	attributes: {
-		...defaultSchema.attributes,
-		aside: ['className'],
-		iframe: [
-			'src',
-			'title',
-			'width',
-			'height',
-			'loading',
-			'allow',
-			'allowFullScreen',
-			'referrerPolicy',
-			'sandbox'
-		]
-	},
-	protocols: { ...defaultSchema.protocols, src: ['http', 'https'] }
-};
-
 const renderer = unified()
 	.use(remarkParse)
 	.use(remarkGfm)
@@ -94,7 +42,7 @@ const renderer = unified()
 	.use(remarkRehype, { allowDangerousHtml: true })
 	.use(rehypeRaw)
 	.use(secureIframeSources)
-	.use(rehypeSanitize, schema)
+	.use(rehypeSanitize, htmlSanitizerSchema)
 	.use(rehypeHighlight, { detect: false })
 	.use(rehypeStringify);
 

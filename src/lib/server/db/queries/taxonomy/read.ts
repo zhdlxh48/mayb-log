@@ -1,11 +1,10 @@
-import { and, count, eq, isNotNull, lte, sql } from 'drizzle-orm';
+import { and, count, eq, sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
 import { user } from '$lib/server/db/schema/auth';
 import { categories, postCategories, posts, series } from '$lib/server/db/schema/content';
+import { publicPostCondition } from '$lib/server/db/queries/posts/read';
 
-const publicNow = () => and(isNotNull(posts.publishedAt), lte(posts.publishedAt, new Date()));
-
-export async function getSeriesList(db: Database) {
+export async function getSeriesList(db: Database, now = new Date()) {
 	return db
 		.select({
 			id: series.id,
@@ -14,12 +13,12 @@ export async function getSeriesList(db: Database) {
 			count: count(posts.id)
 		})
 		.from(series)
-		.leftJoin(posts, and(eq(posts.seriesId, series.id), publicNow()))
+		.leftJoin(posts, and(eq(posts.seriesId, series.id), publicPostCondition(now)))
 		.groupBy(series.id)
 		.orderBy(series.title);
 }
 
-export async function getCategoryList(db: Database) {
+export async function getCategoryList(db: Database, now = new Date()) {
 	return db
 		.select({
 			id: categories.id,
@@ -29,7 +28,7 @@ export async function getCategoryList(db: Database) {
 		})
 		.from(categories)
 		.leftJoin(postCategories, eq(postCategories.categoryId, categories.id))
-		.leftJoin(posts, and(eq(posts.id, postCategories.postId), publicNow()))
+		.leftJoin(posts, and(eq(posts.id, postCategories.postId), publicPostCondition(now)))
 		.groupBy(categories.id)
 		.orderBy(categories.name);
 }
@@ -67,24 +66,6 @@ export async function getSeries(db: Database, id: number) {
 	);
 }
 
-export async function saveSeries(
-	db: Database,
-	value: { title: string; description: string },
-	id?: number
-) {
-	if (id !== undefined)
-		return db.update(series).set(value).where(eq(series.id, id)).returning({ id: series.id }).get();
-	return db.insert(series).values(value).returning({ id: series.id }).get();
-}
-
-export async function removeSeries(db: Database, id: number) {
-	const [, removed] = await db.batch([
-		db.update(posts).set({ seriesId: null, seriesPosition: null }).where(eq(posts.seriesId, id)),
-		db.delete(series).where(eq(series.id, id)).returning({ id: series.id })
-	]);
-	return (removed as { id: number }[])[0] ?? null;
-}
-
 export async function getCategory(db: Database, id: number) {
 	return (
 		(await db
@@ -93,23 +74,4 @@ export async function getCategory(db: Database, id: number) {
 			.where(eq(categories.id, id))
 			.get()) ?? null
 	);
-}
-
-export async function saveCategory(
-	db: Database,
-	value: { name: string; description: string },
-	id?: number
-) {
-	if (id !== undefined)
-		return db
-			.update(categories)
-			.set(value)
-			.where(eq(categories.id, id))
-			.returning({ id: categories.id })
-			.get();
-	return db.insert(categories).values(value).returning({ id: categories.id }).get();
-}
-
-export async function removeCategory(db: Database, id: number) {
-	return db.delete(categories).where(eq(categories.id, id)).returning({ id: categories.id }).get();
 }

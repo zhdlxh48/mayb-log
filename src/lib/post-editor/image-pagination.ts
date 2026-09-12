@@ -1,4 +1,4 @@
-import { IMAGE_EDITOR_PAGE_SIZE } from './limits';
+import { IMAGE_EDITOR_PAGE_SIZE } from '$lib/limits';
 
 export function imagePageCount(imageCount: number) {
 	return Math.max(1, Math.ceil(imageCount / IMAGE_EDITOR_PAGE_SIZE));
