@@ -11,11 +11,11 @@
 		<input id="title" name="title" defaultValue={form.data.title} required />
 		{#each form.errors.title ?? [] as error}<small class="field-error">{error}</small>{/each}
 	</div>
-	<label for="subtitle">{m.subtitle()}</label><input
-		id="subtitle"
-		name="subtitle"
-		defaultValue={form.data.subtitle}
-	/>
+	<label for="subtitle">{m.subtitle()}</label>
+	<div class="subtitle-field">
+		<input id="subtitle" name="subtitle" defaultValue={form.data.subtitle} />
+		{#each form.errors.subtitle ?? [] as error}<small class="field-error">{error}</small>{/each}
+	</div>
 	<label for="description">{m.description()}</label>
 	<div>
 		<textarea
@@ -45,19 +45,21 @@
 			>{/each}
 	</div>
 	<span>{m.categories_title()}</span>
-	<fieldset>
-		{#each options.categories as item}<label
-				><input
-					type="checkbox"
-					name="categories"
-					value={item.id}
-					defaultChecked={form.data.categories.includes(item.id)}
-				/>
-				{item.name}</label
+	<div class="categories-field">
+		<fieldset>
+			{#each options.categories as item}<label
+					><input
+						type="checkbox"
+						name="categories"
+						value={item.id}
+						defaultChecked={form.data.categories.includes(item.id)}
+					/>
+					{item.name}</label
+				>{/each}
+		</fieldset>
+		{#each form.errors.categories?._errors ?? [] as error}<small class="field-error">{error}</small
 			>{/each}
-	</fieldset>
-	{#each form.errors.categories?._errors ?? [] as error}<small class="field-error">{error}</small
-		>{/each}
+	</div>
 	<label for="tags">{m.tags()}</label>
 	<div>
 		<input id="tags" name="tags" defaultValue={form.data.tags} placeholder="tag-1, tag-2" />

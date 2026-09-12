@@ -25,11 +25,11 @@
 			required
 		/>{#each errors[field] ?? [] as error}<small class="field-error">{error}</small>{/each}
 	</div>
-	<label for="description">{m.description()}</label><textarea
-		id="description"
-		name="description"
-		rows="3">{data.description}</textarea
-	>
+	<label for="description">{m.description()}</label>
+	<div>
+		<textarea id="description" name="description" rows="3">{data.description}</textarea>
+		{#each errors.description ?? [] as error}<small class="field-error">{error}</small>{/each}
+	</div>
 	<span></span><button type="submit">{m.save()}</button>
 </form>
 

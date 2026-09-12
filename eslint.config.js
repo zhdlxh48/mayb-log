@@ -36,7 +36,6 @@ export default defineConfig(
 	},
 	{
 		rules: {
-			'svelte/no-at-html-tags': 'off',
 			'svelte/no-navigation-without-resolve': 'off',
 			'svelte/prefer-svelte-reactivity': 'off',
 			'svelte/require-each-key': 'off'

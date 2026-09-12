@@ -14,6 +14,11 @@ test.afterEach(() => cleanupUser(username));
 
 test('keeps editor preview and media lifecycle consistent', async ({ page, context }) => {
 	test.setTimeout(90_000);
+	const importReadErrors: string[] = [];
+	page.on('pageerror', (error) => {
+		if (error.message.includes('File read regression failure'))
+			importReadErrors.push(error.message);
+	});
 	await login(page, username);
 	await expect(page).toHaveURL('/posts/new');
 	const assetId = await page.locator('input[name="assetId"]').inputValue();
@@ -103,6 +108,18 @@ test('keeps editor preview and media lifecycle consistent', async ({ page, conte
 	});
 	await expect(page.getByRole('alert')).toHaveText('The Markdown body is too large.');
 	await expect(page.getByLabel('Body')).toHaveValue(importedMarkdown);
+	await page.evaluate(() => {
+		File.prototype.text = () => Promise.reject(new Error('File read regression failure'));
+	});
+	page.once('dialog', (dialog) => dialog.accept());
+	await page.getByLabel('Import .md').setInputFiles({
+		name: 'unreadable.md',
+		mimeType: 'text/markdown',
+		buffer: Buffer.from('# Unreadable')
+	});
+	await expect(page.getByRole('alert')).toHaveText('Could not read the Markdown file.');
+	await expect(page.getByLabel('Body')).toHaveValue(importedMarkdown);
+	expect(importReadErrors).toEqual([]);
 
 	const malformedPreview = await context.request.post('/api/markdown-preview', {
 		headers: { 'content-type': 'application/json', origin: 'http://localhost:5173' },
@@ -120,6 +137,78 @@ test('keeps editor preview and media lifecycle consistent', async ({ page, conte
 	});
 	expect(oversizedMarkdown.status()).toBe(413);
 
+	const previewUrlPattern = '**/api/markdown-preview';
+	const previewSources: string[] = [];
+	let markFirstPreviewStarted = () => {};
+	const firstPreviewStarted = new Promise<void>((resolve) => (markFirstPreviewStarted = resolve));
+	let releaseFirstPreview = () => {};
+	const firstPreviewRelease = new Promise<void>((resolve) => (releaseFirstPreview = resolve));
+	let markFirstPreviewCompleted = () => {};
+	const firstPreviewCompleted = new Promise<void>(
+		(resolve) => (markFirstPreviewCompleted = resolve)
+	);
+	let markStaleFailureStarted = () => {};
+	const staleFailureStarted = new Promise<void>((resolve) => (markStaleFailureStarted = resolve));
+	let releaseStaleFailure = () => {};
+	const staleFailureRelease = new Promise<void>((resolve) => (releaseStaleFailure = resolve));
+	let markStaleFailureCompleted = () => {};
+	const staleFailureCompleted = new Promise<void>(
+		(resolve) => (markStaleFailureCompleted = resolve)
+	);
+	await page.route(previewUrlPattern, async (route) => {
+		if (route.request().method() !== 'POST') return route.continue();
+		const source = (route.request().postDataJSON() as { bodyMarkdown: string }).bodyMarkdown;
+		previewSources.push(source);
+		if (source === '# Preview A') {
+			markFirstPreviewStarted();
+			await firstPreviewRelease;
+			await route.fulfill({ json: { html: '<h1>Preview A</h1>', diagnostics: [] } });
+			markFirstPreviewCompleted();
+			return;
+		}
+		if (source === '# Preview B') {
+			await route.fulfill({ json: { html: '<h1>Preview B</h1>', diagnostics: [] } });
+			return;
+		}
+		if (source === '# Stale failure') {
+			markStaleFailureStarted();
+			await staleFailureRelease;
+			await route.fulfill({ status: 500 });
+			markStaleFailureCompleted();
+			return;
+		}
+		await route.continue();
+	});
+
+	await page.getByLabel('Body').fill('# Preview A');
+	await page.getByRole('button', { name: 'Preview' }).click();
+	await firstPreviewStarted;
+	await page.getByRole('button', { name: 'Write' }).click();
+	await page.getByLabel('Body').fill('# Preview B');
+	await page.getByRole('button', { name: 'Preview' }).click();
+	await expect(page.locator('.preview h1')).toHaveText('Preview B');
+	releaseFirstPreview();
+	await firstPreviewCompleted;
+	await expect(page.locator('.preview h1')).toHaveText('Preview B');
+
+	await page.getByRole('button', { name: 'Write' }).click();
+	await page.getByLabel('Body').fill('# Stale failure');
+	await page.getByRole('button', { name: 'Preview' }).click();
+	await staleFailureStarted;
+	await page.getByRole('button', { name: 'Write' }).click();
+	await page.getByLabel('Body').fill('# Preview B');
+	await page.getByRole('button', { name: 'Preview' }).click();
+	await expect(page.locator('.preview h1')).toHaveText('Preview B');
+	await expect(page.locator('.preview')).not.toContainText('Generating preview.');
+	await expect(page.locator('.preview [role="alert"]')).toHaveCount(0);
+	releaseStaleFailure();
+	await staleFailureCompleted;
+	await expect(page.locator('.preview h1')).toHaveText('Preview B');
+	await expect(page.locator('.preview')).not.toContainText('Generating preview.');
+	await expect(page.locator('.preview [role="alert"]')).toHaveCount(0);
+	expect(previewSources.filter((source) => source === '# Preview B')).toHaveLength(1);
+	await page.unroute(previewUrlPattern);
+
 	const markdownWithWarnings = `# Media
 
 ![image](${primaryUrl})
@@ -131,6 +220,7 @@ Wrong type
 :::future_widget{foo="bar"}
 Unknown widget
 :::`;
+	await page.getByRole('button', { name: 'Write' }).click();
 	await page.getByLabel('Body').fill(markdownWithWarnings);
 	await page.getByRole('button', { name: 'Preview' }).click();
 	await expect(page.locator('.preview h1')).toHaveText('Media');
