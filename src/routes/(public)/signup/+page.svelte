@@ -3,8 +3,15 @@
 	import Turnstile from '$lib/components/Turnstile.svelte';
 	import * as m from '$lib/paraglide/messages.js';
 	let { data, form } = $props();
-	let showPassword = $state(false);
 	const current = $derived(form?.form ?? data.form);
+	let passwordInput: HTMLInputElement;
+	let passwordConfirmationInput: HTMLInputElement;
+
+	function togglePassword(event: Event) {
+		const type = (event.currentTarget as HTMLInputElement).checked ? 'text' : 'password';
+		passwordInput.type = type;
+		passwordConfirmationInput.type = type;
+	}
 </script>
 
 <Seo
@@ -53,9 +60,10 @@
 	<div>
 		<input
 			id="password"
-			type={showPassword ? 'text' : 'password'}
+			type="password"
 			name="password"
 			autocomplete="new-password"
+			bind:this={passwordInput}
 			required
 		/>{#each current.errors.password ?? [] as error}<small class="field-error">{error}</small
 			>{/each}
@@ -64,16 +72,17 @@
 	<div>
 		<input
 			id="passwordConfirmation"
-			type={showPassword ? 'text' : 'password'}
+			type="password"
 			name="passwordConfirmation"
 			autocomplete="new-password"
+			bind:this={passwordConfirmationInput}
 			required
 		/>{#each current.errors.passwordConfirmation ?? [] as error}<small class="field-error"
 				>{error}</small
 			>{/each}
 	</div>
 	<span></span><label
-		><input id="showPassword" type="checkbox" bind:checked={showPassword} />
+		><input id="showPassword" type="checkbox" onchange={togglePassword} />
 		{m.show_password()}</label
 	>
 	<span>{m.robot_check()}</span>

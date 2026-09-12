@@ -89,6 +89,17 @@ test('protects mutations and keeps the username approval auth flow working', asy
 	await page.bringToFront();
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await otherTab.close();
+	await page.getByLabel('User ID').fill('toggle_test');
+	await page.getByLabel('Nickname').fill('Toggle Test');
+	await page.getByLabel('Email').fill('toggle@example.com');
+	await page.getByLabel('Password', { exact: true }).fill(password);
+	await page.getByLabel('Password confirmation').fill(password);
+	await page.getByLabel('Show password').check();
+	await expect(page.getByLabel('User ID')).toHaveValue('toggle_test');
+	await expect(page.getByLabel('Nickname')).toHaveValue('Toggle Test');
+	await expect(page.getByLabel('Email')).toHaveValue('toggle@example.com');
+	await expect(page.getByLabel('Password', { exact: true })).toHaveValue(password);
+	await expect(page.getByLabel('Password confirmation')).toHaveValue(password);
 	await page.getByLabel('User ID').fill('missing_captcha_signup');
 	await page.getByLabel('Nickname').fill('Captcha Signup');
 	await page.getByLabel('Email').fill('missing-captcha@example.com');
@@ -143,6 +154,9 @@ test('protects mutations and keeps the username approval auth flow working', asy
 	const signupSuccessBody = await created.text();
 	expect(signupSuccessBody).not.toContain(password);
 	expect(signupSuccessBody).not.toContain('test-token');
+	expect(signupSuccessBody).not.toContain(username);
+	expect(signupSuccessBody).not.toContain('Auth Smoke User');
+	expect(signupSuccessBody).not.toContain(`${username}@example.com`);
 	const unapproved = await request.post('/api/auth/sign-in/username', {
 		headers: { 'x-captcha-response': 'test-token', origin: 'http://localhost:5173' },
 		data: { username, password }
