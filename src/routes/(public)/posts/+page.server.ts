@@ -13,5 +13,5 @@ export const load: PageServerLoad = async ({ platform, url }) => {
 	if (page !== pager.current)
 		redirect(303, pager.current === 1 ? '/posts' : `/posts?page=${pager.current}`);
 	const items = total ? await getPublishedPostPage(db, page, now) : [];
-	return { total, items, pager, siteUrl: platform?.env.SITE_URL ?? '' };
+	return { total, items, pager };
 };

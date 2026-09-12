@@ -1,5 +1,5 @@
 import { expect, request as createRequest, test } from '@playwright/test';
-import { approveUser, cleanupUser, login, password, signup } from './support';
+import { actionStatus, approveUser, cleanupUser, login, password, signup } from './support';
 
 const username = 'auth_smoke_user';
 
@@ -45,8 +45,47 @@ test('protects mutations and keeps the username approval auth flow working', asy
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await otherTab.close();
 
+	const loginPasswordMarker = 'Sensitive-Login-Marker-123!';
+	const loginCaptchaMarker = 'Sensitive-Login-Captcha-Marker';
+	const failedLogin = await request.post('/login', {
+		headers: { origin: 'http://localhost:5173' },
+		form: {
+			username: 'missing_auth_user',
+			password: loginPasswordMarker,
+			captcha: loginCaptchaMarker,
+			next: '/posts/new'
+		}
+	});
+	expect(await actionStatus(failedLogin)).toBe(400);
+	const failedLoginBody = await failedLogin.text();
+	expect(failedLoginBody).not.toContain(loginPasswordMarker);
+	expect(failedLoginBody).not.toContain(loginCaptchaMarker);
+
+	const signupPasswordMarker = 'Sensitive-Signup-Marker-123!';
+	const signupConfirmationMarker = 'Sensitive-Signup-Confirmation-123!';
+	const signupCaptchaMarker = 'Sensitive-Signup-Captcha-Marker';
+	const invalidSignup = await request.post('/signup', {
+		headers: { origin: 'http://localhost:5173' },
+		form: {
+			username: 'x',
+			name: 'Invalid Signup',
+			email: 'invalid-signup@example.com',
+			password: signupPasswordMarker,
+			passwordConfirmation: signupConfirmationMarker,
+			captcha: signupCaptchaMarker
+		}
+	});
+	expect(await actionStatus(invalidSignup)).toBe(400);
+	const invalidSignupBody = await invalidSignup.text();
+	expect(invalidSignupBody).not.toContain(signupPasswordMarker);
+	expect(invalidSignupBody).not.toContain(signupConfirmationMarker);
+	expect(invalidSignupBody).not.toContain(signupCaptchaMarker);
+
 	const created = await signup(request, username, 'Auth Smoke User');
-	expect(created.ok(), `${created.status()} ${await created.text()}`).toBe(true);
+	expect(created.ok()).toBe(true);
+	const signupSuccessBody = await created.text();
+	expect(signupSuccessBody).not.toContain(password);
+	expect(signupSuccessBody).not.toContain('test-token');
 	const unapproved = await request.post('/api/auth/sign-in/username', {
 		headers: { 'x-captcha-response': 'test-token', origin: 'http://localhost:5173' },
 		data: { username, password }
@@ -57,4 +96,19 @@ test('protects mutations and keeps the username approval auth flow working', asy
 	await login(page, username);
 	await expect(page).toHaveURL('/posts/new');
 	await expect(page.locator('input[name="assetId"]')).toHaveValue(/^[0-9a-f-]{36}$/);
+
+	const currentPasswordMarker = 'Sensitive-Current-Password-123!';
+	const newPasswordMarker = 'Sensitive-New-Password-123!';
+	const passwordFailure = await context.request.post('/profile?/password', {
+		headers: { origin: 'http://localhost:5173' },
+		form: {
+			currentPassword: currentPasswordMarker,
+			newPassword: newPasswordMarker,
+			passwordConfirmation: newPasswordMarker
+		}
+	});
+	expect(await actionStatus(passwordFailure)).toBe(400);
+	const passwordFailureBody = await passwordFailure.text();
+	expect(passwordFailureBody).not.toContain(currentPasswordMarker);
+	expect(passwordFailureBody).not.toContain(newPasswordMarker);
 });

@@ -17,7 +17,6 @@ export const load: PageServerLoad = async ({ params, platform }) => {
 		post,
 		html: rendered.html,
 		image: rendered.firstImage,
-		neighbors: await getSeriesNeighbors(db, post),
-		siteUrl: platform?.env.SITE_URL ?? ''
+		neighbors: await getSeriesNeighbors(db, post)
 	};
 };

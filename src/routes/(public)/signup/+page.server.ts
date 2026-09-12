@@ -2,18 +2,20 @@ import { fail } from '@sveltejs/kit';
 import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { signupSchema } from '$lib/validation/auth';
-import { authHeaders, authMessage } from '$lib/server/auth/forms';
+import { authHeaders, authMessage, redactSensitiveAuthForm } from '$lib/server/auth/forms';
+import { requireAuth } from '$lib/server/auth/guards';
 import type { Actions, PageServerLoad } from './$types';
 import * as m from '$lib/paraglide/messages.js';
 
 export const load: PageServerLoad = async () => ({ form: await superValidate(zod4(signupSchema)) });
 
 export const actions: Actions = {
-	default: async ({ request, locals }) => {
+	default: async ({ request }) => {
+		const auth = requireAuth();
 		const form = await superValidate(request, zod4(signupSchema));
-		if (!form.valid) return fail(400, { form });
+		if (!form.valid) return fail(400, { form: redactSensitiveAuthForm(form) });
 		try {
-			await locals.auth.api.signUpEmail({
+			await auth.api.signUpEmail({
 				body: {
 					email: form.data.email,
 					name: form.data.name,
@@ -23,13 +25,13 @@ export const actions: Actions = {
 				headers: authHeaders(request, form.data.captcha)
 			});
 			return {
-				form,
+				form: redactSensitiveAuthForm(form),
 				success: m.signup_success()
 			};
 		} catch (error) {
 			const message = authMessage(error);
 			if (!message) throw error;
-			return fail(400, { form, error: message });
+			return fail(400, { form: redactSensitiveAuthForm(form), error: message });
 		}
 	}
 };

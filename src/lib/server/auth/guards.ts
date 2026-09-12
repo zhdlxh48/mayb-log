@@ -2,6 +2,12 @@ import { error, redirect } from '@sveltejs/kit';
 import { getRequestEvent } from '$app/server';
 import * as m from '$lib/paraglide/messages.js';
 
+export function requireAuth() {
+	const auth = getRequestEvent().locals.auth;
+	if (!auth) error(500, m.cloudflare_unavailable());
+	return auth;
+}
+
 export function requireUser() {
 	const event = getRequestEvent();
 	const user = event.locals.user;

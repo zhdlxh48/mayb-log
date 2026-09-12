@@ -46,7 +46,7 @@ barrel export, repository/DAO/service 계층 없이 route와 실제 기능 파�
 
 ## 요청과 인증
 
-`src/hooks.server.ts`는 Paraglide middleware와 Better Auth handler를 연결합니다. Better Auth는 `username()`, `captcha(...)`, `sveltekitCookies(...)`만 사용하며 비밀번호, session, Turnstile을 담당합니다. 이메일은 가입 정보로 저장하지만 인증하지 않습니다. 공식 `session.cookieCache`를 120초 사용해 반복된 session D1 read를 줄입니다. 이 때문에 기존 session의 승인 또는 승인 해제 반영은 최대 120초 늦을 수 있으며, D1 read 감소를 위해 의도적으로 허용한 trade-off입니다.
+`src/hooks.server.ts`는 Paraglide middleware와 Better Auth handler를 연결합니다. Root `+layout.server.ts`는 public page가 공유하는 user, Turnstile key, site URL을 제공합니다. Better Auth는 `username()`, `captcha(...)`, `sveltekitCookies(...)`만 사용하며 비밀번호, session, Turnstile을 담당합니다. 이메일은 가입 정보로 저장하지만 인증하지 않습니다. 공식 `session.cookieCache`를 120초 사용해 반복된 session D1 read를 줄입니다. 이 때문에 기존 session의 승인 또는 승인 해제 반영은 최대 120초 늦을 수 있으며, D1 read 감소를 위해 의도적으로 허용한 trade-off입니다.
 
 mayb-log 고유 계정 상태는 `user.approved` 하나입니다. `src/lib/server/auth/guards.ts`의 `requireUser()`가 현재 request의 로그인과 승인을 확인합니다. 보호 layout은 화면 이동 편의를 위한 것입니다. 모든 보호 page server load는 D1/R2 접근 전에, 모든 변경 action과 media 및 Preview endpoint는 action body 첫 단계에서 이 helper를 직접 호출합니다.
 
@@ -64,13 +64,13 @@ Cloudflare binding type은 Wrangler가 생성하는 `worker-configuration.d.ts`�
 
 Category와 Tag는 JSON aggregate로 한 번에 읽습니다. Tag lookup table은 없으며 `post_tags(post_id, tag)`가 글별 문자열을 직접 저장합니다. Post insert/update, category 관계, tag 관계는 한 D1 batch로 처리합니다. 관계 insert도 Post가 존재할 때만 행을 만드는 `INSERT ... SELECT`라서 없는 Post 수정은 404가 되고 중간 실패는 전체 rollback됩니다. 전달된 Category ID는 관계 테이블에 직접 insert하여 편집 중 삭제된 분류가 있으면 FK 오류와 409 응답으로 저장 전체를 취소합니다. update/delete 존재 확인은 `RETURNING` 결과를 사용합니다. 범용 DAO나 repository 계층은 두지 않습니다.
 
-입력 상한은 `src/lib/limits.ts` 한 곳에 있습니다. Markdown은 UTF-8 1MiB이고 Preview의 JSON request에는 별도의 4MiB 상한을 둡니다. 이미지 서버 업로드는 WebP 4MiB까지입니다. Post 카테고리·태그는 각각 30개, 태그 하나는 64글자이며 쉼표로 구분한 원본 태그 입력은 4096글자까지입니다. 공개 검색은 검색어 200글자, 시리즈·카테고리·태그 각 20개, 태그 64글자, 작성자 아이디 30글자입니다. 날짜와 날짜·시각은 실제 한국 달력 값까지 엄격히 검사합니다.
+여러 경로에서 공유되거나 운영 의미가 있는 application 상한은 `src/lib/limits.ts`에 모으며, 단일 validation field에만 적용되는 길이 제한은 해당 Zod schema에 둡니다. Markdown은 UTF-8 1MiB이고 Preview의 JSON request에는 별도의 4MiB 상한을 둡니다. 이미지 서버 업로드는 WebP 4MiB까지입니다. Post 카테고리·태그는 각각 30개, 태그 하나는 64글자이며 쉼표로 구분한 원본 태그 입력은 4096글자까지입니다. 공개 검색은 검색어 200글자, 시리즈·카테고리·태그 각 20개, 태그 64글자, 작성자 아이디 30글자입니다. 날짜와 날짜·시각은 실제 한국 달력 값까지 엄격히 검사합니다.
 
 DB schema는 `src/lib/server/db/schema`, Post와 Taxonomy의 read/write query는 각각 `src/lib/server/db/queries/{posts,taxonomy}`, migration은 `drizzle`에 있습니다. 날짜 검색과 보관함의 달력 경계는 `Asia/Seoul`입니다.
 
 ## Markdown과 이미지
 
-`src/lib/server/markdown/render.ts`가 Markdown HTML의 유일한 source이며 pipeline 순서만 조립합니다. unified pipeline은 GFM, `remark-directive`, raw HTML 처리, `rehype-sanitize`, highlight 순서로 안전한 HTML을 만듭니다. `directives.ts`는 directive 확장을, `html-policy.ts`는 raw HTML·iframe 판별과 sanitizer schema를 소유합니다. 지원하지 않거나 잘못 작성한 block directive는 줄바꿈을 유지하는 code block으로 원문을 보존하고 non-fatal diagnostic을 남깁니다. Preview의 Warnings heading은 UI locale로 번역하지만 renderer가 만드는 기술 diagnostic은 canonical English를 그대로 표시합니다. 경고는 저장과 발행을 막지 않으며 공개 글과 RSS는 같은 최종 HTML만 사용합니다.
+`src/lib/server/markdown/render.ts`는 Markdown HTML의 유일한 renderer entry point이며 unified pipeline을 조립하고 first-image metadata와 최종 diagnostic 결과를 정리합니다. unified pipeline은 GFM, `remark-directive`, raw HTML 처리, `rehype-sanitize`, highlight 순서로 안전한 HTML을 만듭니다. `directives.ts`는 directive 확장을, `html-policy.ts`는 raw HTML·iframe 판별과 sanitizer schema를 소유합니다. 지원하지 않거나 잘못 작성한 block directive는 줄바꿈을 유지하는 code block으로 원문을 보존하고 non-fatal diagnostic을 남깁니다. Preview의 Warnings heading은 UI locale로 번역하지만 renderer가 만드는 기술 diagnostic은 canonical English를 그대로 표시합니다. 경고는 저장과 발행을 막지 않으며 공개 글과 RSS는 같은 최종 HTML만 사용합니다.
 
 raw fragment는 HAST로 parse합니다. 공백을 제외한 top-level element가 iframe 하나일 때만 제한된 HTTP(S) iframe을 허용하고 나머지는 원문 글자로 표시합니다. `/api/markdown-preview`와 공개 글은 같은 renderer와 sanitizer를 사용합니다. Preview는 버튼을 눌렀고 본문이 직전 Preview와 달라졌을 때만 요청하며 HTML과 간단한 line/column diagnostic을 받습니다.
 

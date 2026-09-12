@@ -3,26 +3,23 @@
 	import { getLocale } from '$lib/paraglide/runtime.js';
 
 	let { value, time = false } = $props<{ value: Date | string | null; time?: boolean }>();
+	let mounted = $state(false);
 	const date = $derived(value ? new Date(value) : null);
 	const iso = $derived(date && !Number.isNaN(date.getTime()) ? date.toISOString() : '');
-	function initialText() {
+	const text = $derived.by(() => {
 		if (!date || !iso) return '';
+		const options: Intl.DateTimeFormatOptions = time
+			? { dateStyle: 'medium', timeStyle: 'short' }
+			: { dateStyle: 'medium' };
 		return new Intl.DateTimeFormat(
 			getLocale(),
-			time
-				? { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Seoul' }
-				: { dateStyle: 'medium', timeZone: 'Asia/Seoul' }
+			mounted ? options : { ...options, timeZone: 'Asia/Seoul' }
 		).format(date);
-	}
-	let text = $state(initialText());
+	});
 
 	onMount(() => {
-		if (!date) return;
-		text = new Intl.DateTimeFormat(
-			getLocale(),
-			time ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' }
-		).format(date);
+		mounted = true;
 	});
 </script>
 
-{#if date}<time datetime={iso}>{text}</time>{/if}
+{#if iso}<time datetime={iso}>{text}</time>{/if}

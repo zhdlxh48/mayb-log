@@ -77,5 +77,5 @@
 </form>
 
 <form method="POST" action="?/logout">
-	<button type="submit" class="secondary">{m.logout()}</button>
+	<button type="submit">{m.logout()}</button>
 </form>

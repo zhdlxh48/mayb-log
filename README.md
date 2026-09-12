@@ -5,7 +5,7 @@ SvelteKit으로 만든 개인 블로그입니다. Cloudflare Workers에서 실�
 ## 기술 구성
 
 - SvelteKit 2.70.3, Svelte 5.57.0, TypeScript 6.0.3
-- Better Auth 1.7.3, Drizzle ORM 0.45.2, Superforms, Zod
+- Better Auth 1.7.4, Drizzle ORM 0.45.2, Superforms, Zod
 - unified/remark/rehype, Paraglide, browser-image-compression, feed
 - Cloudflare Workers, D1, R2, Wrangler
 
@@ -74,7 +74,7 @@ Better Auth 설정을 바꾸면 공식 CLI로 schema를 생성해 diff를 검토
 Post와 카테고리·태그 관계는 한 D1 batch에서 저장합니다. 태그는 별도 lookup table 없이 `post_tags(post_id, tag)`에 저장합니다. 보호 페이지의 server load와 모든 변경 action은 각각 `requireUser()`를 먼저 호출합니다.
 
 ```bash
-pnpm dlx auth@1.7.3 generate --config better-auth.config.ts --output generated-auth.ts --adapter drizzle --dialect sqlite --yes
+pnpm dlx auth@1.7.4 generate --config better-auth.config.ts --output generated-auth.ts --adapter drizzle --dialect sqlite --yes
 pnpm db:generate
 pnpm db:migrate:local
 pnpm check
