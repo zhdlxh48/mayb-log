@@ -66,7 +66,7 @@ Category와 Tag는 JSON aggregate로 한 번에 읽습니다. Tag lookup table�
 
 여러 경로에서 공유되거나 운영 의미가 있는 application 상한은 `src/lib/limits.ts`에 모으며, 단일 validation field에만 적용되는 길이 제한은 해당 Zod schema에 둡니다. Markdown은 UTF-8 1MiB이고 Preview의 JSON request에는 별도의 4MiB 상한을 둡니다. 이미지 서버 업로드는 WebP 4MiB까지입니다. Post 카테고리·태그는 각각 30개, 태그 하나는 64글자이며 쉼표로 구분한 원본 태그 입력은 4096글자까지입니다. 공개 검색은 검색어 200글자, 시리즈·카테고리·태그 각 20개, 태그 64글자, 작성자 아이디 30글자입니다. 날짜와 날짜·시각은 실제 한국 달력 값까지 엄격히 검사합니다.
 
-운영 환경은 Worker `mayb-log`, D1 `mayb-log-db`, R2 `mayb-log-storage`이며 binding은 `DB`, `MEDIA`, `ASSETS`입니다. DB schema는 `src/lib/server/db/schema`, Post와 Taxonomy의 read/write query는 각각 `src/lib/server/db/queries/{posts,taxonomy}`, migration은 `drizzle`에 있습니다. 날짜 검색과 보관함의 달력 경계는 `Asia/Seoul`입니다.
+운영 환경은 Worker `mayb-log`, Custom Domain `https://blog.mayb.moe`, D1 `mayb-log-db`, R2 `mayb-log-storage`이며 binding은 `DB`, `MEDIA`, `ASSETS`입니다. 운영 `SITE_URL`도 Custom Domain을 사용합니다. DB schema는 `src/lib/server/db/schema`, Post와 Taxonomy의 read/write query는 각각 `src/lib/server/db/queries/{posts,taxonomy}`, migration은 `drizzle`에 있습니다. 날짜 검색과 보관함의 달력 경계는 `Asia/Seoul`입니다.
 
 ## Markdown과 이미지
 

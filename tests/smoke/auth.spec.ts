@@ -42,6 +42,46 @@ test('ignores a Turnstile script that finishes after the component unmounts', as
 	).toBe(0);
 });
 
+test('retries a Turnstile script that fails after the component unmounts', async ({ page }) => {
+	let releaseFirstScript = () => {};
+	let markFirstScriptRequested = () => {};
+	let markFirstScriptFailed = () => {};
+	const firstScriptRequested = new Promise<void>((resolve) => (markFirstScriptRequested = resolve));
+	const firstScriptReleased = new Promise<void>((resolve) => (releaseFirstScript = resolve));
+	const firstScriptFailed = new Promise<void>((resolve) => (markFirstScriptFailed = resolve));
+	let scriptRequests = 0;
+
+	await page.route('**/turnstile/v0/api.js?render=explicit', async (route) => {
+		scriptRequests += 1;
+		if (scriptRequests === 1) {
+			markFirstScriptRequested();
+			await firstScriptReleased;
+			await route.abort();
+			markFirstScriptFailed();
+			return;
+		}
+		await route.fulfill({
+			contentType: 'application/javascript',
+			body: `window.turnstile={render(container,options){const input=document.createElement('input');input.name=options['response-field-name'];input.value='test-token';container.appendChild(input);return 'retry-widget'},remove(){}}`
+		});
+	});
+
+	await page.goto('/login', { waitUntil: 'domcontentloaded' });
+	await firstScriptRequested;
+	await page.getByRole('link', { name: 'mayb-log', exact: true }).click();
+	await expect(page).toHaveURL('/');
+	releaseFirstScript();
+	await firstScriptFailed;
+	await expect(page.locator('script[data-turnstile-failed]')).toHaveCount(1);
+
+	const loginLink = page.locator('a[href="/login"]').first();
+	await loginLink.evaluate((link) => link.removeAttribute('data-sveltekit-reload'));
+	await loginLink.click();
+	await expect(page).toHaveURL('/login');
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
+	expect(scriptRequests).toBe(2);
+});
+
 test('protects mutations and keeps the username approval auth flow working', async ({
 	page,
 	request,
