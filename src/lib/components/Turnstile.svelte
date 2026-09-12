@@ -19,12 +19,14 @@
 	let container: HTMLDivElement;
 	let widgetId: string | undefined;
 	let loadError = $state(false);
+	let mounted = false;
 
 	function getTurnstile() {
 		return (window as typeof window & { turnstile?: TurnstileApi }).turnstile;
 	}
 
 	function renderWidget() {
+		if (!mounted) return;
 		const turnstile = getTurnstile();
 		if (!turnstile || widgetId) return;
 		// Turnstile is the only code allowed to add children to this empty container.
@@ -34,11 +36,14 @@
 			sitekey: siteKey,
 			size: 'flexible',
 			'response-field-name': 'captcha',
-			'error-callback': () => (loadError = true)
+			'error-callback': () => {
+				if (mounted) loadError = true;
+			}
 		});
 	}
 
 	function loadWidget() {
+		if (!mounted) return;
 		loadError = false;
 		const turnstile = getTurnstile();
 		if (turnstile) {
@@ -63,6 +68,7 @@
 		script.addEventListener(
 			'error',
 			() => {
+				if (!mounted) return;
 				script.dataset.turnstileFailed = '';
 				loadError = true;
 			},
@@ -79,9 +85,11 @@
 	}
 
 	onMount(() => {
+		mounted = true;
 		loadWidget();
 		window.addEventListener('pageshow', restoreWidget);
 		return () => {
+			mounted = false;
 			window.removeEventListener('pageshow', restoreWidget);
 			const turnstile = getTurnstile();
 			if (widgetId && turnstile) turnstile.remove(widgetId);
