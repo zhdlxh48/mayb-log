@@ -17,7 +17,7 @@
 	action={data.user ? { href: '/posts/new', label: m.new_post() } : undefined}
 />
 {#if data.items.length}
-	{#each data.items as post}<PostRow {post} />{/each}
+	{#each data.items as post (post.id)}<PostRow {post} />{/each}
 {:else}
 	<p>{m.empty_posts()}</p>
 {/if}

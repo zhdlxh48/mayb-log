@@ -2,8 +2,8 @@ import { fail, redirect } from '@sveltejs/kit';
 import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { passwordSchema, profileSchema } from '$lib/validation/auth';
-import { authMessage } from '$lib/server/auth/forms';
-import { requireUser } from '$lib/server/auth/guards';
+import { authMessage, redactSensitiveAuthForm } from '$lib/server/auth/forms';
+import { requireAuth, requireUser } from '$lib/server/auth/guards';
 import type { Actions, PageServerLoad } from './$types';
 import * as m from '$lib/paraglide/messages.js';
 
@@ -16,12 +16,13 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions: Actions = {
-	profile: async ({ request, locals }) => {
+	profile: async ({ request }) => {
 		requireUser();
+		const auth = requireAuth();
 		const profileForm = await superValidate(request, zod4(profileSchema));
 		if (!profileForm.valid) return fail(400, { profileForm });
 		try {
-			await locals.auth.api.updateUser({
+			await auth.api.updateUser({
 				body: { name: profileForm.data.name },
 				headers: request.headers
 			});
@@ -32,12 +33,14 @@ export const actions: Actions = {
 			return fail(400, { profileForm, error: message });
 		}
 	},
-	password: async ({ request, locals }) => {
+	password: async ({ request }) => {
 		requireUser();
+		const auth = requireAuth();
 		const passwordForm = await superValidate(request, zod4(passwordSchema));
-		if (!passwordForm.valid) return fail(400, { passwordForm });
+		if (!passwordForm.valid)
+			return fail(400, { passwordForm: redactSensitiveAuthForm(passwordForm) });
 		try {
-			await locals.auth.api.changePassword({
+			await auth.api.changePassword({
 				body: {
 					currentPassword: passwordForm.data.currentPassword,
 					newPassword: passwordForm.data.newPassword,
@@ -45,16 +48,22 @@ export const actions: Actions = {
 				},
 				headers: request.headers
 			});
-			return { passwordForm, success: m.password_changed() };
+			return {
+				passwordForm: redactSensitiveAuthForm(passwordForm),
+				success: m.password_changed()
+			};
 		} catch (error) {
 			const message = authMessage(error);
 			if (!message) throw error;
-			return fail(400, { passwordForm, error: message });
+			return fail(400, {
+				passwordForm: redactSensitiveAuthForm(passwordForm),
+				error: message
+			});
 		}
 	},
-	logout: async ({ request, locals }) => {
+	logout: async ({ request }) => {
 		requireUser();
-		await locals.auth.api.signOut({ headers: request.headers });
+		await requireAuth().api.signOut({ headers: request.headers });
 		redirect(303, '/');
 	}
 };

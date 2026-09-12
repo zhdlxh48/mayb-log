@@ -29,7 +29,6 @@ export const load: PageServerLoad = async ({ platform, url }) => {
 		options,
 		filters,
 		pager,
-		query: searchParams(filters).toString(),
-		siteUrl: platform?.env.SITE_URL ?? ''
+		query: searchParams(filters).toString()
 	};
 };

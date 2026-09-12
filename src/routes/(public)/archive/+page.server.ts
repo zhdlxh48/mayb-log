@@ -23,5 +23,5 @@ export const load: PageServerLoad = async ({ platform }) => {
 			href: `/search?from=${row.year}-${row.month}-01&to=${row.year}-${row.month}-${String(lastDay).padStart(2, '0')}`
 		});
 	}
-	return { years, siteUrl: platform?.env.SITE_URL ?? '' };
+	return { years };
 };

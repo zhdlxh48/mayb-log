@@ -61,8 +61,8 @@
 	<label for="to">{m.to()}</label><input id="to" type="date" name="to" value={data.filters.to} />
 	<span></span><button type="submit">{m.search_title()}</button>
 </form>
-<section aria-label={m.search_results()}>
-	{#each data.items as post}<PostRow {post} />{:else}<p>{m.empty_search()}</p>{/each}
+<section class="search-results" aria-label={m.search_results()}>
+	{#each data.items as post (post.id)}<PostRow {post} />{:else}<p>{m.empty_search()}</p>{/each}
 </section>
 <Pagination pager={data.pager} path="/search" params={data.query} />
 
@@ -78,5 +78,8 @@
 	fieldset label {
 		margin: 0;
 		white-space: nowrap;
+	}
+	.search-results {
+		margin-top: 2rem;
 	}
 </style>

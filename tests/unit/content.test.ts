@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { afterKoreanDate, parseKoreanDateTimeLocal, startOfKoreanDate } from '$lib/dates';
-import { pagination } from '$lib/pagination';
+import { pagination, requestedPage } from '$lib/pagination';
 import { positiveIntegerParam } from '$lib/params';
 import { searchFilters } from '$lib/search';
 import { postSchema, tagNames } from '$lib/validation/content';
@@ -14,6 +14,14 @@ describe('pagination blocks', () => {
 
 	it('always exposes at least one page', () => {
 		expect(pagination(99, 0)).toMatchObject({ current: 1, last: 1, pages: [1] });
+	});
+
+	it('accepts only safe positive page numbers', () => {
+		expect(requestedPage(null)).toBe(1);
+		expect(requestedPage('1')).toBe(1);
+		expect(requestedPage('42')).toBe(42);
+		for (const value of ['0', '-1', '1.5', 'abc', '9007199254740992'])
+			expect(requestedPage(value), value).toBe(1);
 	});
 });
 

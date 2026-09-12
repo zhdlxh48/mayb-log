@@ -23,7 +23,7 @@ export const signupSchema = z
 			.string()
 			.min(8, { error: () => m.validation_password_min() })
 			.max(128),
-		passwordConfirmation: z.string(),
+		passwordConfirmation: z.string().max(128),
 		captcha: z.string().min(1, { error: () => m.validation_captcha() })
 	})
 	.refine((value) => value.password === value.passwordConfirmation, {
@@ -37,7 +37,10 @@ export const loginSchema = z.object({
 		.trim()
 		.min(1, { error: () => m.validation_username_required() })
 		.max(30),
-	password: z.string().min(1, { error: () => m.validation_password_required() }),
+	password: z
+		.string()
+		.min(1, { error: () => m.validation_password_required() })
+		.max(128),
 	captcha: z.string().min(1, { error: () => m.validation_captcha() }),
 	next: z.string().default('')
 });
@@ -48,9 +51,9 @@ export const profileSchema = z.object({
 
 export const passwordSchema = z
 	.object({
-		currentPassword: z.string().min(1),
+		currentPassword: z.string().min(1).max(128),
 		newPassword: z.string().min(8).max(128),
-		passwordConfirmation: z.string()
+		passwordConfirmation: z.string().max(128)
 	})
 	.refine((value) => value.newPassword === value.passwordConfirmation, {
 		error: () => m.validation_new_password_match(),

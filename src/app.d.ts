@@ -13,7 +13,7 @@ declare global {
 			message: string;
 		}
 		interface Locals {
-			auth: ReturnType<typeof import('$lib/server/auth/auth').createAuth>;
+			auth: ReturnType<typeof import('$lib/server/auth/auth').createAuth> | null;
 			session:
 				| ReturnType<
 						typeof import('$lib/server/auth/auth').createAuth
