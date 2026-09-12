@@ -6,7 +6,7 @@ export default defineConfig({
 	webServer: {
 		command: 'pnpm db:migrate:local && pnpm build && pnpm preview',
 		port: 5173,
-		reuseExistingServer: !process.env.CI
+		reuseExistingServer: false
 	},
 	use: { baseURL: 'http://localhost:5173' },
 	projects: [{ name: 'chromium', use: { browserName: 'chromium' } }]

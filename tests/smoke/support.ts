@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { expect, type APIRequestContext, type APIResponse, type Page } from '@playwright/test';
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 export const password = 'Smoke-password-123!';
 export const png = Buffer.from(
@@ -91,7 +91,7 @@ export function postData(overrides: Record<string, string> = {}, categories: num
 	return data.toString();
 }
 
-export async function actionStatus(response: APIResponse) {
+export async function actionStatus(response: { status(): number; json(): Promise<unknown> }) {
 	if (response.status() !== 200) return response.status();
 	const result = (await response.json()) as { status?: number };
 	return result.status ?? response.status();

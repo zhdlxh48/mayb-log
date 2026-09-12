@@ -11,24 +11,32 @@ import {
 
 const optionalInteger = z.preprocess(
 	(value) => (value === '' || value === null || value === undefined ? null : Number(value)),
-	z.number().int().positive().nullable()
+	z
+		.number({ error: () => m.validation_positive_integer() })
+		.int({ error: () => m.validation_positive_integer() })
+		.positive({ error: () => m.validation_positive_integer() })
+		.nullable()
 );
 
 export const postSchema = z
 	.object({
 		title: z
-			.string()
+			.string({ error: () => m.validation_title_required() })
 			.trim()
 			.min(1, { error: () => m.validation_title_required() })
-			.max(200),
-		subtitle: z.string().trim().max(300).default(''),
+			.max(200, { error: () => m.validation_post_title_max() }),
+		subtitle: z
+			.string({ error: () => m.validation_subtitle_max() })
+			.trim()
+			.max(300, { error: () => m.validation_subtitle_max() })
+			.default(''),
 		description: z
-			.string()
+			.string({ error: () => m.validation_description_required() })
 			.trim()
 			.min(1, { error: () => m.validation_description_required() })
-			.max(500),
+			.max(500, { error: () => m.validation_description_max() }),
 		bodyMarkdown: z
-			.string()
+			.string({ error: () => m.validation_body_required() })
 			.min(1, { error: () => m.validation_body_required() })
 			.refine((value) => new TextEncoder().encode(value).byteLength <= MAX_MARKDOWN_BYTES, {
 				error: () => m.markdown_too_large()
@@ -36,11 +44,16 @@ export const postSchema = z
 		seriesId: optionalInteger,
 		seriesPosition: optionalInteger,
 		categories: z
-			.array(z.coerce.number().int().positive())
+			.array(
+				z.coerce
+					.number({ error: () => m.validation_positive_integer() })
+					.int({ error: () => m.validation_positive_integer() })
+					.positive({ error: () => m.validation_positive_integer() })
+			)
 			.max(MAX_CATEGORIES_PER_POST, { error: () => m.validation_categories_limit() })
 			.default([]),
 		tags: z
-			.string()
+			.string({ error: () => m.validation_tags_input_length() })
 			.max(MAX_TAGS_INPUT_LENGTH, { error: () => m.validation_tags_input_length() })
 			.superRefine((value, context) => {
 				const names = tagNames(value);
@@ -51,7 +64,7 @@ export const postSchema = z
 			})
 			.default(''),
 		publishedAt: z
-			.string()
+			.string({ error: () => m.validation_publish_time() })
 			.refine((value) => value === '' || parseKoreanDateTimeLocal(value) !== null, {
 				error: () => m.validation_publish_time()
 			})
@@ -70,20 +83,28 @@ export const postSchema = z
 
 export const seriesSchema = z.object({
 	title: z
-		.string()
+		.string({ error: () => m.validation_title_required() })
 		.trim()
 		.min(1, { error: () => m.validation_title_required() })
-		.max(100),
-	description: z.string().trim().max(500).default('')
+		.max(100, { error: () => m.validation_series_title_max() }),
+	description: z
+		.string({ error: () => m.validation_description_max() })
+		.trim()
+		.max(500, { error: () => m.validation_description_max() })
+		.default('')
 });
 
 export const categorySchema = z.object({
 	name: z
-		.string()
+		.string({ error: () => m.validation_name_required() })
 		.trim()
 		.min(1, { error: () => m.validation_name_required() })
-		.max(100),
-	description: z.string().trim().max(500).default('')
+		.max(100, { error: () => m.validation_category_name_max() }),
+	description: z
+		.string({ error: () => m.validation_description_max() })
+		.trim()
+		.max(500, { error: () => m.validation_description_max() })
+		.default('')
 });
 
 export function tagNames(value: string) {

@@ -28,6 +28,7 @@
 	let previewLoading = $state(false);
 	let previewError = $state('');
 	let previewVisible = $state(false);
+	let previewRequestId = 0;
 
 	function insertImage(url: string) {
 		if (!textarea) return;
@@ -44,32 +45,43 @@
 			return;
 		}
 		if (markdown && !confirm(m.replace_markdown())) return;
-		markdown = await file.text();
+		try {
+			markdown = await file.text();
+		} catch {
+			importError = m.markdown_import_error();
+		}
 	}
 
 	async function showPreview() {
 		previewVisible = true;
+		const source = markdown;
+		const requestId = ++previewRequestId;
 		previewError = '';
-		if (markdown === lastPreviewSource) return;
+		if (source === lastPreviewSource) {
+			previewLoading = false;
+			return;
+		}
 		previewLoading = true;
 		try {
 			const response = await fetch('/api/markdown-preview', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ bodyMarkdown: markdown })
+				body: JSON.stringify({ bodyMarkdown: source })
 			});
 			if (!response.ok) throw new Error(m.preview_error());
 			const result = (await response.json()) as {
 				html: string;
 				diagnostics: MarkdownDiagnostic[];
 			};
+			if (requestId !== previewRequestId) return;
 			previewHtml = result.html;
 			previewDiagnostics = result.diagnostics;
-			lastPreviewSource = markdown;
+			lastPreviewSource = source;
 		} catch (error) {
+			if (requestId !== previewRequestId) return;
 			previewError = error instanceof Error ? error.message : m.preview_error();
 		} finally {
-			previewLoading = false;
+			if (requestId === previewRequestId) previewLoading = false;
 		}
 	}
 </script>
@@ -98,6 +110,7 @@
 	{#if previewLoading}<p>{m.preview_loading()}</p>{:else if previewError}<p role="alert">
 			{previewError}
 		</p>{:else}
+		<!-- eslint-disable-next-line svelte/no-at-html-tags -- server-rendered and sanitized Markdown -->
 		<div class="article-body">{@html previewHtml}</div>
 		{#if previewDiagnostics.length}
 			<section class="preview-warnings" aria-labelledby="preview-warnings-heading">

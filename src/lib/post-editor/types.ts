@@ -1,26 +1,7 @@
-export type PostEditorForm = {
-	data: {
-		title: string;
-		subtitle: string;
-		description: string;
-		bodyMarkdown: string;
-		seriesId: number | null;
-		seriesPosition: number | null;
-		categories: number[];
-		tags: string;
-		publishedAt: string;
-		noindex: boolean;
-	};
-	errors: {
-		title?: string[];
-		description?: string[];
-		bodyMarkdown?: string[];
-		seriesPosition?: string[];
-		tags?: string[];
-		categories?: { _errors?: string[] };
-		publishedAt?: string[];
-	};
-};
+import type { Infer, SuperValidated } from 'sveltekit-superforms';
+import type { postSchema } from '$lib/validation/content';
+
+export type PostEditorForm = SuperValidated<Infer<typeof postSchema>>;
 
 export type PostEditorOptions = {
 	series: { id: number; title: string }[];

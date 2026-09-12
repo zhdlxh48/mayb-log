@@ -34,6 +34,7 @@
 	{image}
 />
 <svelte:head>
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -- escaped JSON-LD from structured data -->
 	{@html jsonLdScript}
 </svelte:head>
 <article>
@@ -54,6 +55,7 @@
 		</p>
 		{#if data.user}<p><a href={`/posts/${data.post.id}/edit`}>{m.edit()}</a></p>{/if}
 	</header>
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -- server-rendered and sanitized Markdown -->
 	<div class="article-body">{@html data.html}</div>
 	{#if data.neighbors.previous || data.neighbors.next}
 		<nav class="series-nav" aria-label={m.series_navigation()}>
