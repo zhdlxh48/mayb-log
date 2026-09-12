@@ -16,6 +16,9 @@ const localeHandle: Handle = ({ event, resolve }) =>
 	});
 
 const authHandle: Handle = async ({ event, resolve }) => {
+	event.locals.auth = null;
+	event.locals.session = null;
+	event.locals.user = null;
 	if (!event.platform) return resolve(event);
 	const auth = createAuth(event.platform);
 	event.locals.auth = auth;

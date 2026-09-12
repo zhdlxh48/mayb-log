@@ -22,7 +22,8 @@ const seriesTitles = [
 	'Stale post series',
 	'Stale edit series',
 	'Stale delete series',
-	'Atomic delete series'
+	'Atomic delete series',
+	'Date navigation series'
 ];
 
 function cleanupTaxonomy() {
@@ -73,6 +74,37 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 		expect((await context.request.get(path)).status(), path).toBe(400);
 	for (const path of ['/posts?page=999999', '/search?page=999999'])
 		expect((await context.request.get(path, { maxRedirects: 0 })).status(), path).toBe(303);
+
+	const dateSeriesId = query<{ id: number }>(
+		"SELECT id FROM series WHERE title = 'Date navigation series'"
+	)[0].id;
+	const firstDateAssetId = crypto.randomUUID();
+	const secondDateAssetId = crypto.randomUUID();
+	const firstPublishedAt = Date.parse('2026-09-01T00:00:00.000Z');
+	const secondPublishedAt = Date.parse('2026-09-02T00:00:00.000Z');
+	sql(`INSERT INTO posts (asset_id, author_id, title, description, body_markdown, series_id, series_position, noindex, published_at, created_at, updated_at)
+		SELECT '${firstDateAssetId}', id, 'Date navigation A', 'fixture', 'fixture', ${dateSeriesId}, 1, 0, ${firstPublishedAt}, ${firstPublishedAt}, ${firstPublishedAt}
+		FROM user WHERE username = '${username}';
+		INSERT INTO posts (asset_id, author_id, title, description, body_markdown, series_id, series_position, noindex, published_at, created_at, updated_at)
+		SELECT '${secondDateAssetId}', id, 'Date navigation B', 'fixture', 'fixture', ${dateSeriesId}, 2, 0, ${secondPublishedAt}, ${secondPublishedAt}, ${secondPublishedAt}
+		FROM user WHERE username = '${username}';`);
+	const firstDatePostId = query<{ id: number }>(
+		`SELECT id FROM posts WHERE asset_id = '${firstDateAssetId}'`
+	)[0].id;
+	const secondDatePostId = query<{ id: number }>(
+		`SELECT id FROM posts WHERE asset_id = '${secondDateAssetId}'`
+	)[0].id;
+	await page.goto(`/posts/${firstDatePostId}`);
+	const firstDateTime = await page.locator('article time').getAttribute('datetime');
+	const firstDateText = await page.locator('article time').innerText();
+	await page.getByRole('link', { name: /Date navigation B/ }).click();
+	await expect(page).toHaveURL(`/posts/${secondDatePostId}`);
+	const secondDateTime = await page.locator('article time').getAttribute('datetime');
+	const secondDateText = await page.locator('article time').innerText();
+	expect(firstDateTime).toBe('2026-09-01T00:00:00.000Z');
+	expect(secondDateTime).toBe('2026-09-02T00:00:00.000Z');
+	expect(secondDateTime).not.toBe(firstDateTime);
+	expect(secondDateText).not.toBe(firstDateText);
 
 	await login(page, username);
 	const assetId = await page.locator('input[name="assetId"]').inputValue();
@@ -320,12 +352,28 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 	await expect(page.getByRole('heading', { name: 'Content smoke post' })).toBeVisible();
 	await page.goto('/search?q=Content');
 	await expect(page.getByRole('link', { name: 'Content smoke post' })).toBeVisible();
+	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+		'href',
+		'http://localhost:5173/search'
+	);
+	const searchResultsMargin = await page
+		.locator('.search-results')
+		.evaluate((element) => Number.parseFloat(getComputedStyle(element).marginTop));
+	expect(searchResultsMargin).toBeGreaterThanOrEqual(24);
 	await page.goto(`/posts/${postId}`);
+	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+		'href',
+		`http://localhost:5173/posts/${postId}`
+	);
 	await page.getByRole('link', { name: 'Content Smoke User' }).click();
 	await expect(page).toHaveURL(`/search?author=${username}`);
 	await expect(page.getByRole('link', { name: 'Content smoke post' })).toBeVisible();
-	expect(await (await context.request.get('/rss.xml')).text()).toContain('Content smoke post');
-	expect(await (await context.request.get('/sitemap.xml')).text()).toContain(`/posts/${postId}`);
+	expect(await (await context.request.get(`/rss.xml?fixture=${postId}`)).text()).toContain(
+		'Content smoke post'
+	);
+	expect(await (await context.request.get(`/sitemap.xml?fixture=${postId}`)).text()).toContain(
+		`/posts/${postId}`
+	);
 
 	await page.goto(editUrl);
 	await page.getByLabel('Title', { exact: true }).fill('Edited content post');

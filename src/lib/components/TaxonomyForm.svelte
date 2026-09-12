@@ -41,6 +41,6 @@
 			if (!confirm(m.delete_taxonomy_confirm())) event.preventDefault();
 		}}
 	>
-		<button type="submit" class="outline secondary">{m.delete()}</button>
+		<button type="submit">{m.delete()}</button>
 	</form>
 {/if}
