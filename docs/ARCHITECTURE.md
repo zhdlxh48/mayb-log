@@ -46,7 +46,7 @@ barrel export, repository/DAO/service 계층 없이 route와 실제 기능 파�
 
 ## 요청과 인증
 
-`src/hooks.server.ts`는 Paraglide middleware와 Better Auth handler를 연결합니다. Root `+layout.server.ts`는 public page가 공유하는 user, Turnstile key, site URL을 제공합니다. Better Auth는 `username()`, `captcha(...)`, `sveltekitCookies(...)`만 사용하며 비밀번호, session, Turnstile을 담당합니다. 이메일은 가입 정보로 저장하지만 인증하지 않습니다. 공식 `session.cookieCache`를 120초 사용해 반복된 session D1 read를 줄입니다. 이 때문에 기존 session의 승인 또는 승인 해제 반영은 최대 120초 늦을 수 있으며, D1 read 감소를 위해 의도적으로 허용한 trade-off입니다.
+`src/hooks.server.ts`는 Paraglide middleware와 Better Auth handler를 연결합니다. Root `+layout.server.ts`는 전체 page가 공유하는 user, Turnstile key, site URL을 제공합니다. Better Auth는 `username()`, `captcha(...)`, `sveltekitCookies(...)`만 사용하며 비밀번호, session, Turnstile을 담당합니다. 이메일은 가입 정보로 저장하지만 인증하지 않습니다. 공식 `session.cookieCache`를 120초 사용해 반복된 session D1 read를 줄입니다. 이 때문에 기존 session의 승인 또는 승인 해제 반영은 최대 120초 늦을 수 있으며, D1 read 감소를 위해 의도적으로 허용한 trade-off입니다.
 
 mayb-log 고유 계정 상태는 `user.approved` 하나입니다. `src/lib/server/auth/guards.ts`의 `requireAuth()`는 공개 login/signup 같은 auth action에서 Better Auth runtime을 확인하고, `requireUser()`는 page와 form action에서 로그인 및 승인을 확인합니다. fetch API는 redirect 대신 401/403을 반환하는 `requireApiUser()`를 사용합니다. 보호 layout은 화면 이동 편의를 위한 것이며 각 mutation이 guard를 직접 호출합니다.
 
