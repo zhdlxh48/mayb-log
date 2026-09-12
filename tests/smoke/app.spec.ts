@@ -8,7 +8,6 @@ const png = Buffer.from(
 	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
 	'base64'
 );
-
 function sql(command: string) {
 	execFileSync(
 		process.execPath,
@@ -201,6 +200,11 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 		data: { imageIds: ['not-a-uuid'] }
 	});
 	expect(invalidBatchDelete.status()).toBe(400);
+	const oversizedBatchDelete = await context.request.delete(`/api/media/${assetId}`, {
+		headers: { origin: 'http://localhost:5173' },
+		data: { imageIds: Array.from({ length: 21 }, () => crypto.randomUUID()) }
+	});
+	expect(oversizedBatchDelete.status()).toBe(400);
 
 	for (let index = 0; index < 2; index += 1) {
 		await page
@@ -251,7 +255,17 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 	const singleDeleteId = singleDeleteUrl!.split('/').at(-1)!.replace('.webp', '');
 	await singleDeleteItem.getByRole('checkbox').check();
 	const batchUrl = `**/api/media/${assetId}`;
-	await page.route(batchUrl, (route) => route.fulfill({ status: 500 }));
+	let markFailedDeleteStarted = () => {};
+	const failedDeleteStarted = new Promise<void>((resolve) => (markFailedDeleteStarted = resolve));
+	let releaseFailedDelete = () => {};
+	const releaseFailedDeleteRequest = new Promise<void>(
+		(resolve) => (releaseFailedDelete = resolve)
+	);
+	await page.route(batchUrl, async (route) => {
+		markFailedDeleteStarted();
+		await releaseFailedDeleteRequest;
+		await route.fulfill({ status: 500 });
+	});
 	page.once('dialog', async (dialog) => {
 		deleteDialogs += 1;
 		await dialog.accept();
@@ -262,7 +276,28 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 			new URL(response.url()).pathname === `/api/media/${assetId}`
 	);
 	await page.getByRole('button', { name: 'Delete selected (1)' }).click();
+	await failedDeleteStarted;
+	await expect(page.getByRole('button', { name: 'Delete selected (1)' })).toBeDisabled();
+	await expect(singleDeleteItem.getByRole('checkbox')).toBeDisabled();
+	releaseFailedDelete();
 	expect((await failedDeleteResponse).status()).toBe(500);
+	await page.unroute(batchUrl);
+	await expect(page.getByRole('alert')).toHaveText('Could not delete the image.');
+	await expect(singleDeleteItem).toBeVisible();
+	await expect(singleDeleteItem.getByRole('checkbox')).toBeChecked();
+	await expect(page.getByRole('button', { name: 'Delete selected (1)' })).toBeEnabled();
+
+	await page.route(batchUrl, (route) => route.abort());
+	page.once('dialog', async (dialog) => {
+		deleteDialogs += 1;
+		await dialog.accept();
+	});
+	const abortedDeleteRequest = page.waitForRequest(
+		(request) =>
+			request.method() === 'DELETE' && new URL(request.url()).pathname === `/api/media/${assetId}`
+	);
+	await page.getByRole('button', { name: 'Delete selected (1)' }).click();
+	await abortedDeleteRequest;
 	await page.unroute(batchUrl);
 	await expect(page.getByRole('alert')).toHaveText('Could not delete the image.');
 	await expect(singleDeleteItem).toBeVisible();
@@ -283,9 +318,10 @@ test('auth, editor, media, preview and post lifecycle', async ({ page, context }
 	expect(batchRequests).toEqual([
 		{ imageIds: disposableIds },
 		{ imageIds: [singleDeleteId] },
+		{ imageIds: [singleDeleteId] },
 		{ imageIds: [singleDeleteId] }
 	]);
-	expect(deleteDialogs).toBe(3);
+	expect(deleteDialogs).toBe(4);
 	await expect(page.locator('.image-item')).toHaveCount(1);
 	await expect(page.locator(`.image-item img[src="${mediaUrl}"]`)).toBeVisible();
 	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(singleDeleteUrl!));
@@ -446,6 +482,83 @@ Unknown widget
 	const postId = editUrl.match(/\/posts\/(\d+)\/edit/)?.[1];
 	expect(postId).toBeTruthy();
 
+	const primaryImageResponse = await context.request.get(mediaUrl!);
+	expect(primaryImageResponse.status()).toBe(200);
+	const webp = await primaryImageResponse.body();
+	const paginationImages = await Promise.all(
+		Array.from({ length: 20 }, async (_, index) => {
+			const response = await context.request.post(`/api/media/${assetId}`, {
+				headers: { origin: 'http://localhost:5173' },
+				multipart: {
+					file: { name: `page-${index}.webp`, mimeType: 'image/webp', buffer: webp }
+				}
+			});
+			expect(response.status()).toBe(201);
+			return (await response.json()) as { id: string; url: string };
+		})
+	);
+	const paginationRefresh = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/saveDraft')
+	);
+	await page.getByRole('button', { name: 'Save draft' }).click();
+	expect((await paginationRefresh).status()).toBe(303);
+	await expect(page.locator('.image-item')).toHaveCount(20);
+	await expect(page.getByText('Page 1 / 2')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Previous' })).toBeDisabled();
+	await expect(page.getByRole('button', { name: 'Next' })).toBeEnabled();
+	const imagePageUrl = page.url();
+	await page.getByLabel('Title', { exact: true }).fill('Pagination state kept');
+	await page.locator('.image-item').nth(0).getByRole('checkbox').check();
+	await page.locator('.image-item').nth(1).getByRole('checkbox').check();
+	await expect(page.getByRole('button', { name: 'Delete selected (2)' })).toBeEnabled();
+	await page.getByRole('button', { name: 'Next' }).click();
+	await expect(page).toHaveURL(imagePageUrl);
+	await expect(page.getByLabel('Title', { exact: true })).toHaveValue('Pagination state kept');
+	await expect(page.locator('.image-item')).toHaveCount(1);
+	await expect(page.getByText('Page 2 / 2')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Delete selected (0)' })).toBeDisabled();
+	await expect(page.locator('.image-item input:checked')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Previous' }).click();
+	await expect(page.locator('.image-item')).toHaveCount(20);
+	await expect(page.locator('.image-item input:checked')).toHaveCount(0);
+
+	await page.locator('.image-item').first().getByRole('checkbox').check();
+	const paginationUploadResponse = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'POST' &&
+			new URL(response.url()).pathname === `/api/media/${assetId}`
+	);
+	await page
+		.getByLabel('Upload image')
+		.setInputFiles({ name: 'pagination-upload.png', mimeType: 'image/png', buffer: png });
+	const paginationUpload = await paginationUploadResponse;
+	expect(paginationUpload.status()).toBe(201);
+	const uploadedPageImage = (await paginationUpload.json()) as { id: string; url: string };
+	await expect(page.getByText('Page 2 / 2')).toBeVisible();
+	await expect(page.locator(`.image-item[data-image-id="${uploadedPageImage.id}"]`)).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Delete selected (0)' })).toBeDisabled();
+	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(uploadedPageImage.url));
+
+	const paginationCleanup = await context.request.delete(`/api/media/${assetId}`, {
+		headers: { origin: 'http://localhost:5173' },
+		data: { imageIds: paginationImages.map(({ id }) => id) }
+	});
+	expect(paginationCleanup.status()).toBe(204);
+	const uploadedPageImageCleanup = await context.request.delete(`/api/media/${assetId}`, {
+		headers: { origin: 'http://localhost:5173' },
+		data: { imageIds: [uploadedPageImage.id] }
+	});
+	expect(uploadedPageImageCleanup.status()).toBe(204);
+	await page.getByLabel('Title', { exact: true }).fill('SvelteKit smoke post');
+	const cleanupRefresh = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/saveDraft')
+	);
+	await page.getByRole('button', { name: 'Save draft' }).click();
+	expect((await cleanupRefresh).status()).toBe(303);
+	await expect(page.locator('.image-item')).toHaveCount(1);
+	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(uploadedPageImage.url));
+	await page.getByLabel('Body').fill(markdownWithWarnings);
+
 	const stalePostCategoryId = query<{ id: number }>(
 		`SELECT id FROM categories WHERE name = 'Stale post category'`
 	)[0].id;
@@ -588,6 +701,14 @@ Unknown widget
 			"SELECT count(*) AS value FROM series WHERE title = 'Invalid route series'"
 		)[0].value
 	).toBe(0);
+	for (const path of [
+		'/categories/abc/edit',
+		'/series/-1/edit',
+		'/posts/0',
+		'/posts/9007199254740992',
+		'/posts/9007199254740992/edit'
+	])
+		expect((await context.request.get(path)).status(), path).toBe(404);
 
 	const staleEditCategoryId = query<{ id: number }>(
 		`SELECT id FROM categories WHERE name = 'Stale edit category'`

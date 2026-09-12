@@ -18,7 +18,7 @@ mayb-log 고유 계정 상태는 `user.approved` 하나입니다. `src/lib/serve
 
 Category와 Tag는 JSON aggregate로 한 번에 읽습니다. Tag lookup table은 없으며 `post_tags(post_id, tag)`가 글별 문자열을 직접 저장합니다. Post insert/update, category 관계, tag 관계는 한 D1 batch로 처리합니다. 관계 insert도 Post가 존재할 때만 행을 만드는 `INSERT ... SELECT`라서 없는 Post 수정은 404가 되고 중간 실패는 전체 rollback됩니다. 전달된 Category ID는 관계 테이블에 직접 insert하여 편집 중 삭제된 분류가 있으면 FK 오류와 409 응답으로 저장 전체를 취소합니다. update/delete 존재 확인은 `RETURNING` 결과를 사용합니다. 범용 DAO나 repository 계층은 두지 않습니다.
 
-입력 상한은 `src/lib/limits.ts` 한 곳에 있습니다. Markdown은 UTF-8 1MiB이고 Preview의 JSON request에는 별도의 4MiB 상한을 둡니다. Post 카테고리·태그는 각각 30개, 태그 하나는 64글자이며 쉼표로 구분한 원본 태그 입력은 4096글자까지입니다. 공개 검색은 검색어 200글자, 시리즈·카테고리·태그 각 20개, 태그 64글자, 작성자 아이디 30글자입니다. 날짜와 날짜·시각은 실제 한국 달력 값까지 엄격히 검사합니다.
+입력 상한은 `src/lib/limits.ts` 한 곳에 있습니다. Markdown은 UTF-8 1MiB이고 Preview의 JSON request에는 별도의 4MiB 상한을 둡니다. 이미지 서버 업로드는 WebP 4MiB까지입니다. Post 카테고리·태그는 각각 30개, 태그 하나는 64글자이며 쉼표로 구분한 원본 태그 입력은 4096글자까지입니다. 공개 검색은 검색어 200글자, 시리즈·카테고리·태그 각 20개, 태그 64글자, 작성자 아이디 30글자입니다. 날짜와 날짜·시각은 실제 한국 달력 값까지 엄격히 검사합니다.
 
 DB schema는 `src/lib/server/db/schema`, 목적별 query는 `src/lib/server/db/queries`, migration은 `drizzle`에 있습니다. 날짜 검색과 보관함의 달력 경계는 `Asia/Seoul`입니다.
 
@@ -30,7 +30,7 @@ raw fragment는 HAST로 parse합니다. 공백을 제외한 top-level element가
 
 편집기는 plain textarea입니다. `.md` import는 공유된 1MiB 제한을 먼저 확인한 뒤 `File.text()`로 처리하며 서버의 UTF-8 byte 검증이 최종 권위입니다. 이미지 선택 시 browser-image-compression이 WebP, 긴 변 1600px, 최대 4MiB로 줄인 뒤 한 이미지씩 `/api/media/{assetId}`에 보냅니다. 서버는 MIME, 크기, WebP magic bytes를 검사하고 `posts/{assetId}/{imageId}.webp`에 저장합니다. 공개 URL은 `/media/{assetId}/{imageId}.webp`이고 response body는 R2에서 stream합니다.
 
-Image list는 responsive thumbnail grid이며 각 이미지의 선택과 삽입을 제공합니다. 선택한 1~100개 이미지는 `DELETE /api/media/{assetId}`의 한 JSON 요청과 R2 multi-delete로 지웁니다. 같은 파일도 새 UUID로 저장합니다. 화면 이탈, 글 삭제, Markdown 변경을 근거로 object를 자동 정리하지 않으며 orphan은 허용합니다.
+R2 image list는 cursor를 끝까지 따라 유효한 object 전체를 조회합니다. Editor UI만 그 결과를 client-side에서 20개씩 나눈 responsive thumbnail grid로 표시하며 URL navigation은 하지 않습니다. Page를 바꾸면 선택은 초기화되고, 현재 page에서 선택한 최대 20개 이미지를 `DELETE /api/media/{assetId}`의 한 JSON 요청과 R2 multi-delete로 지웁니다. 같은 파일도 새 UUID로 저장합니다. 화면 이탈, 글 삭제, Markdown 변경을 근거로 object를 자동 정리하지 않으며 orphan은 허용합니다.
 
 ## UI, 국제화, 시각
 
