@@ -1,5 +1,6 @@
-import { and, isNotNull, lte, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { Database } from '$lib/server/db';
+import { publicPostCondition } from '$lib/server/db/queries/posts/read';
 import { posts } from '$lib/server/db/schema/content';
 
 export async function getArchive(db: Database, now = new Date()) {
@@ -10,7 +11,7 @@ export async function getArchive(db: Database, now = new Date()) {
 			count: sql<number>`count(*)`
 		})
 		.from(posts)
-		.where(and(isNotNull(posts.publishedAt), lte(posts.publishedAt, now)))
+		.where(publicPostCondition(now))
 		.groupBy(sql`1, 2`)
 		.orderBy(sql`1 DESC, 2 DESC`);
 }

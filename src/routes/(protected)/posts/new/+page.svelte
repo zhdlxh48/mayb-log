@@ -1,5 +1,5 @@
 <script lang="ts">
-	import PostForm from '$lib/components/PostForm.svelte';
+	import PostForm from '$lib/post-editor/PostForm.svelte';
 	import Seo from '$lib/components/Seo.svelte';
 	import * as m from '$lib/paraglide/messages.js';
 	let { data, form } = $props();

@@ -1,3 +1,5 @@
+import * as m from '$lib/paraglide/messages.js';
+
 export function authHeaders(request: Request, captchaToken: string) {
 	const headers = new Headers(request.headers);
 	headers.set('x-captcha-response', captchaToken);
@@ -11,4 +13,3 @@ export function authMessage(error: unknown) {
 	}
 	return null;
 }
-import * as m from '$lib/paraglide/messages.js';

@@ -88,4 +88,4 @@ pnpm db:migrate:remote
 pnpm deploy
 ```
 
-구조와 추가 개발 위치는 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)에 정리했습니다.
+Post 편집 UI는 `src/lib/post-editor`, D1 조회와 저장 코드는 `src/lib/server/db/queries`에서 read/write 책임별로 찾을 수 있습니다. 기능별 첫 수정 위치를 보여 주는 상세 code map은 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)에 정리했습니다.

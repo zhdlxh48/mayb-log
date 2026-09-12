@@ -1,7 +1,8 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
-import { getCategory, removeCategory, saveCategory } from '$lib/server/db/queries/taxonomy';
+import { getCategory } from '$lib/server/db/queries/taxonomy/read';
+import { removeCategory, saveCategory } from '$lib/server/db/queries/taxonomy/write';
 import { requestDb } from '$lib/server/db/request';
 import { categorySchema } from '$lib/validation/content';
 import { requireUser } from '$lib/server/auth/guards';

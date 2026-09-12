@@ -1,4 +1,4 @@
-import { getDrafts } from '$lib/server/db/queries/posts';
+import { getDrafts } from '$lib/server/db/queries/posts/read';
 import { requestDb } from '$lib/server/db/request';
 import { requireUser } from '$lib/server/auth/guards';
 import type { PageServerLoad } from './$types';
