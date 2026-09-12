@@ -48,7 +48,7 @@ barrel export, repository/DAO/service 계층 없이 route와 실제 기능 파�
 
 `src/hooks.server.ts`는 Paraglide middleware와 Better Auth handler를 연결합니다. Root `+layout.server.ts`는 public page가 공유하는 user, Turnstile key, site URL을 제공합니다. Better Auth는 `username()`, `captcha(...)`, `sveltekitCookies(...)`만 사용하며 비밀번호, session, Turnstile을 담당합니다. 이메일은 가입 정보로 저장하지만 인증하지 않습니다. 공식 `session.cookieCache`를 120초 사용해 반복된 session D1 read를 줄입니다. 이 때문에 기존 session의 승인 또는 승인 해제 반영은 최대 120초 늦을 수 있으며, D1 read 감소를 위해 의도적으로 허용한 trade-off입니다.
 
-mayb-log 고유 계정 상태는 `user.approved` 하나입니다. `src/lib/server/auth/guards.ts`의 `requireAuth()`는 공개 login/signup 같은 auth action에서 Better Auth runtime을 확인하고, `requireUser()`는 현재 request의 로그인과 승인을 확인합니다. 보호 layout은 화면 이동 편의를 위한 것입니다. 보호 영역의 page server load와 mutation action, media 및 Preview endpoint는 D1/R2 접근 전에 `requireUser()`를 직접 호출합니다.
+mayb-log 고유 계정 상태는 `user.approved` 하나입니다. `src/lib/server/auth/guards.ts`의 `requireAuth()`는 공개 login/signup 같은 auth action에서 Better Auth runtime을 확인하고, `requireUser()`는 page와 form action에서 로그인 및 승인을 확인합니다. fetch API는 redirect 대신 401/403을 반환하는 `requireApiUser()`를 사용합니다. 보호 layout은 화면 이동 편의를 위한 것이며 각 mutation이 guard를 직접 호출합니다.
 
 Cloudflare binding type은 Wrangler가 생성하는 `worker-configuration.d.ts`의 `Cloudflare.Env`가 source of truth입니다. `src/lib/server/platform.ts`의 `requirePlatform()`은 D1/R2 기능에서 runtime 부재를 일관된 500 infrastructure error로 처리하고 `requestDb()`도 이 경계를 사용합니다.
 
@@ -66,7 +66,7 @@ Category와 Tag는 JSON aggregate로 한 번에 읽습니다. Tag lookup table�
 
 여러 경로에서 공유되거나 운영 의미가 있는 application 상한은 `src/lib/limits.ts`에 모으며, 단일 validation field에만 적용되는 길이 제한은 해당 Zod schema에 둡니다. Markdown은 UTF-8 1MiB이고 Preview의 JSON request에는 별도의 4MiB 상한을 둡니다. 이미지 서버 업로드는 WebP 4MiB까지입니다. Post 카테고리·태그는 각각 30개, 태그 하나는 64글자이며 쉼표로 구분한 원본 태그 입력은 4096글자까지입니다. 공개 검색은 검색어 200글자, 시리즈·카테고리·태그 각 20개, 태그 64글자, 작성자 아이디 30글자입니다. 날짜와 날짜·시각은 실제 한국 달력 값까지 엄격히 검사합니다.
 
-DB schema는 `src/lib/server/db/schema`, Post와 Taxonomy의 read/write query는 각각 `src/lib/server/db/queries/{posts,taxonomy}`, migration은 `drizzle`에 있습니다. 날짜 검색과 보관함의 달력 경계는 `Asia/Seoul`입니다.
+운영 환경은 Worker `mayb-log`, D1 `mayb-log-db`, R2 `mayb-log-storage`이며 binding은 `DB`, `MEDIA`, `ASSETS`입니다. DB schema는 `src/lib/server/db/schema`, Post와 Taxonomy의 read/write query는 각각 `src/lib/server/db/queries/{posts,taxonomy}`, migration은 `drizzle`에 있습니다. 날짜 검색과 보관함의 달력 경계는 `Asia/Seoul`입니다.
 
 ## Markdown과 이미지
 
@@ -94,7 +94,7 @@ CSP의 `style-src`는 `self`만 허용합니다. `style-src-attr 'unsafe-inline'
 
 ## Migration 운영 규칙
 
-`DROP`이나 `RENAME`처럼 호환성을 깨는 schema 변경은 한 번의 deploy에서 기존 schema 제거와 application 전환을 동시에 하지 않습니다. 먼저 기존 코드와 새 코드가 모두 동작하는 expand migration을 배포하고 application을 전환한 뒤, 다음 별도 deploy와 migration에서 더 이상 사용하지 않는 schema를 contract합니다. 이미 성공적으로 적용한 `0002_numerous_korvac.sql`은 다시 변경하지 않습니다.
+새 운영 DB는 Better Auth와 최종 콘텐츠 스키마를 담은 단일 clean `0000` 기준선에서 시작하며 과거 DB 호환 migration은 의도적으로 제공하지 않습니다. `posts_fts` FTS5 virtual table과 insert/delete/update trigger는 Drizzle 선언형 schema 밖의 사용자 정의 migration SQL입니다. 앞으로 Post table을 rebuild하거나 rename하는 migration을 만들 때 이 FTS table과 trigger도 반드시 함께 검토합니다.
 
 ## 유지보수
 

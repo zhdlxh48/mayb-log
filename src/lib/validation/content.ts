@@ -15,6 +15,7 @@ const optionalInteger = z.preprocess(
 		.number({ error: () => m.validation_positive_integer() })
 		.int({ error: () => m.validation_positive_integer() })
 		.positive({ error: () => m.validation_positive_integer() })
+		.max(Number.MAX_SAFE_INTEGER, { error: () => m.validation_positive_integer() })
 		.nullable()
 );
 
@@ -49,6 +50,9 @@ export const postSchema = z
 					.number({ error: () => m.validation_positive_integer() })
 					.int({ error: () => m.validation_positive_integer() })
 					.positive({ error: () => m.validation_positive_integer() })
+					.max(Number.MAX_SAFE_INTEGER, {
+						error: () => m.validation_positive_integer()
+					})
 			)
 			.max(MAX_CATEGORIES_PER_POST, { error: () => m.validation_categories_limit() })
 			.default([]),

@@ -1,12 +1,12 @@
 import { error, json } from '@sveltejs/kit';
-import { requireUser } from '$lib/server/auth/guards';
+import { requireApiUser } from '$lib/server/auth/guards';
 import { renderMarkdownDocument } from '$lib/server/markdown/render';
 import type { RequestHandler } from './$types';
 import * as m from '$lib/paraglide/messages.js';
 import { MAX_MARKDOWN_BYTES, MAX_PREVIEW_REQUEST_BYTES } from '$lib/limits';
 
 export const POST: RequestHandler = async ({ request }) => {
-	requireUser();
+	requireApiUser();
 	const contentLength = Number(request.headers.get('content-length'));
 	if (Number.isFinite(contentLength) && contentLength > MAX_PREVIEW_REQUEST_BYTES)
 		error(413, m.markdown_too_large());

@@ -369,6 +369,32 @@ Unknown widget
 		...paginationImages.map(({ id }) => id),
 		uploadedId!
 	];
+	const preservedItem = page.locator('.image-item').first();
+	const preservedId = await preservedItem.getAttribute('data-image-id');
+	await preservedItem.getByRole('checkbox').check();
+	await context.clearCookies();
+	page.once('dialog', (dialog) => dialog.accept());
+	const deniedDelete = page.waitForResponse(
+		(response) => response.request().method() === 'DELETE' && response.url().endsWith(assetId)
+	);
+	await page.getByRole('button', { name: 'Delete selected (1)' }).click();
+	expect((await deniedDelete).status()).toBe(401);
+	await expect(page.getByRole('alert')).toHaveText('Could not delete the image.');
+	await expect(
+		page.locator(`[data-image-id="${preservedId}"]`).getByRole('checkbox')
+	).toBeChecked();
+
+	await page.getByRole('button', { name: 'Write' }).click();
+	await page.getByLabel('Body').fill('# Expired session');
+	const deniedPreview = page.waitForResponse(
+		(response) =>
+			response.request().method() === 'POST' && response.url().endsWith('/api/markdown-preview')
+	);
+	await page.getByRole('button', { name: 'Preview' }).click();
+	expect((await deniedPreview).status()).toBe(401);
+	await expect(page.locator('.preview [role="alert"]')).toHaveText('Could not generate preview.');
+
+	await login(page, username);
 	for (let index = 0; index < allIds.length; index += 20)
 		await context.request.delete(`/api/media/${assetId}`, {
 			headers: { origin: 'http://localhost:5173' },

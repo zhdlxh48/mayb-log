@@ -108,6 +108,22 @@ describe('Post input limits', () => {
 		).toBe(false);
 	});
 
+	it('accepts only safe positive integer Post relationships', () => {
+		for (const value of ['1', String(Number.MAX_SAFE_INTEGER)]) {
+			expect(
+				postSchema.safeParse({ ...validPost, seriesId: value, seriesPosition: value }).success
+			).toBe(true);
+			expect(postSchema.safeParse({ ...validPost, categories: [value] }).success).toBe(true);
+		}
+
+		for (const value of ['9007199254740992', '9007199254740993', '0', '-1', '1.5']) {
+			expect(
+				postSchema.safeParse({ ...validPost, seriesId: value, seriesPosition: value }).success
+			).toBe(false);
+			expect(postSchema.safeParse({ ...validPost, categories: [value] }).success).toBe(false);
+		}
+	});
+
 	it('allows JSON overhead without increasing the Markdown content limit', () => {
 		const bodyMarkdown = '"'.repeat(MAX_MARKDOWN_BYTES);
 		const encoder = new TextEncoder();

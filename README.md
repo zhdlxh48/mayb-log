@@ -2,6 +2,8 @@
 
 SvelteKit으로 만든 개인 블로그입니다. Cloudflare Workers에서 실행하며 D1에 계정과 글을, R2에 이미지를 저장합니다.
 
+운영 주소는 `https://mayb-log.mayb.workers.dev`입니다.
+
 ## 기술 구성
 
 - SvelteKit 2.70.3, Svelte 5.57.0, TypeScript 6.0.3
@@ -23,6 +25,7 @@ pnpm dev
 ```
 
 `.dev.vars`의 `BETTER_AUTH_SECRET`은 32자 이상의 임의 문자열로 바꿉니다. 로컬에서는 저장소에 들어 있는 Cloudflare Turnstile 테스트 키를 사용할 수 있습니다.
+새 로컬 DB로 다시 시작하려면 저장소 안의 `.wrangler` local development state만 지운 뒤 `pnpm db:migrate:local`을 실행합니다. `drizzle/0000_*.sql`은 새 운영 DB용 clean 기준선이며 과거 운영 DB와 호환되지 않습니다.
 
 ```bash
 pnpm format:check

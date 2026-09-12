@@ -47,6 +47,10 @@
 		}
 
 		let script = document.querySelector<HTMLScriptElement>('script[data-turnstile-script]');
+		if (script?.dataset.turnstileFailed !== undefined) {
+			script.remove();
+			script = null;
+		}
 		if (!script) {
 			script = document.createElement('script');
 			script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
@@ -56,7 +60,14 @@
 			document.head.appendChild(script);
 		}
 		script.addEventListener('load', renderWidget, { once: true });
-		script.addEventListener('error', () => (loadError = true), { once: true });
+		script.addEventListener(
+			'error',
+			() => {
+				script.dataset.turnstileFailed = '';
+				loadError = true;
+			},
+			{ once: true }
+		);
 	}
 
 	function restoreWidget() {
