@@ -57,6 +57,7 @@ test('protects mutations and keeps the username approval auth flow working', asy
 		});
 	});
 	await page.goto('/login');
+	await expect(page.locator('.field-error')).toHaveCount(0);
 	await expect(page.locator('.captcha-field [role="alert"]')).toBeVisible();
 	await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow')));
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
