@@ -25,7 +25,6 @@ CREATE TABLE `session` (
 	`ip_address` text,
 	`user_agent` text,
 	`user_id` text NOT NULL,
-	`impersonated_by` text,
 	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
@@ -39,10 +38,6 @@ CREATE TABLE `user` (
 	`image` text,
 	`created_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL,
-	`role` text,
-	`banned` integer DEFAULT false,
-	`ban_reason` text,
-	`ban_expires` integer,
 	`username` text,
 	`approved` integer DEFAULT false NOT NULL
 );
@@ -62,9 +57,7 @@ CREATE INDEX `verification_identifier_idx` ON `verification` (`identifier`);--> 
 CREATE TABLE `categories` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`name` text NOT NULL,
-	`description` text DEFAULT '' NOT NULL,
-	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL
+	`description` text DEFAULT '' NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `categories_name_unique` ON `categories` (`name`);--> statement-breakpoint
@@ -76,16 +69,18 @@ CREATE TABLE `post_categories` (
 	FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE INDEX `post_categories_category_idx` ON `post_categories` (`category_id`,`post_id`);--> statement-breakpoint
 CREATE TABLE `post_tags` (
 	`post_id` integer NOT NULL,
-	`tag_id` integer NOT NULL,
-	PRIMARY KEY(`post_id`, `tag_id`),
-	FOREIGN KEY (`post_id`) REFERENCES `posts`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`tag_id`) REFERENCES `tags`(`id`) ON UPDATE no action ON DELETE cascade
+	`tag` text NOT NULL,
+	PRIMARY KEY(`post_id`, `tag`),
+	FOREIGN KEY (`post_id`) REFERENCES `posts`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE INDEX `post_tags_tag_idx` ON `post_tags` (`tag`,`post_id`);--> statement-breakpoint
 CREATE TABLE `posts` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`asset_id` text NOT NULL,
 	`author_id` text NOT NULL,
 	`title` text NOT NULL,
 	`subtitle` text,
@@ -93,34 +88,26 @@ CREATE TABLE `posts` (
 	`body_markdown` text NOT NULL,
 	`series_id` integer,
 	`series_position` integer,
-	`draft` integer DEFAULT true NOT NULL,
 	`noindex` integer DEFAULT false NOT NULL,
 	`published_at` integer,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`author_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE no action,
-	FOREIGN KEY (`series_id`) REFERENCES `series`(`id`) ON UPDATE no action ON DELETE set null
+	FOREIGN KEY (`series_id`) REFERENCES `series`(`id`) ON UPDATE no action ON DELETE set null,
+	CONSTRAINT "posts_series_position_check" CHECK(("posts"."series_id" IS NULL AND "posts"."series_position" IS NULL) OR ("posts"."series_id" IS NOT NULL AND "posts"."series_position" IS NOT NULL AND "posts"."series_position" > 0 AND "posts"."series_position" <= 9007199254740991))
 );
 --> statement-breakpoint
-CREATE INDEX `posts_public_idx` ON `posts` (`draft`,`published_at`);--> statement-breakpoint
+CREATE UNIQUE INDEX `posts_asset_id_unique` ON `posts` (`asset_id`);--> statement-breakpoint
+CREATE INDEX `posts_published_idx` ON `posts` (`published_at`,`id`) WHERE "posts"."published_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX `posts_author_idx` ON `posts` (`author_id`);--> statement-breakpoint
-CREATE INDEX `posts_series_idx` ON `posts` (`series_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `posts_series_position_idx` ON `posts` (`series_id`,`series_position`);--> statement-breakpoint
 CREATE TABLE `series` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`title` text NOT NULL,
-	`description` text DEFAULT '' NOT NULL,
-	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL
+	`description` text DEFAULT '' NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `series_title_unique` ON `series` (`title`);--> statement-breakpoint
-CREATE TABLE `tags` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`name` text NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `tags_name_unique` ON `tags` (`name`);
+CREATE UNIQUE INDEX `series_title_unique` ON `series` (`title`);
 --> statement-breakpoint
 CREATE VIRTUAL TABLE `posts_fts` USING fts5(
 	`title`,

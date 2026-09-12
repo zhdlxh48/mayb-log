@@ -30,6 +30,19 @@
 	let previewVisible = $state(false);
 	let previewRequestId = 0;
 
+	function isPreviewResult(
+		value: unknown
+	): value is { html: string; diagnostics: MarkdownDiagnostic[] } {
+		return (
+			typeof value === 'object' &&
+			value !== null &&
+			'html' in value &&
+			typeof value.html === 'string' &&
+			'diagnostics' in value &&
+			Array.isArray(value.diagnostics)
+		);
+	}
+
 	function insertImage(url: string) {
 		if (!textarea) return;
 		const text = `![${m.image_alt()}](${url})`;
@@ -66,20 +79,19 @@
 			const response = await fetch('/api/markdown-preview', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ bodyMarkdown: source })
+				body: JSON.stringify({ bodyMarkdown: source }),
+				redirect: 'error'
 			});
-			if (!response.ok) throw new Error(m.preview_error());
-			const result = (await response.json()) as {
-				html: string;
-				diagnostics: MarkdownDiagnostic[];
-			};
+			if (response.status !== 200) throw new Error();
+			const result: unknown = await response.json();
+			if (!isPreviewResult(result)) throw new Error();
 			if (requestId !== previewRequestId) return;
 			previewHtml = result.html;
 			previewDiagnostics = result.diagnostics;
 			lastPreviewSource = source;
-		} catch (error) {
+		} catch {
 			if (requestId !== previewRequestId) return;
-			previewError = error instanceof Error ? error.message : m.preview_error();
+			previewError = m.preview_error();
 		} finally {
 			if (requestId === previewRequestId) previewLoading = false;
 		}

@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import { z } from 'zod';
 import { IMAGE_EDITOR_PAGE_SIZE } from '$lib/limits';
-import { requireUser } from '$lib/server/auth/guards';
+import { requireApiUser } from '$lib/server/auth/guards';
 import { listPostImages, validWebp } from '$lib/server/media/images';
 import { mediaKey, mediaUrl, UUID } from '$lib/server/media/path';
 import { requirePlatform } from '$lib/server/platform';
@@ -13,14 +13,14 @@ const deleteSchema = z
 	.strict();
 
 export const GET: RequestHandler = async ({ params, platform }) => {
-	requireUser();
+	requireApiUser();
 	const runtime = requirePlatform(platform);
 	if (!UUID.test(params.assetId)) error(400, m.invalid_asset_id());
 	return json({ images: await listPostImages(runtime.env.MEDIA, params.assetId) });
 };
 
 export const POST: RequestHandler = async ({ params, platform, request }) => {
-	requireUser();
+	requireApiUser();
 	const runtime = requirePlatform(platform);
 	if (!UUID.test(params.assetId)) error(400, m.invalid_asset_id());
 	const form = await request.formData();
@@ -37,7 +37,7 @@ export const POST: RequestHandler = async ({ params, platform, request }) => {
 };
 
 export const DELETE: RequestHandler = async ({ params, platform, request }) => {
-	requireUser();
+	requireApiUser();
 	const runtime = requirePlatform(platform);
 	if (!UUID.test(params.assetId)) error(400, m.invalid_asset_id());
 	const parsed = deleteSchema.safeParse(await request.json().catch(() => null));

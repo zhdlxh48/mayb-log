@@ -16,3 +16,10 @@ export function requireUser() {
 	if (!user.approved) error(403, m.account_unapproved());
 	return user;
 }
+
+export function requireApiUser() {
+	const user = getRequestEvent().locals.user;
+	if (!user) error(401, m.authentication_required());
+	if (!user.approved) error(403, m.account_unapproved());
+	return user;
+}

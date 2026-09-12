@@ -12,6 +12,23 @@ test('protects mutations and keeps the username approval auth flow working', asy
 	context
 }) => {
 	const anonymous = await createRequest.newContext({ baseURL: 'http://localhost:5173' });
+	const assetId = crypto.randomUUID();
+	const imageId = crypto.randomUUID();
+	const apiHeaders = { origin: 'http://localhost:5173' };
+	for (const response of [
+		await anonymous.post('/api/markdown-preview', {
+			headers: apiHeaders,
+			data: { bodyMarkdown: '# Test' }
+		}),
+		await anonymous.get(`/api/media/${assetId}`, { headers: apiHeaders }),
+		await anonymous.post(`/api/media/${assetId}`, { headers: apiHeaders, multipart: {} }),
+		await anonymous.delete(`/api/media/${assetId}`, {
+			headers: apiHeaders,
+			data: { imageIds: [imageId] }
+		}),
+		await anonymous.delete(`/api/media/${assetId}/${imageId}`, { headers: apiHeaders })
+	])
+		expect(response.status()).toBe(401);
 	const mutation = await anonymous.post('/posts/new?/saveDraft', {
 		maxRedirects: 0,
 		headers: { origin: 'http://localhost:5173' },
@@ -30,6 +47,22 @@ test('protects mutations and keeps the username approval auth flow working', asy
 	await context.addCookies([
 		{ name: 'PARAGLIDE_LOCALE', value: 'en', domain: 'localhost', path: '/' }
 	]);
+	let turnstileRequests = 0;
+	await page.route('**/turnstile/v0/api.js?render=explicit', async (route) => {
+		turnstileRequests += 1;
+		if (turnstileRequests === 1) return route.abort();
+		await route.fulfill({
+			contentType: 'application/javascript',
+			body: `window.turnstile={render(container,options){const input=document.createElement('input');input.name=options['response-field-name'];input.value='test-token';container.appendChild(input);return 'test-widget'},remove(){}}`
+		});
+	});
+	await page.goto('/login');
+	await expect(page.locator('.captcha-field [role="alert"]')).toBeVisible();
+	await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow')));
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
+	expect(turnstileRequests).toBe(2);
+	await page.unroute('**/turnstile/v0/api.js?render=explicit');
+
 	await page.goto('/login');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page.getByLabel('User ID').fill('missing_captcha_user');

@@ -28,6 +28,17 @@
 		images.slice((imagePage - 1) * IMAGE_EDITOR_PAGE_SIZE, imagePage * IMAGE_EDITOR_PAGE_SIZE)
 	);
 
+	function isEditorImage(value: unknown): value is EditorImage {
+		return (
+			typeof value === 'object' &&
+			value !== null &&
+			'id' in value &&
+			typeof value.id === 'string' &&
+			'url' in value &&
+			typeof value.url === 'string'
+		);
+	}
+
 	function goToImagePage(page: number) {
 		if (mediaBusy) return;
 		const nextPage = clampImagePage(page, images.length);
@@ -57,9 +68,14 @@
 			});
 			const body = new FormData();
 			body.set('file', compressed, 'image.webp');
-			const response = await fetch(`/api/media/${assetId}`, { method: 'POST', body });
-			if (!response.ok) throw new Error(m.image_upload_error());
-			const image: EditorImage = await response.json();
+			const response = await fetch(`/api/media/${assetId}`, {
+				method: 'POST',
+				body,
+				redirect: 'error'
+			});
+			if (response.status !== 201) throw new Error();
+			const image: unknown = await response.json();
+			if (!isEditorImage(image)) throw new Error();
 			images = [...images, image];
 			const lastPage = countImagePages(images.length);
 			if (lastPage !== imagePage) {
@@ -67,8 +83,8 @@
 				selectedImageIds = [];
 			}
 			onInsert(image.url);
-		} catch (error) {
-			mediaError = error instanceof Error ? error.message : m.image_upload_error();
+		} catch {
+			mediaError = m.image_upload_error();
 		} finally {
 			mediaBusy = false;
 		}
@@ -84,9 +100,10 @@
 			const response = await fetch(`/api/media/${assetId}`, {
 				method: 'DELETE',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ imageIds })
+				body: JSON.stringify({ imageIds }),
+				redirect: 'error'
 			});
-			if (!response.ok) throw new Error();
+			if (response.status !== 204) throw new Error();
 			const removed = new Set(imageIds);
 			images = images.filter(({ id }) => !removed.has(id));
 			selectedImageIds = [];
