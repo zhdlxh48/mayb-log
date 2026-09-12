@@ -46,9 +46,9 @@
 		"wrangler": "4.130.0"
 	},
 	"dependencies": {
-		"@better-auth/drizzle-adapter": "1.7.3",
+		"@better-auth/drizzle-adapter": "1.7.4",
 		"@inlang/paraglide-js": "2.25.1",
-		"better-auth": "1.7.3",
+		"better-auth": "1.7.4",
 		"browser-image-compression": "2.0.2",
 		"drizzle-orm": "0.45.2",
 		"feed": "6.0.0",
