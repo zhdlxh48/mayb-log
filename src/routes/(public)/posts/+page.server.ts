@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { pagination, requestedPage } from '$lib/pagination';
-import { countPublishedPosts, getPublishedPostPage } from '$lib/server/db/queries/posts';
+import { countPublishedPosts, getPublishedPostPage } from '$lib/server/db/queries/posts/read';
 import { requestDb } from '$lib/server/db/request';
 import type { PageServerLoad } from './$types';
 

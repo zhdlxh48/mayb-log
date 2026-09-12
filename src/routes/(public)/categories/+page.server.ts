@@ -1,4 +1,4 @@
-import { getCategoryList } from '$lib/server/db/queries/taxonomy';
+import { getCategoryList } from '$lib/server/db/queries/taxonomy/read';
 import { requestDb } from '$lib/server/db/request';
 import type { PageServerLoad } from './$types';
 

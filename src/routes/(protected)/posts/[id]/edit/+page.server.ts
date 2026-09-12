@@ -5,15 +5,12 @@ import { dateTimeLocal } from '$lib/dates';
 import { positiveIntegerParam } from '$lib/params';
 import { requireUser } from '$lib/server/auth/guards';
 import { isForeignKeyConflict, isUniqueConflict } from '$lib/server/db/errors';
-import {
-	deletePost,
-	getEditablePost,
-	updatePost,
-	type PublicationAction
-} from '$lib/server/db/queries/posts';
-import { getEditorOptions } from '$lib/server/db/queries/taxonomy';
+import { getEditablePost } from '$lib/server/db/queries/posts/read';
+import { deletePost, updatePost, type PublicationAction } from '$lib/server/db/queries/posts/write';
+import { getEditorOptions } from '$lib/server/db/queries/taxonomy/read';
 import { requestDb } from '$lib/server/db/request';
 import { listPostImages } from '$lib/server/media/images';
+import { requirePlatform } from '$lib/server/platform';
 import { postSchema } from '$lib/validation/content';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import * as m from '$lib/paraglide/messages.js';
@@ -27,8 +24,8 @@ function routeId(value: string) {
 export const load: PageServerLoad = async ({ params, platform, url }) => {
 	requireUser();
 	const id = routeId(params.id);
-	if (!platform) error(404, m.post_not_found());
-	const db = requestDb(platform);
+	const runtime = requirePlatform(platform);
+	const db = requestDb(runtime);
 	const [post, options] = await Promise.all([getEditablePost(db, id), getEditorOptions(db)]);
 	if (!post) error(404, m.post_not_found());
 	const status: 'draft' | 'scheduled' | 'published' =
@@ -36,7 +33,7 @@ export const load: PageServerLoad = async ({ params, platform, url }) => {
 	return {
 		post,
 		options,
-		images: await listPostImages(platform.env.MEDIA, post.assetId),
+		images: await listPostImages(runtime.env.MEDIA, post.assetId),
 		form: await superValidate(
 			{
 				title: post.title,

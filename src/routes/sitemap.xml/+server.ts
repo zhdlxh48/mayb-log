@@ -1,4 +1,4 @@
-import { getSitemapPosts } from '$lib/server/db/queries/posts';
+import { getSitemapPosts } from '$lib/server/db/queries/posts/read';
 import { requestDb } from '$lib/server/db/request';
 import type { RequestHandler } from './$types';
 

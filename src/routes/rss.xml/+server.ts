@@ -1,5 +1,5 @@
 import { Feed } from 'feed';
-import { getFeedPosts } from '$lib/server/db/queries/posts';
+import { getFeedPosts } from '$lib/server/db/queries/posts/read';
 import { requestDb } from '$lib/server/db/request';
 import { renderMarkdown } from '$lib/server/markdown/render';
 import type { RequestHandler } from './$types';

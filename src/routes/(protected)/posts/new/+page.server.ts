@@ -4,12 +4,13 @@ import { zod4 } from 'sveltekit-superforms/adapters';
 import { z } from 'zod';
 import { requireUser } from '$lib/server/auth/guards';
 import { isForeignKeyConflict, isUniqueConflict } from '$lib/server/db/errors';
-import { createPost } from '$lib/server/db/queries/posts';
-import { getEditorOptions } from '$lib/server/db/queries/taxonomy';
+import { createPost } from '$lib/server/db/queries/posts/write';
+import { getEditorOptions } from '$lib/server/db/queries/taxonomy/read';
 import { requestDb } from '$lib/server/db/request';
 import { postSchema } from '$lib/validation/content';
 import { listPostImages } from '$lib/server/media/images';
 import { UUID } from '$lib/server/media/path';
+import { requirePlatform } from '$lib/server/platform';
 import type { Actions, PageServerLoad, RequestEvent } from './$types';
 import * as m from '$lib/paraglide/messages.js';
 
@@ -26,6 +27,7 @@ export const load: PageServerLoad = async ({ platform }) => {
 
 async function save(event: RequestEvent, action: 'saveDraft' | 'publish') {
 	const user = requireUser();
+	const runtime = requirePlatform(event.platform);
 	const data = await event.request.formData();
 	const form = await superValidate(data, zod4(postSchema));
 	const assetId = assetIdSchema.safeParse(data.get('assetId'));
@@ -33,11 +35,11 @@ async function save(event: RequestEvent, action: 'saveDraft' | 'publish') {
 		return fail(400, {
 			form,
 			assetId: assetId.success ? assetId.data : null,
-			images: assetId.success ? await listPostImages(event.platform!.env.MEDIA, assetId.data) : []
+			images: assetId.success ? await listPostImages(runtime.env.MEDIA, assetId.data) : []
 		});
 	let post: Awaited<ReturnType<typeof createPost>>;
 	try {
-		post = await createPost(requestDb(event.platform), form.data, user.id, assetId.data, action);
+		post = await createPost(requestDb(runtime), form.data, user.id, assetId.data, action);
 	} catch (cause) {
 		const conflict = isUniqueConflict(cause)
 			? m.post_conflict()
@@ -49,7 +51,7 @@ async function save(event: RequestEvent, action: 'saveDraft' | 'publish') {
 				form,
 				error: conflict,
 				assetId: assetId.data,
-				images: await listPostImages(event.platform!.env.MEDIA, assetId.data)
+				images: await listPostImages(runtime.env.MEDIA, assetId.data)
 			});
 		throw cause;
 	}

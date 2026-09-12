@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { positiveIntegerParam } from '$lib/params';
-import { getPublishedPost, getSeriesNeighbors } from '$lib/server/db/queries/posts';
+import { getPublishedPost, getSeriesNeighbors } from '$lib/server/db/queries/posts/read';
 import { requestDb } from '$lib/server/db/request';
 import { renderMarkdownDocument } from '$lib/server/markdown/render';
 import type { PageServerLoad } from './$types';

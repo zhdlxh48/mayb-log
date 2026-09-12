@@ -2,7 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { requestDb } from '$lib/server/db/request';
-import { saveCategory } from '$lib/server/db/queries/taxonomy';
+import { saveCategory } from '$lib/server/db/queries/taxonomy/write';
 import { categorySchema } from '$lib/validation/content';
 import { requireUser } from '$lib/server/auth/guards';
 import { isUniqueConflict } from '$lib/server/db/errors';
