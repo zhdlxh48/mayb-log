@@ -43,7 +43,7 @@ export const posts = sqliteTable(
 		uniqueIndex('posts_series_position_idx').on(table.seriesId, table.seriesPosition),
 		check(
 			'posts_series_position_check',
-			sql`(${table.seriesId} IS NULL AND ${table.seriesPosition} IS NULL) OR (${table.seriesId} IS NOT NULL AND ${table.seriesPosition} IS NOT NULL)`
+			sql`(${table.seriesId} IS NULL AND ${table.seriesPosition} IS NULL) OR (${table.seriesId} IS NOT NULL AND ${table.seriesPosition} IS NOT NULL AND ${table.seriesPosition} > 0 AND ${table.seriesPosition} <= ${sql.raw(String(Number.MAX_SAFE_INTEGER))})`
 		)
 	]
 );

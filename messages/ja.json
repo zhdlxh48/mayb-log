@@ -147,6 +147,7 @@
 	"validation_password_match": "パスワードが一致しません。",
 	"validation_new_password_match": "新しいパスワードが一致しません。",
 	"account_unapproved": "承認されていないアカウントです。",
+	"authentication_required": "ログインが必要です。",
 	"signup_success": "登録が完了しました。管理者の承認後にログインできます。",
 	"profile_saved": "プロフィールを保存しました。",
 	"password_changed": "パスワードを変更しました。",

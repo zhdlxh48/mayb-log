@@ -147,6 +147,7 @@
 	"validation_password_match": "The passwords do not match.",
 	"validation_new_password_match": "The new passwords do not match.",
 	"account_unapproved": "This account has not been approved.",
+	"authentication_required": "Authentication is required.",
 	"signup_success": "Your account was created. You can log in after approval.",
 	"profile_saved": "Profile saved.",
 	"password_changed": "Password changed.",

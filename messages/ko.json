@@ -147,6 +147,7 @@
 	"validation_password_match": "비밀번호가 일치하지 않습니다.",
 	"validation_new_password_match": "새 비밀번호가 일치하지 않습니다.",
 	"account_unapproved": "승인되지 않은 계정입니다.",
+	"authentication_required": "로그인이 필요합니다.",
 	"signup_success": "회원가입이 완료되었습니다. 운영자 승인 후 로그인할 수 있습니다.",
 	"profile_saved": "프로필을 저장했습니다.",
 	"password_changed": "비밀번호를 변경했습니다.",
