@@ -6,6 +6,42 @@ const username = 'auth_smoke_user';
 test.beforeEach(() => cleanupUser(username));
 test.afterEach(() => cleanupUser(username));
 
+test('ignores a Turnstile script that finishes after the component unmounts', async ({ page }) => {
+	let releaseScript = () => {};
+	let markScriptRequested = () => {};
+	const scriptRequested = new Promise<void>((resolve) => (markScriptRequested = resolve));
+	const scriptReleased = new Promise<void>((resolve) => (releaseScript = resolve));
+
+	await page.route('**/turnstile/v0/api.js?render=explicit', async (route) => {
+		markScriptRequested();
+		await scriptReleased;
+		await route.fulfill({
+			contentType: 'application/javascript',
+			body: `window.__lateTurnstileLoaded=true;window.turnstile={render(){window.__lateTurnstileRenderCount=(window.__lateTurnstileRenderCount||0)+1;return 'late-widget'},remove(){}}`
+		});
+	});
+
+	await page.goto('/login', { waitUntil: 'domcontentloaded' });
+	await scriptRequested;
+	await page.getByRole('link', { name: 'mayb-log', exact: true }).click();
+	await expect(page).toHaveURL('/');
+	releaseScript();
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() => (window as typeof window & { __lateTurnstileLoaded?: boolean }).__lateTurnstileLoaded
+			)
+		)
+		.toBe(true);
+	expect(
+		await page.evaluate(
+			() =>
+				(window as typeof window & { __lateTurnstileRenderCount?: number })
+					.__lateTurnstileRenderCount ?? 0
+		)
+	).toBe(0);
+});
+
 test('protects mutations and keeps the username approval auth flow working', async ({
 	page,
 	request,
