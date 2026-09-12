@@ -368,8 +368,12 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 	await page.getByRole('link', { name: 'Content Smoke User' }).click();
 	await expect(page).toHaveURL(`/search?author=${username}`);
 	await expect(page.getByRole('link', { name: 'Content smoke post' })).toBeVisible();
-	expect(await (await context.request.get('/rss.xml')).text()).toContain('Content smoke post');
-	expect(await (await context.request.get('/sitemap.xml')).text()).toContain(`/posts/${postId}`);
+	expect(await (await context.request.get(`/rss.xml?fixture=${postId}`)).text()).toContain(
+		'Content smoke post'
+	);
+	expect(await (await context.request.get(`/sitemap.xml?fixture=${postId}`)).text()).toContain(
+		`/posts/${postId}`
+	);
 
 	await page.goto(editUrl);
 	await page.getByLabel('Title', { exact: true }).fill('Edited content post');
