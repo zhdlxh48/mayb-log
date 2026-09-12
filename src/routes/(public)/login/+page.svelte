@@ -38,7 +38,11 @@
 		/>{#each current.errors.password ?? [] as error}<small class="field-error">{error}</small
 			>{/each}
 	</div>
-	<span>{m.robot_check()}</span><Turnstile siteKey={data.turnstileSiteKey} />
+	<span>{m.robot_check()}</span>
+	<div class="captcha-field">
+		<Turnstile siteKey={data.turnstileSiteKey} />
+		{#each current.errors.captcha ?? [] as error}<small class="field-error">{error}</small>{/each}
+	</div>
 	<span></span><button type="submit">{m.login_title()}</button>
 </form>
 <p><a href="/signup" data-sveltekit-reload>{m.signup_link()}</a></p>

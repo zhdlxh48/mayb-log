@@ -107,6 +107,64 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 	expect(secondDateText).not.toBe(firstDateText);
 
 	await login(page, username);
+	const taxonomyPage = await context.newPage();
+	await taxonomyPage.goto('/series/new');
+	await taxonomyPage.getByLabel('Title', { exact: true }).fill('Validation series');
+	await taxonomyPage.getByLabel('Description').fill('a'.repeat(501));
+	const taxonomyValidation = taxonomyPage.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().endsWith('/series/new')
+	);
+	await taxonomyPage.getByRole('button', { name: 'Save' }).click();
+	expect(await actionStatus(await taxonomyValidation)).toBe(400);
+	await expect(taxonomyPage.locator('textarea + .field-error')).toHaveText(
+		'The description must have no more than 500 characters.'
+	);
+	await expect(taxonomyPage.getByLabel('Description')).toHaveValue('a'.repeat(501));
+	await taxonomyPage.close();
+
+	await page.getByLabel('Title', { exact: true }).fill('Validation post');
+	await page.getByLabel('Description').fill('Validation description');
+	await page.getByLabel('Body').fill('Validation body');
+	await page.getByLabel('Subtitle').fill('a'.repeat(301));
+	const subtitleValidation = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/saveDraft')
+	);
+	await page.getByRole('button', { name: 'Save draft' }).click();
+	expect(await actionStatus(await subtitleValidation)).toBe(400);
+	await expect(page.locator('.subtitle-field .field-error')).toHaveText(
+		'The subtitle must have no more than 300 characters.'
+	);
+	await expect(page.getByLabel('Subtitle')).toHaveValue('a'.repeat(301));
+	await page.getByLabel('Subtitle').fill('');
+
+	await page
+		.locator('form')
+		.first()
+		.evaluate((form) => {
+			for (let id = 1; id <= 31; id += 1) {
+				const input = document.createElement('input');
+				input.type = 'hidden';
+				input.name = 'categories';
+				input.value = String(id);
+				form.appendChild(input);
+			}
+		});
+	const categoryValidation = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().includes('?/saveDraft')
+	);
+	await page.getByRole('button', { name: 'Save draft' }).click();
+	expect(await actionStatus(await categoryValidation)).toBe(400);
+	await expect(page.locator('.categories-field .field-error')).toHaveText(
+		'Select no more than 30 categories per post.'
+	);
+	expect(
+		await page
+			.locator('.categories-field')
+			.evaluate((element) => element.nextElementSibling?.getAttribute('for'))
+	).toBe('tags');
+	for (const checkbox of await page.locator('input[name="categories"]:checked').all())
+		await checkbox.uncheck();
+
 	const assetId = await page.locator('input[name="assetId"]').inputValue();
 	await page.getByLabel('Title', { exact: true }).fill('Content smoke post');
 	await page.getByLabel('Description').fill('Content integrity smoke test.');
@@ -387,5 +445,11 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 		await page.goto(path);
 		await expect(page.locator('main')).toBeVisible();
 	}
+	const robots = await context.request.get('/robots.txt');
+	expect(robots.status()).toBe(200);
+	expect(robots.headers()['content-type']).toContain('text/plain');
+	expect(await robots.text()).toBe(
+		'User-agent: *\nAllow: /\nSitemap: http://localhost:5173/sitemap.xml\n'
+	);
 	expect(cspErrors).toEqual([]);
 });

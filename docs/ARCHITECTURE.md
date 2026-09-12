@@ -20,7 +20,7 @@ src/lib/server/markdown
 src/lib/server/media
   R2 image 검증, 목록, key 정책
 tests/unit
-  Content, Markdown, Media pure/server logic
+  Auth, Content, Markdown, Media pure/server logic
 tests/smoke
   Auth, Editor/Media, Content integrity browser integration
 ```
@@ -48,7 +48,7 @@ barrel export, repository/DAO/service 계층 없이 route와 실제 기능 파�
 
 `src/hooks.server.ts`는 Paraglide middleware와 Better Auth handler를 연결합니다. Root `+layout.server.ts`는 public page가 공유하는 user, Turnstile key, site URL을 제공합니다. Better Auth는 `username()`, `captcha(...)`, `sveltekitCookies(...)`만 사용하며 비밀번호, session, Turnstile을 담당합니다. 이메일은 가입 정보로 저장하지만 인증하지 않습니다. 공식 `session.cookieCache`를 120초 사용해 반복된 session D1 read를 줄입니다. 이 때문에 기존 session의 승인 또는 승인 해제 반영은 최대 120초 늦을 수 있으며, D1 read 감소를 위해 의도적으로 허용한 trade-off입니다.
 
-mayb-log 고유 계정 상태는 `user.approved` 하나입니다. `src/lib/server/auth/guards.ts`의 `requireUser()`가 현재 request의 로그인과 승인을 확인합니다. 보호 layout은 화면 이동 편의를 위한 것입니다. 모든 보호 page server load는 D1/R2 접근 전에, 모든 변경 action과 media 및 Preview endpoint는 action body 첫 단계에서 이 helper를 직접 호출합니다.
+mayb-log 고유 계정 상태는 `user.approved` 하나입니다. `src/lib/server/auth/guards.ts`의 `requireAuth()`는 공개 login/signup 같은 auth action에서 Better Auth runtime을 확인하고, `requireUser()`는 현재 request의 로그인과 승인을 확인합니다. 보호 layout은 화면 이동 편의를 위한 것입니다. 보호 영역의 page server load와 mutation action, media 및 Preview endpoint는 D1/R2 접근 전에 `requireUser()`를 직접 호출합니다.
 
 Cloudflare binding type은 Wrangler가 생성하는 `worker-configuration.d.ts`의 `Cloudflare.Env`가 source of truth입니다. `src/lib/server/platform.ts`의 `requirePlatform()`은 D1/R2 기능에서 runtime 부재를 일관된 500 infrastructure error로 처리하고 `requestDb()`도 이 경계를 사용합니다.
 
@@ -72,9 +72,9 @@ DB schema는 `src/lib/server/db/schema`, Post와 Taxonomy의 read/write query는
 
 `src/lib/server/markdown/render.ts`는 Markdown HTML의 유일한 renderer entry point이며 unified pipeline을 조립하고 first-image metadata와 최종 diagnostic 결과를 정리합니다. unified pipeline은 GFM, `remark-directive`, raw HTML 처리, `rehype-sanitize`, highlight 순서로 안전한 HTML을 만듭니다. `directives.ts`는 directive 확장을, `html-policy.ts`는 raw HTML·iframe 판별과 sanitizer schema를 소유합니다. 지원하지 않거나 잘못 작성한 block directive는 줄바꿈을 유지하는 code block으로 원문을 보존하고 non-fatal diagnostic을 남깁니다. Preview의 Warnings heading은 UI locale로 번역하지만 renderer가 만드는 기술 diagnostic은 canonical English를 그대로 표시합니다. 경고는 저장과 발행을 막지 않으며 공개 글과 RSS는 같은 최종 HTML만 사용합니다.
 
-raw fragment는 HAST로 parse합니다. 공백을 제외한 top-level element가 iframe 하나일 때만 제한된 HTTP(S) iframe을 허용하고 나머지는 원문 글자로 표시합니다. `/api/markdown-preview`와 공개 글은 같은 renderer와 sanitizer를 사용합니다. Preview는 버튼을 눌렀고 본문이 직전 Preview와 달라졌을 때만 요청하며 HTML과 간단한 line/column diagnostic을 받습니다.
+raw fragment는 HAST로 parse합니다. 공백을 제외한 top-level element가 iframe 하나일 때만 제한된 HTTP(S) iframe을 허용하고 나머지는 원문 글자로 표시합니다. `/api/markdown-preview`와 공개 글은 같은 renderer와 sanitizer를 사용합니다. Preview는 버튼을 눌렀고 본문이 직전 Preview와 달라졌을 때만 요청하며, 동시에 요청된 경우 가장 최근 본문의 HTML과 line/column diagnostic만 반영합니다.
 
-편집기는 plain textarea입니다. `PostForm.svelte`는 form submit과 화면 이탈 lifecycle, `PostMetadataFields.svelte`는 일반 field, `PostBodyEditor.svelte`는 Markdown·import·Preview, `ImageManager.svelte`는 image 상태와 mutation을 담당합니다. `.md` import는 공유된 1MiB 제한을 먼저 확인한 뒤 `File.text()`로 처리하며 서버의 UTF-8 byte 검증이 최종 권위입니다. 이미지 선택 시 browser-image-compression이 WebP, 긴 변 1600px, 최대 4MiB로 줄인 뒤 한 이미지씩 `/api/media/{assetId}`에 보냅니다. 서버는 MIME, 크기, WebP magic bytes를 검사하고 `posts/{assetId}/{imageId}.webp`에 저장합니다. 공개 URL은 `/media/{assetId}/{imageId}.webp`이고 response body는 R2에서 stream합니다.
+편집기는 plain textarea입니다. `PostForm.svelte`는 form submit과 화면 이탈 lifecycle, `PostMetadataFields.svelte`는 일반 field, `PostBodyEditor.svelte`는 Markdown·import·Preview, `ImageManager.svelte`는 image 상태와 mutation을 담당합니다. `.md` import는 공유된 1MiB 제한을 먼저 확인한 뒤 `File.text()`로 처리하며, 읽기 실패 시 기존 본문을 유지하고 번역된 오류를 표시합니다. 서버의 UTF-8 byte 검증이 최종 권위입니다. 이미지 선택 시 browser-image-compression이 WebP, 긴 변 1600px, 최대 4MiB로 줄인 뒤 한 이미지씩 `/api/media/{assetId}`에 보냅니다. 서버는 MIME, 크기, WebP magic bytes를 검사하고 `posts/{assetId}/{imageId}.webp`에 저장합니다. 공개 URL은 `/media/{assetId}/{imageId}.webp`이고 response body는 R2에서 stream합니다.
 
 R2 image list는 cursor를 끝까지 따라 유효한 object 전체를 조회한 뒤 `uploaded` 오름차순과 key tie-break로 정렬합니다. Editor UI만 그 결과를 client-side에서 20개씩 나눈 responsive thumbnail grid로 표시하며 URL navigation은 하지 않습니다. Page를 바꾸면 선택은 초기화되고, 현재 page에서 선택한 최대 20개 이미지를 `DELETE /api/media/{assetId}`의 한 JSON 요청과 R2 multi-delete로 지웁니다. Upload와 Delete는 하나의 mutation lock을 사용해 서로 겹치지 않으며 pending 동안 선택과 page도 고정합니다. 같은 파일도 새 UUID로 저장합니다. 화면 이탈, 글 삭제, Markdown 변경을 근거로 object를 자동 정리하지 않으며 orphan은 허용합니다.
 
@@ -88,7 +88,7 @@ DB date/time은 UTC instant입니다. machine-readable 값은 ISO 8601입니다.
 
 ## SEO와 cache
 
-`Seo.svelte`가 canonical, Open Graph, Twitter metadata를 만들고 상세 글은 BlogPosting JSON-LD를 제공합니다. 페이지가 나뉜 글 목록은 각 page URL을 canonical로 사용합니다. sitemap은 noindex, 임시 글, 미래 글을 제외하고 `updatedAt`을 lastmod로 사용합니다. RSS는 최근 공개 글 30개와 본문을 제공합니다. RSS와 sitemap response는 5분 public cache header를 보냅니다. 전역 Worker cache나 HTML edge cache는 사용하지 않습니다. R2 image는 immutable cache header를 사용합니다.
+`Seo.svelte`가 canonical, Open Graph, Twitter metadata를 만들고 상세 글은 BlogPosting JSON-LD를 제공합니다. 페이지가 나뉜 글 목록은 각 page URL을 canonical로 사용합니다. sitemap은 noindex, 임시 글, 미래 글을 제외하고 `updatedAt`을 lastmod로 사용합니다. `/robots.txt`는 runtime `SITE_URL`로 sitemap 주소를 만듭니다. RSS는 최근 공개 글 30개와 본문을 제공합니다. RSS와 sitemap response는 5분 public cache header를 보냅니다. 전역 Worker cache나 HTML edge cache는 사용하지 않습니다. R2 image는 immutable cache header를 사용합니다.
 
 CSP의 `style-src`는 `self`만 허용합니다. `style-src-attr 'unsafe-inline'`은 SvelteKit generated UI를 포함한 document 전체의 inline style attribute 호환성을 위한 정책이며 app 코드에서 inline style 사용을 권장한다는 뜻은 아닙니다. `script-src`는 inline script를 허용하지 않으며 Markdown sanitizer도 사용자 `style` attribute를 허용하지 않습니다. framework 생성 source를 수정하는 build transform은 사용하지 않습니다.
 

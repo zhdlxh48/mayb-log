@@ -2,6 +2,10 @@
 	"name": "mayb-log",
 	"private": true,
 	"version": "0.0.1",
+	"packageManager": "pnpm@11.25.0",
+	"engines": {
+		"node": ">=24.20.0 <25"
+	},
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",

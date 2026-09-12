@@ -32,6 +32,18 @@ test('protects mutations and keeps the username approval auth flow working', asy
 	]);
 	await page.goto('/login');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
+	await page.getByLabel('User ID').fill('missing_captcha_user');
+	await page.getByLabel('Password', { exact: true }).fill(password);
+	await page.locator('input[name="captcha"]').evaluate((element) => element.remove());
+	const missingLoginCaptcha = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().endsWith('/login')
+	);
+	await page.getByRole('button', { name: 'Login' }).click();
+	expect(await actionStatus(await missingLoginCaptcha)).toBe(400);
+	await expect(page.locator('.captcha-field .field-error')).toHaveText('Complete the robot check.');
+
+	await page.goto('/login');
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await page.getByRole('link', { name: 'Sign up' }).click();
 	await expect(page).toHaveURL('/signup');
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
@@ -44,6 +56,18 @@ test('protects mutations and keeps the username approval auth flow working', asy
 	await page.bringToFront();
 	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toBeAttached();
 	await otherTab.close();
+	await page.getByLabel('User ID').fill('missing_captcha_signup');
+	await page.getByLabel('Nickname').fill('Captcha Signup');
+	await page.getByLabel('Email').fill('missing-captcha@example.com');
+	await page.getByLabel('Password', { exact: true }).fill(password);
+	await page.getByLabel('Password confirmation').fill(password);
+	await page.locator('input[name="captcha"]').evaluate((element) => element.remove());
+	const missingSignupCaptcha = page.waitForResponse(
+		(response) => response.request().method() === 'POST' && response.url().endsWith('/signup')
+	);
+	await page.getByRole('button', { name: 'Sign up' }).click();
+	expect(await actionStatus(await missingSignupCaptcha)).toBe(400);
+	await expect(page.locator('.captcha-field .field-error')).toHaveText('Complete the robot check.');
 
 	const loginPasswordMarker = 'Sensitive-Login-Marker-123!';
 	const loginCaptchaMarker = 'Sensitive-Login-Captcha-Marker';
