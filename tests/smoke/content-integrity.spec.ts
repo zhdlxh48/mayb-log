@@ -162,8 +162,8 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 			.locator('.categories-field')
 			.evaluate((element) => element.nextElementSibling?.getAttribute('for'))
 	).toBe('tags');
-	for (const checkbox of await page.locator('input[name="categories"]:checked').all())
-		await checkbox.uncheck();
+	const selectedCategories = page.locator('input[name="categories"]:checked');
+	while (await selectedCategories.count()) await selectedCategories.first().uncheck();
 
 	const assetId = await page.locator('input[name="assetId"]').inputValue();
 	await page.getByLabel('Title', { exact: true }).fill('Content smoke post');
