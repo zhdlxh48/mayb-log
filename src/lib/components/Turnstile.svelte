@@ -68,9 +68,8 @@
 		script.addEventListener(
 			'error',
 			() => {
-				if (!mounted) return;
 				script.dataset.turnstileFailed = '';
-				loadError = true;
+				if (mounted) loadError = true;
 			},
 			{ once: true }
 		);

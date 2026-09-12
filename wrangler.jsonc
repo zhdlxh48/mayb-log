@@ -10,6 +10,12 @@
 	},
 	"workers_dev": true,
 	"preview_urls": true,
+	"routes": [
+		{
+			"pattern": "blog.mayb.moe",
+			"custom_domain": true
+		}
+	],
 	"secrets": {
 		"required": ["BETTER_AUTH_SECRET", "TURNSTILE_SECRET_KEY"]
 	},
@@ -28,7 +34,7 @@
 		}
 	],
 	"vars": {
-		"SITE_URL": "https://mayb-log.mayb.workers.dev",
+		"SITE_URL": "https://blog.mayb.moe",
 		"TURNSTILE_SITE_KEY": "0x4AAAAAAExikRB68jL2j075"
 	}
 }

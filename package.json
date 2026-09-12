@@ -10,7 +10,7 @@
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
-		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 5173",
+		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 5173 --local-upstream localhost:5173",
 		"i18n:compile": "paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide --strategy cookie preferredLanguage baseLocale --emit-ts-declarations",
 		"prepare": "pnpm i18n:compile && svelte-kit sync",
 		"check": "wrangler types && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

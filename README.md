@@ -2,7 +2,7 @@
 
 SvelteKit으로 만든 개인 블로그입니다. Cloudflare Workers에서 실행하며 D1에 계정과 글을, R2에 이미지를 저장합니다.
 
-운영 주소는 `https://mayb-log.mayb.workers.dev`입니다.
+운영 주소는 `https://blog.mayb.moe`입니다.
 
 ## 기술 구성
 
