@@ -25,7 +25,7 @@ export const actions: Actions = {
 				headers: authHeaders(request, form.data.captcha)
 			});
 			return {
-				form: redactSensitiveAuthForm(form),
+				form: await superValidate(zod4(signupSchema)),
 				success: m.signup_success()
 			};
 		} catch (error) {
