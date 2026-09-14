@@ -82,6 +82,26 @@ test('retries a Turnstile script that fails after the component unmounts', async
 	expect(scriptRequests).toBe(2);
 });
 
+test('restores Turnstile when a page returns from the back-forward cache', async ({ page }) => {
+	await page.route('**/turnstile/v0/api.js?render=explicit', async (route) => {
+		await route.fulfill({
+			contentType: 'application/javascript',
+			body: `window.turnstile={render(container,options){window.__turnstileRenderCount=(window.__turnstileRenderCount||0)+1;const input=document.createElement('input');input.name=options['response-field-name'];input.value='token-'+window.__turnstileRenderCount;container.appendChild(input);return 'widget-'+window.__turnstileRenderCount},remove(){document.querySelector('[data-turnstile-container]')?.replaceChildren()}}`
+		});
+	});
+
+	await page.goto('/login');
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toHaveValue(
+		'token-1'
+	);
+	await page.evaluate(() =>
+		window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
+	);
+	await expect(page.locator('[data-turnstile-container] input[name="captcha"]')).toHaveValue(
+		'token-2'
+	);
+});
+
 test('protects mutations and keeps the username approval auth flow working', async ({
 	page,
 	request,
