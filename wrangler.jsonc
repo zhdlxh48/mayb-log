@@ -9,7 +9,7 @@
 		"directory": ".svelte-kit/cloudflare"
 	},
 	"workers_dev": false,
-	"preview_urls": true,
+	"preview_urls": false,
 	"routes": [
 		{
 			"pattern": "blog.mayb.moe",
