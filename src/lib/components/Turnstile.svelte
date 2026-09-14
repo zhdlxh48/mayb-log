@@ -75,8 +75,12 @@
 		);
 	}
 
-	function restoreWidget() {
-		if (document.visibilityState === 'hidden' || container.childElementCount > 0) return;
+	function restoreWidget(event: PageTransitionEvent) {
+		if (
+			document.visibilityState === 'hidden' ||
+			(!event.persisted && container.childElementCount > 0)
+		)
+			return;
 		const turnstile = getTurnstile();
 		if (widgetId && turnstile) turnstile.remove(widgetId);
 		widgetId = undefined;
