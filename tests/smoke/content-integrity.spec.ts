@@ -563,7 +563,7 @@ test('preserves PostgreSQL search fields, filters, dates, and pagination', async
 	await sql(
 		`INSERT INTO posts
 			(asset_id, author_id, title, description, body_markdown, noindex, published_at, created_at, updated_at)
-		 SELECT gen_random_uuid()::text, $1, 'Pagingmarker ' || value, 'paging fixture', 'paging fixture', false,
+			 SELECT gen_random_uuid(), $1, 'Pagingmarker ' || value, 'paging fixture', 'paging fixture', false,
 			TIMESTAMPTZ '2026-08-01 00:00:00+00' + value * INTERVAL '1 minute', now(), now()
 		 FROM generate_series(1, 22) AS value`,
 		[authorId]

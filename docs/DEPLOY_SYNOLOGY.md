@@ -42,7 +42,7 @@ GARAGE_DEFAULT_BUCKET = S3_BUCKET
 SITE_URL = ORIGIN = https://blog.mayb.moe
 ```
 
-운영 Turnstile site key와 secret key를 설정합니다. `.env`와 백업본을 Git에 넣지 마세요. `MAYB_LOG_IMAGE`는 검증된 immutable image를 권장합니다.
+운영 Turnstile site key와 secret key를 설정합니다. `.env`와 백업본을 Git에 넣지 마세요. `MAYB_LOG_IMAGE`는 검증된 commit-specific source-revision tag를 권장합니다. 내용 자체를 고정해야 하면 GHCR digest(`@sha256:...`)를 사용합니다.
 
 ```text
 MAYB_LOG_IMAGE=ghcr.io/zhdlxh48/mayb-log:sha-<full-commit-sha>
@@ -113,14 +113,3 @@ single-node Garage와 SSD 한 개는 redundancy가 아닙니다. 최소한 다�
 - production `.env`와 secret의 암호화된 별도 사본
 
 Garage metadata와 object data를 서로 다른 시점에 복사하면 일관성이 깨질 수 있습니다. Garage 공식 snapshot/backup 절차를 확인하고 서비스를 멈추거나 일관된 filesystem snapshot을 사용하세요. Synology Btrfs snapshot은 같은 장치 안의 복구 수단이며 off-device backup이 아닙니다.
-
-## 기존 Cloudflare 데이터
-
-이 배포는 기존 D1과 R2 데이터를 자동으로 옮기지 않습니다. 운영 데이터가 있다면 cutover 전에 별도 one-off 이전과 검증이 필요합니다.
-
-- D1 SQLite export를 PostgreSQL에 그대로 import하지 않습니다. boolean, timestamptz, serial, FK, `pg_trgm` 차이를 변환합니다.
-- R2 object는 기존 `posts/{assetId}/{imageId}.webp` key를 그대로 Garage에 복사할 수 있습니다.
-- key를 유지하면 Markdown의 `/media/{assetId}/{imageId}.webp` URL은 바뀌지 않습니다.
-- DB 행 수, 참조 무결성, 공개/예약 상태, 사용자 로그인과 이미지 GET을 확인한 뒤 DNS/Caddy를 전환합니다.
-
-이번 repository 변경은 live Cloudflare 계정이나 production 데이터에 접속하지 않습니다.

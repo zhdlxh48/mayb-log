@@ -5,7 +5,7 @@ import type { SearchFilters } from '$lib/search';
 import type { Database } from '$lib/server/db';
 import { user } from '$lib/server/db/schema/auth';
 import { postCategories, posts, postTags, series } from '$lib/server/db/schema/content';
-import { mapPost, postSummarySelection, publicPostCondition } from './posts/read';
+import { postSummarySelection, publicPostCondition } from './posts/read';
 
 function escapedPattern(value: string) {
 	return `%${value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')}%`;
@@ -87,5 +87,5 @@ export async function searchPosts(
 		.orderBy(desc(posts.publishedAt), desc(posts.id))
 		.limit(POSTS_PER_PAGE)
 		.offset((page - 1) * POSTS_PER_PAGE);
-	return rows.map(mapPost);
+	return rows;
 }

@@ -1,5 +1,7 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
-import { Pool, type QueryResultRow } from 'pg';
+import { Pool, types, type QueryResultRow } from 'pg';
+
+types.setTypeParser(types.builtins.INT8, Number);
 
 const pool = new Pool({
 	host: '127.0.0.1',

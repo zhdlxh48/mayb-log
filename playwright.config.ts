@@ -4,7 +4,7 @@ export default defineConfig({
 	testDir: 'tests/smoke',
 	workers: 1,
 	webServer: {
-		command: 'docker compose -f compose.test.yaml up --build',
+		command: 'docker compose -f compose.test.yaml up --no-build',
 		port: 5173,
 		reuseExistingServer: false,
 		timeout: 180_000
