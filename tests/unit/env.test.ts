@@ -26,6 +26,34 @@ describe('server environment', () => {
 		expect(config.s3.forcePathStyle).toBe(false);
 	});
 
+	it('preserves surrounding whitespace in credentials', () => {
+		const config = parseServerConfig({
+			...valid,
+			BETTER_AUTH_SECRET: ` ${'a'.repeat(32)} `,
+			PGPASSWORD: ' password ',
+			S3_SECRET_ACCESS_KEY: ' s3-secret '
+		});
+
+		expect(config.betterAuthSecret).toBe(` ${'a'.repeat(32)} `);
+		expect(config.postgres.password).toBe(' password ');
+		expect(config.s3.secretAccessKey).toBe(' s3-secret ');
+	});
+
+	it.each([
+		['BETTER_AUTH_SECRET', ' '.repeat(32)],
+		['TURNSTILE_SECRET_KEY', '   '],
+		['PGPASSWORD', '\t'],
+		['S3_ACCESS_KEY_ID', '\n'],
+		['S3_SECRET_ACCESS_KEY', '   ']
+	])('rejects blank %s without exposing its value', (field, value) => {
+		expect(() => parseServerConfig({ ...valid, [field]: value })).toThrow(field);
+		try {
+			parseServerConfig({ ...valid, [field]: value });
+		} catch (error) {
+			expect(error instanceof Error ? error.message : String(error)).not.toContain(value);
+		}
+	});
+
 	it.each([
 		['SITE_URL', 'ftp://example.com'],
 		['BETTER_AUTH_SECRET', 'too-short'],
