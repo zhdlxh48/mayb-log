@@ -1,11 +1,11 @@
 import { redirect } from '@sveltejs/kit';
 import { pagination, requestedPage } from '$lib/pagination';
 import { countPublishedPosts, getPublishedPostPage } from '$lib/server/db/queries/posts/read';
-import { requestDb } from '$lib/server/db/request';
+import { database } from '$lib/server/db';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ platform, url }) => {
-	const db = requestDb(platform);
+export const load: PageServerLoad = async ({ url }) => {
+	const db = database();
 	const now = new Date();
 	const page = requestedPage(url.searchParams.get('page'));
 	const total = await countPublishedPosts(db, now);

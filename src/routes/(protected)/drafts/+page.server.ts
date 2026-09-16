@@ -1,9 +1,9 @@
 import { getDrafts } from '$lib/server/db/queries/posts/read';
-import { requestDb } from '$lib/server/db/request';
+import { database } from '$lib/server/db';
 import { requireUser } from '$lib/server/auth/guards';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ platform }) => {
+export const load: PageServerLoad = async () => {
 	requireUser();
-	return { items: await getDrafts(requestDb(platform)) };
+	return { items: await getDrafts(database()) };
 };

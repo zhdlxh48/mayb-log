@@ -7,17 +7,22 @@ export async function saveSeries(
 	value: { title: string; description: string },
 	id?: number
 ) {
-	if (id !== undefined)
-		return db.update(series).set(value).where(eq(series.id, id)).returning({ id: series.id }).get();
-	return db.insert(series).values(value).returning({ id: series.id }).get();
+	const [saved] =
+		id !== undefined
+			? await db.update(series).set(value).where(eq(series.id, id)).returning({ id: series.id })
+			: await db.insert(series).values(value).returning({ id: series.id });
+	return saved ?? null;
 }
 
 export async function removeSeries(db: Database, id: number) {
-	const [, removed] = await db.batch([
-		db.update(posts).set({ seriesId: null, seriesPosition: null }).where(eq(posts.seriesId, id)),
-		db.delete(series).where(eq(series.id, id)).returning({ id: series.id })
-	]);
-	return (removed as { id: number }[])[0] ?? null;
+	return db.transaction(async (tx) => {
+		await tx
+			.update(posts)
+			.set({ seriesId: null, seriesPosition: null })
+			.where(eq(posts.seriesId, id));
+		const [removed] = await tx.delete(series).where(eq(series.id, id)).returning({ id: series.id });
+		return removed ?? null;
+	});
 }
 
 export async function saveCategory(
@@ -25,16 +30,21 @@ export async function saveCategory(
 	value: { name: string; description: string },
 	id?: number
 ) {
-	if (id !== undefined)
-		return db
-			.update(categories)
-			.set(value)
-			.where(eq(categories.id, id))
-			.returning({ id: categories.id })
-			.get();
-	return db.insert(categories).values(value).returning({ id: categories.id }).get();
+	const [saved] =
+		id !== undefined
+			? await db
+					.update(categories)
+					.set(value)
+					.where(eq(categories.id, id))
+					.returning({ id: categories.id })
+			: await db.insert(categories).values(value).returning({ id: categories.id });
+	return saved ?? null;
 }
 
 export async function removeCategory(db: Database, id: number) {
-	return db.delete(categories).where(eq(categories.id, id)).returning({ id: categories.id }).get();
+	const [removed] = await db
+		.delete(categories)
+		.where(eq(categories.id, id))
+		.returning({ id: categories.id });
+	return removed ?? null;
 }

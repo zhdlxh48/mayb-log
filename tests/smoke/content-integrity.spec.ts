@@ -26,32 +26,30 @@ const seriesTitles = [
 	'Date navigation series'
 ];
 
-function cleanupTaxonomy() {
-	sql(
-		`DELETE FROM categories WHERE name IN (${categoryNames.map((name) => `'${name}'`).join(',')});`
-	);
-	sql(
-		`DELETE FROM series WHERE title IN (${seriesTitles.map((title) => `'${title}'`).join(',')});`
-	);
+async function cleanupTaxonomy() {
+	await sql('DELETE FROM categories WHERE name = ANY($1::text[])', [categoryNames]);
+	await sql('DELETE FROM series WHERE title = ANY($1::text[])', [seriesTitles]);
 }
 
 test.beforeEach(async ({ request }) => {
-	cleanupUser(username);
-	cleanupTaxonomy();
-	sql(
-		`INSERT INTO categories (name, description) VALUES ${categoryNames.map((name) => `('${name}', 'fixture')`).join(',')};`
+	await cleanupUser(username);
+	await cleanupTaxonomy();
+	await sql(
+		"INSERT INTO categories (name, description) SELECT name, 'fixture' FROM unnest($1::text[]) AS name",
+		[categoryNames]
 	);
-	sql(
-		`INSERT INTO series (title, description) VALUES ${seriesTitles.map((title) => `('${title}', 'fixture')`).join(',')};`
+	await sql(
+		"INSERT INTO series (title, description) SELECT title, 'fixture' FROM unnest($1::text[]) AS title",
+		[seriesTitles]
 	);
 	const created = await signup(request, username, 'Content Smoke User');
 	expect(created.ok(), `${created.status()} ${await created.text()}`).toBe(true);
-	approveUser(username);
+	await approveUser(username);
 });
 
-test.afterEach(() => {
-	cleanupUser(username);
-	cleanupTaxonomy();
+test.afterEach(async () => {
+	await cleanupUser(username);
+	await cleanupTaxonomy();
 });
 
 test('preserves Post and taxonomy integrity across conflicts and publication', async ({
@@ -75,24 +73,27 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 	for (const path of ['/posts?page=999999', '/search?page=999999'])
 		expect((await context.request.get(path, { maxRedirects: 0 })).status(), path).toBe(303);
 
-	const dateSeriesId = query<{ id: number }>(
-		"SELECT id FROM series WHERE title = 'Date navigation series'"
+	const dateSeriesId = (
+		await query<{ id: number }>("SELECT id FROM series WHERE title = 'Date navigation series'")
 	)[0].id;
 	const firstDateAssetId = crypto.randomUUID();
 	const secondDateAssetId = crypto.randomUUID();
-	const firstPublishedAt = Date.parse('2026-09-01T00:00:00.000Z');
-	const secondPublishedAt = Date.parse('2026-09-02T00:00:00.000Z');
-	sql(`INSERT INTO posts (asset_id, author_id, title, description, body_markdown, series_id, series_position, noindex, published_at, created_at, updated_at)
-		SELECT '${firstDateAssetId}', id, 'Date navigation A', 'fixture', 'fixture', ${dateSeriesId}, 1, 0, ${firstPublishedAt}, ${firstPublishedAt}, ${firstPublishedAt}
-		FROM user WHERE username = '${username}';
-		INSERT INTO posts (asset_id, author_id, title, description, body_markdown, series_id, series_position, noindex, published_at, created_at, updated_at)
-		SELECT '${secondDateAssetId}', id, 'Date navigation B', 'fixture', 'fixture', ${dateSeriesId}, 2, 0, ${secondPublishedAt}, ${secondPublishedAt}, ${secondPublishedAt}
-		FROM user WHERE username = '${username}';`);
-	const firstDatePostId = query<{ id: number }>(
-		`SELECT id FROM posts WHERE asset_id = '${firstDateAssetId}'`
+	const firstPublishedAt = new Date('2026-09-01T00:00:00.000Z');
+	const secondPublishedAt = new Date('2026-09-02T00:00:00.000Z');
+	for (const [assetId, title, position, publishedAt] of [
+		[firstDateAssetId, 'Date navigation A', 1, firstPublishedAt],
+		[secondDateAssetId, 'Date navigation B', 2, secondPublishedAt]
+	] as const)
+		await sql(
+			`INSERT INTO posts (asset_id, author_id, title, description, body_markdown, series_id, series_position, noindex, published_at, created_at, updated_at)
+			 SELECT $1, id, $2, 'fixture', 'fixture', $3, $4, false, $5, $5, $5 FROM "user" WHERE username = $6`,
+			[assetId, title, dateSeriesId, position, publishedAt, username]
+		);
+	const firstDatePostId = (
+		await query<{ id: number }>(`SELECT id FROM posts WHERE asset_id = '${firstDateAssetId}'`)
 	)[0].id;
-	const secondDatePostId = query<{ id: number }>(
-		`SELECT id FROM posts WHERE asset_id = '${secondDateAssetId}'`
+	const secondDatePostId = (
+		await query<{ id: number }>(`SELECT id FROM posts WHERE asset_id = '${secondDateAssetId}'`)
 	)[0].id;
 	await page.goto(`/posts/${firstDatePostId}`);
 	const firstDateTime = await page.locator('article time').getAttribute('datetime');
@@ -172,10 +173,10 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 	await page.getByLabel('Tags').fill('original-tag');
 	await page.getByLabel('Content category').check();
 	await page.getByLabel('Stale new category').check();
-	const staleNewCategoryId = query<{ id: number }>(
-		"SELECT id FROM categories WHERE name = 'Stale new category'"
+	const staleNewCategoryId = (
+		await query<{ id: number }>("SELECT id FROM categories WHERE name = 'Stale new category'")
 	)[0].id;
-	sql(`DELETE FROM categories WHERE id = ${staleNewCategoryId};`);
+	await sql(`DELETE FROM categories WHERE id = ${staleNewCategoryId};`);
 	const staleNewSave = page.waitForResponse(
 		(response) => response.request().method() === 'POST' && response.url().includes('?/saveDraft')
 	);
@@ -185,16 +186,21 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 		'The taxonomy changed. Review the current taxonomy and save again.'
 	);
 	expect(
-		query<{ value: number }>(`SELECT count(*) AS value FROM posts WHERE asset_id = '${assetId}'`)[0]
-			.value
+		(
+			await query<{ value: number }>(
+				`SELECT count(*)::int AS value FROM posts WHERE asset_id = '${assetId}'`
+			)
+		)[0].value
 	).toBe(0);
-	const contentSeriesId = query<{ id: number }>(
-		"SELECT id FROM series WHERE title = 'Content series'"
+	const contentSeriesId = (
+		await query<{ id: number }>("SELECT id FROM series WHERE title = 'Content series'")
 	)[0].id;
 	const blockerAssetId = crypto.randomUUID();
-	sql(`INSERT INTO posts (asset_id, author_id, title, description, body_markdown, series_id, series_position, noindex, published_at, created_at, updated_at)
-		SELECT '${blockerAssetId}', id, 'Series blocker', 'fixture', 'fixture', ${contentSeriesId}, 1, 0, NULL, 1, 1
-		FROM user WHERE username = '${username}';`);
+	await sql(
+		`INSERT INTO posts (asset_id, author_id, title, description, body_markdown, series_id, series_position, noindex, published_at, created_at, updated_at)
+		 SELECT $1, id, 'Series blocker', 'fixture', 'fixture', $2, 1, false, NULL, now(), now() FROM "user" WHERE username = $3`,
+		[blockerAssetId, contentSeriesId, username]
+	);
 	await page.locator('#seriesId').selectOption(String(contentSeriesId));
 	await page.getByLabel('Series position').fill('1');
 	const uniqueConflict = page.waitForResponse(
@@ -214,8 +220,8 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 	const editUrl = page.url();
 	const postId = Number(editUrl.match(/\/posts\/(\d+)\/edit/)?.[1]);
 	expect(postId).toBeGreaterThan(0);
-	const categoryId = query<{ id: number }>(
-		"SELECT id FROM categories WHERE name = 'Content category'"
+	const categoryId = (
+		await query<{ id: number }>("SELECT id FROM categories WHERE name = 'Content category'")
 	)[0].id;
 
 	const invalidDateAssetId = crypto.randomUUID();
@@ -232,8 +238,10 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 	});
 	expect(await actionStatus(invalidDate)).toBe(400);
 	expect(
-		query<{ value: number }>(
-			`SELECT count(*) AS value FROM posts WHERE asset_id = '${invalidDateAssetId}'`
+		(
+			await query<{ value: number }>(
+				`SELECT count(*)::int AS value FROM posts WHERE asset_id = '${invalidDateAssetId}'`
+			)
 		)[0].value
 	).toBe(0);
 
@@ -252,13 +260,13 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 		expect(await actionStatus(response), name).toBe(404);
 	}
 
-	const stalePostCategoryId = query<{ id: number }>(
-		"SELECT id FROM categories WHERE name = 'Stale post category'"
+	const stalePostCategoryId = (
+		await query<{ id: number }>("SELECT id FROM categories WHERE name = 'Stale post category'")
 	)[0].id;
 	await page.getByLabel('Stale post category').check();
 	await page.getByLabel('Title', { exact: true }).fill('Stale category should roll back');
 	await page.getByLabel('Tags').fill('stale-category-tag');
-	sql(`DELETE FROM categories WHERE id = ${stalePostCategoryId};`);
+	await sql(`DELETE FROM categories WHERE id = ${stalePostCategoryId};`);
 	const staleCategorySave = page.waitForResponse(
 		(response) => response.request().method() === 'POST' && response.url().includes('?/saveDraft')
 	);
@@ -267,30 +275,30 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 	await expect(page.getByRole('alert')).toHaveText(
 		'The taxonomy changed. Review the current taxonomy and save again.'
 	);
-	expect(query<{ title: string }>(`SELECT title FROM posts WHERE id = ${postId}`)[0].title).toBe(
-		'Content smoke post'
-	);
-	expect(query<{ tag: string }>(`SELECT tag FROM post_tags WHERE post_id = ${postId}`)).toEqual([
-		{ tag: 'original-tag' }
-	]);
+	expect(
+		(await query<{ title: string }>(`SELECT title FROM posts WHERE id = ${postId}`))[0].title
+	).toBe('Content smoke post');
+	expect(
+		await query<{ tag: string }>(`SELECT tag FROM post_tags WHERE post_id = ${postId}`)
+	).toEqual([{ tag: 'original-tag' }]);
 	await page.getByLabel('Title', { exact: true }).fill('Content smoke post');
 	await page.getByLabel('Tags').fill('original-tag');
 
-	const stalePostSeriesId = query<{ id: number }>(
-		"SELECT id FROM series WHERE title = 'Stale post series'"
+	const stalePostSeriesId = (
+		await query<{ id: number }>("SELECT id FROM series WHERE title = 'Stale post series'")
 	)[0].id;
 	await page.locator('#seriesId').selectOption(String(stalePostSeriesId));
 	await page.getByLabel('Series position').fill('2');
 	await page.getByLabel('Title', { exact: true }).fill('Stale series should roll back');
-	sql(`DELETE FROM series WHERE id = ${stalePostSeriesId};`);
+	await sql(`DELETE FROM series WHERE id = ${stalePostSeriesId};`);
 	const staleSeriesSave = page.waitForResponse(
 		(response) => response.request().method() === 'POST' && response.url().includes('?/saveDraft')
 	);
 	await page.getByRole('button', { name: 'Save draft' }).click();
 	expect((await staleSeriesSave).status()).toBe(409);
-	expect(query<{ title: string }>(`SELECT title FROM posts WHERE id = ${postId}`)[0].title).toBe(
-		'Content smoke post'
-	);
+	expect(
+		(await query<{ title: string }>(`SELECT title FROM posts WHERE id = ${postId}`))[0].title
+	).toBe('Content smoke post');
 	await page.getByLabel('Title', { exact: true }).fill('Content smoke post');
 	await page.locator('#seriesId').selectOption('');
 	await page.getByLabel('Series position').fill('');
@@ -311,12 +319,12 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 		)
 	});
 	expect(await actionStatus(directConflict)).toBe(409);
-	expect(query<{ title: string }>(`SELECT title FROM posts WHERE id = ${postId}`)[0].title).toBe(
-		'Content smoke post'
-	);
-	expect(query<{ tag: string }>(`SELECT tag FROM post_tags WHERE post_id = ${postId}`)).toEqual([
-		{ tag: 'original-tag' }
-	]);
+	expect(
+		(await query<{ title: string }>(`SELECT title FROM posts WHERE id = ${postId}`))[0].title
+	).toBe('Content smoke post');
+	expect(
+		await query<{ tag: string }>(`SELECT tag FROM post_tags WHERE post_id = ${postId}`)
+	).toEqual([{ tag: 'original-tag' }]);
 
 	for (const path of [
 		'/categories/abc/edit',
@@ -338,10 +346,10 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 	});
 	expect(await actionStatus(invalidSeriesEdit)).toBe(404);
 
-	const staleEditCategoryId = query<{ id: number }>(
-		"SELECT id FROM categories WHERE name = 'Stale edit category'"
+	const staleEditCategoryId = (
+		await query<{ id: number }>("SELECT id FROM categories WHERE name = 'Stale edit category'")
 	)[0].id;
-	sql(`DELETE FROM categories WHERE id = ${staleEditCategoryId};`);
+	await sql(`DELETE FROM categories WHERE id = ${staleEditCategoryId};`);
 	expect(
 		await actionStatus(
 			await context.request.post(`/categories/${staleEditCategoryId}/edit?/save`, {
@@ -350,10 +358,10 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 			})
 		)
 	).toBe(409);
-	const staleEditSeriesId = query<{ id: number }>(
-		"SELECT id FROM series WHERE title = 'Stale edit series'"
+	const staleEditSeriesId = (
+		await query<{ id: number }>("SELECT id FROM series WHERE title = 'Stale edit series'")
 	)[0].id;
-	sql(`DELETE FROM series WHERE id = ${staleEditSeriesId};`);
+	await sql(`DELETE FROM series WHERE id = ${staleEditSeriesId};`);
 	expect(
 		await actionStatus(
 			await context.request.post(`/series/${staleEditSeriesId}/edit?/save`, {
@@ -363,13 +371,15 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 		)
 	).toBe(409);
 
-	const atomicSeriesId = query<{ id: number }>(
-		"SELECT id FROM series WHERE title = 'Atomic delete series'"
+	const atomicSeriesId = (
+		await query<{ id: number }>("SELECT id FROM series WHERE title = 'Atomic delete series'")
 	)[0].id;
 	const atomicAssetId = crypto.randomUUID();
-	sql(`INSERT INTO posts (asset_id, author_id, title, description, body_markdown, series_id, series_position, noindex, published_at, created_at, updated_at)
-		SELECT '${atomicAssetId}', id, 'Atomic series post', 'fixture', 'fixture', ${atomicSeriesId}, 3, 0, NULL, 1, 1
-		FROM user WHERE username = '${username}';`);
+	await sql(
+		`INSERT INTO posts (asset_id, author_id, title, description, body_markdown, series_id, series_position, noindex, published_at, created_at, updated_at)
+		 SELECT $1, id, 'Atomic series post', 'fixture', 'fixture', $2, 3, false, NULL, now(), now() FROM "user" WHERE username = $3`,
+		[atomicAssetId, atomicSeriesId, username]
+	);
 	expect(
 		await actionStatus(
 			await context.request.post(`/series/${atomicSeriesId}/edit?/delete`, {
@@ -379,8 +389,10 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 		)
 	).toBe(303);
 	expect(
-		query<{ seriesId: number | null; seriesPosition: number | null }>(
-			`SELECT series_id AS seriesId, series_position AS seriesPosition FROM posts WHERE asset_id = '${atomicAssetId}'`
+		(
+			await query<{ seriesId: number | null; seriesPosition: number | null }>(
+				`SELECT series_id AS "seriesId", series_position AS "seriesPosition" FROM posts WHERE asset_id = '${atomicAssetId}'`
+			)
 		)[0]
 	).toEqual({ seriesId: null, seriesPosition: null });
 
@@ -398,8 +410,8 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 		})
 	});
 	expect(await actionStatus(future)).toBe(303);
-	const futureId = query<{ id: number }>(
-		`SELECT id FROM posts WHERE asset_id = '${futureAssetId}'`
+	const futureId = (
+		await query<{ id: number }>(`SELECT id FROM posts WHERE asset_id = '${futureAssetId}'`)
 	)[0].id;
 	expect((await context.request.get(`/posts/${futureId}`)).status()).toBe(404);
 	expect((await context.request.get(`/posts/${futureId}/edit`)).status()).toBe(200);
@@ -452,4 +464,118 @@ test('preserves Post and taxonomy integrity across conflicts and publication', a
 		'User-agent: *\nAllow: /\nSitemap: http://localhost:5173/sitemap.xml\n'
 	);
 	expect(cspErrors).toEqual([]);
+});
+
+test('preserves PostgreSQL search fields, filters, dates, and pagination', async ({ request }) => {
+	const authorId = (
+		await query<{ id: string }>('SELECT id FROM "user" WHERE username = $1', [username])
+	)[0].id;
+	const [firstCategory, secondCategory] = await query<{ id: number; name: string }>(
+		'SELECT id, name FROM categories WHERE name = ANY($1::text[]) ORDER BY name',
+		[['Content category', 'Stale new category']]
+	);
+
+	async function addPost(
+		title: string,
+		subtitle: string,
+		description: string,
+		body: string,
+		publishedAt: Date
+	) {
+		return (
+			await query<{ id: number }>(
+				`INSERT INTO posts
+					(asset_id, author_id, title, subtitle, description, body_markdown, noindex, published_at, created_at, updated_at)
+				 VALUES ($1, $2, $3, $4, $5, $6, false, $7, $7, $7)
+				 RETURNING id`,
+				[crypto.randomUUID(), authorId, title, subtitle, description, body, publishedAt]
+			)
+		)[0].id;
+	}
+
+	const titlePostId = await addPost(
+		'Search titlemarker 단 두글',
+		'',
+		'plain description',
+		'plain body',
+		new Date('2026-09-10T00:00:00.000Z')
+	);
+	const subtitlePostId = await addPost(
+		'Search subtitle result',
+		'submarker',
+		'plain description',
+		'plain body',
+		new Date('2026-09-11T00:00:00.000Z')
+	);
+	const descriptionPostId = await addPost(
+		'Search description result',
+		'',
+		'descmarker',
+		'plain body',
+		new Date('2026-09-12T00:00:00.000Z')
+	);
+	const bodyPostId = await addPost(
+		'Search body result',
+		'',
+		'plain description',
+		'bodymarker 대한민국 단 두글',
+		new Date('2026-09-13T00:00:00.000Z')
+	);
+	await sql(
+		'INSERT INTO post_categories (post_id, category_id) VALUES ($1, $2), ($1, $3), ($4, $2)',
+		[titlePostId, firstCategory.id, secondCategory.id, subtitlePostId]
+	);
+	await sql(
+		"INSERT INTO post_tags (post_id, tag) VALUES ($1, 'alpha'), ($1, 'beta'), ($2, 'alpha')",
+		[titlePostId, descriptionPostId]
+	);
+
+	for (const [queryText, expectedTitle] of [
+		['titlemarker', 'Search titlemarker 단 두글'],
+		['submarker', 'Search subtitle result'],
+		['descmarker', 'Search description result'],
+		['bodymarker', 'Search body result'],
+		['대한민국', 'Search body result']
+	] as const) {
+		const body = await (await request.get(`/search?q=${encodeURIComponent(queryText)}`)).text();
+		expect(body, queryText).toContain(expectedTitle);
+	}
+	for (const queryText of ['단', '두글']) {
+		const body = await (await request.get(`/search?q=${encodeURIComponent(queryText)}`)).text();
+		expect(body, queryText).toContain('Search titlemarker 단 두글');
+		expect(body, queryText).not.toContain('Search body result');
+	}
+
+	const categorySearch = await (
+		await request.get(`/search?category=${firstCategory.id}&category=${secondCategory.id}`)
+	).text();
+	expect(categorySearch).toContain('Search titlemarker 단 두글');
+	expect(categorySearch).not.toContain('Search subtitle result');
+	const tagSearch = await (await request.get('/search?tag=alpha&tag=beta')).text();
+	expect(tagSearch).toContain('Search titlemarker 단 두글');
+	expect(tagSearch).not.toContain('Search description result');
+	const dateSearch = await (await request.get('/search?from=2026-09-10&to=2026-09-10')).text();
+	expect(dateSearch).toContain('Search titlemarker 단 두글');
+	expect(dateSearch).not.toContain('Search subtitle result');
+	const authorSearch = await (await request.get(`/search?author=${username}`)).text();
+	expect(authorSearch).toContain('Search body result');
+
+	await sql(
+		`INSERT INTO posts
+			(asset_id, author_id, title, description, body_markdown, noindex, published_at, created_at, updated_at)
+		 SELECT gen_random_uuid()::text, $1, 'Pagingmarker ' || value, 'paging fixture', 'paging fixture', false,
+			TIMESTAMPTZ '2026-08-01 00:00:00+00' + value * INTERVAL '1 minute', now(), now()
+		 FROM generate_series(1, 22) AS value`,
+		[authorId]
+	);
+	const firstPage = await (await request.get('/search?q=pagingmarker')).text();
+	const secondPage = await (await request.get('/search?q=pagingmarker&page=2')).text();
+	expect(firstPage).toContain('Pagingmarker 22');
+	expect(firstPage).not.toContain('Pagingmarker 1</a>');
+	expect(secondPage).toContain('Pagingmarker 1');
+	expect(secondPage).not.toContain('Pagingmarker 22');
+	expect(firstPage.indexOf('Pagingmarker 22')).toBeLessThan(firstPage.indexOf('Pagingmarker 21'));
+
+	expect(titlePostId).toBeGreaterThan(0);
+	expect(bodyPostId).toBeGreaterThan(0);
 });

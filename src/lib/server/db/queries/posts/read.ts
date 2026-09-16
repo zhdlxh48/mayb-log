@@ -4,21 +4,24 @@ import type { Database } from '$lib/server/db';
 import { user } from '$lib/server/db/schema/auth';
 import { categories, postCategories, posts, postTags, series } from '$lib/server/db/schema/content';
 
-const categoryNames = sql<string>`COALESCE((SELECT json_group_array(name) FROM (
-	SELECT ${categories.name} AS name FROM ${postCategories}
+const categoryNames = sql<string[]>`COALESCE((
+	SELECT json_agg(${categories.name} ORDER BY ${categories.name})
+	FROM ${postCategories}
 	INNER JOIN ${categories} ON ${categories.id} = ${postCategories.categoryId}
-	WHERE ${postCategories.postId} = ${posts.id} ORDER BY ${categories.name}
-)), '[]')`;
+	WHERE ${postCategories.postId} = ${posts.id}
+), '[]'::json)`;
 
-const joinedTagNames = sql<string>`COALESCE((SELECT json_group_array(tag) FROM (
-	SELECT ${postTags.tag} AS tag FROM ${postTags}
-	WHERE ${postTags.postId} = ${posts.id} ORDER BY ${postTags.tag}
-)), '[]')`;
+const joinedTagNames = sql<string[]>`COALESCE((
+	SELECT json_agg(${postTags.tag} ORDER BY ${postTags.tag})
+	FROM ${postTags}
+	WHERE ${postTags.postId} = ${posts.id}
+), '[]'::json)`;
 
-const categoryIds = sql<string>`COALESCE((SELECT json_group_array(category_id) FROM (
-	SELECT ${postCategories.categoryId} AS category_id FROM ${postCategories}
-	WHERE ${postCategories.postId} = ${posts.id} ORDER BY ${postCategories.categoryId}
-)), '[]')`;
+const categoryIds = sql<number[]>`COALESCE((
+	SELECT json_agg(${postCategories.categoryId} ORDER BY ${postCategories.categoryId})
+	FROM ${postCategories}
+	WHERE ${postCategories.postId} = ${posts.id}
+), '[]'::json)`;
 
 export const postSummarySelection = {
 	id: posts.id,
@@ -61,31 +64,12 @@ const postEditorSelection = {
 
 export type Post = NonNullable<Awaited<ReturnType<typeof getPublishedPost>>>;
 
-function parseValues(value: string) {
-	try {
-		const parsed: unknown = JSON.parse(value);
-		return Array.isArray(parsed) ? parsed : [];
-	} catch {
-		return [];
-	}
+export function mapPost<T extends { categories: string[]; tags: string[] }>(post: T) {
+	return post;
 }
 
-function parseNames(value: string) {
-	return parseValues(value).filter((name): name is string => typeof name === 'string');
-}
-
-export function mapPost<T extends { categories: string; tags: string }>(post: T) {
-	return { ...post, categories: parseNames(post.categories), tags: parseNames(post.tags) };
-}
-
-function mapEditorPost<T extends { categoryIds: string; tags: string }>(post: T) {
-	return {
-		...post,
-		categoryIds: parseValues(post.categoryIds).filter(
-			(value): value is number => typeof value === 'number'
-		),
-		tags: parseNames(post.tags)
-	};
+function mapEditorPost<T extends { categoryIds: number[]; tags: string[] }>(post: T) {
+	return post;
 }
 
 export function publicPostCondition(now = new Date()) {
@@ -101,11 +85,7 @@ function selectSummaries(db: Database) {
 }
 
 export async function countPublishedPosts(db: Database, now = new Date()) {
-	const total = await db
-		.select({ value: count() })
-		.from(posts)
-		.where(publicPostCondition(now))
-		.get();
+	const [total] = await db.select({ value: count() }).from(posts).where(publicPostCondition(now));
 	return total?.value ?? 0;
 }
 
@@ -119,18 +99,18 @@ export async function getPublishedPostPage(db: Database, page: number, now = new
 }
 
 export async function getPublishedPost(db: Database, id: number, now = new Date()) {
-	const row = await db
+	const [row] = await db
 		.select(postDetailSelection)
 		.from(posts)
 		.innerJoin(user, eq(user.id, posts.authorId))
 		.leftJoin(series, eq(series.id, posts.seriesId))
 		.where(and(eq(posts.id, id), publicPostCondition(now)))
-		.get();
+		.limit(1);
 	return row ? mapPost(row) : null;
 }
 
 export async function getEditablePost(db: Database, id: number) {
-	const row = await db.select(postEditorSelection).from(posts).where(eq(posts.id, id)).get();
+	const [row] = await db.select(postEditorSelection).from(posts).where(eq(posts.id, id)).limit(1);
 	return row ? mapEditorPost(row) : null;
 }
 
@@ -150,7 +130,7 @@ export async function getDrafts(db: Database, now = new Date()) {
 export async function getSeriesNeighbors(db: Database, post: Post) {
 	if (!post.seriesId || post.seriesPosition === null) return { previous: null, next: null };
 	const condition = publicPostCondition();
-	const [previous, next] = await Promise.all([
+	const [previousRows, nextRows] = await Promise.all([
 		db
 			.select({ id: posts.id, title: posts.title })
 			.from(posts)
@@ -162,8 +142,7 @@ export async function getSeriesNeighbors(db: Database, post: Post) {
 				)
 			)
 			.orderBy(desc(posts.seriesPosition))
-			.limit(1)
-			.get(),
+			.limit(1),
 		db
 			.select({ id: posts.id, title: posts.title })
 			.from(posts)
@@ -176,9 +155,8 @@ export async function getSeriesNeighbors(db: Database, post: Post) {
 			)
 			.orderBy(asc(posts.seriesPosition))
 			.limit(1)
-			.get()
 	]);
-	return { previous: previous ?? null, next: next ?? null };
+	return { previous: previousRows[0] ?? null, next: nextRows[0] ?? null };
 }
 
 export async function getFeedPosts(db: Database, now = new Date()) {

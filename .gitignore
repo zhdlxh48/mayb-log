@@ -4,8 +4,6 @@ node_modules
 .output
 .vercel
 .netlify
-.wrangler
-.wrangler-dry
 /.svelte-kit
 /build
 /src/lib/paraglide/
@@ -19,7 +17,6 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.test
-.dev.vars
 .turnstile.tmp.json
 
 # Vite

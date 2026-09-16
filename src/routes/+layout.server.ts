@@ -1,7 +1,11 @@
 import type { LayoutServerLoad } from './$types';
+import { serverConfig } from '$lib/server/env';
 
-export const load: LayoutServerLoad = ({ locals, platform }) => ({
-	user: locals.user,
-	turnstileSiteKey: platform?.env.TURNSTILE_SITE_KEY ?? '',
-	siteUrl: platform?.env.SITE_URL ?? ''
-});
+export const load: LayoutServerLoad = ({ locals }) => {
+	const config = serverConfig();
+	return {
+		user: locals.user,
+		turnstileSiteKey: config.turnstileSiteKey,
+		siteUrl: config.siteUrl
+	};
+};

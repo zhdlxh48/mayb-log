@@ -1,11 +1,12 @@
 import { getSitemapPosts } from '$lib/server/db/queries/posts/read';
-import { requestDb } from '$lib/server/db/request';
+import { database } from '$lib/server/db';
+import { serverConfig } from '$lib/server/env';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ platform }) => {
-	const site = platform?.env.SITE_URL ?? '';
+export const GET: RequestHandler = async () => {
+	const site = serverConfig().siteUrl;
 	const staticPaths = ['/', '/posts', '/series', '/categories', '/archive'];
-	const posts = await getSitemapPosts(requestDb(platform));
+	const posts = await getSitemapPosts(database());
 	const entries = [
 		...staticPaths.map((path) => `  <url><loc>${site}${path}</loc></url>`),
 		...posts.map(

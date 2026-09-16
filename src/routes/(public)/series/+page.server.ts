@@ -1,7 +1,7 @@
 import { getSeriesList } from '$lib/server/db/queries/taxonomy/read';
-import { requestDb } from '$lib/server/db/request';
+import { database } from '$lib/server/db';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ platform }) => ({
-	items: await getSeriesList(requestDb(platform))
+export const load: PageServerLoad = async () => ({
+	items: await getSeriesList(database())
 });

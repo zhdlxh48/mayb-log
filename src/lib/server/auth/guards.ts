@@ -4,7 +4,7 @@ import * as m from '$lib/paraglide/messages.js';
 
 export function requireAuth() {
 	const auth = getRequestEvent().locals.auth;
-	if (!auth) error(500, m.cloudflare_unavailable());
+	if (!auth) error(500, m.request_failed());
 	return auth;
 }
 

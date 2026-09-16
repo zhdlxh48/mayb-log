@@ -1,34 +1,32 @@
-import { relations, sql } from 'drizzle-orm';
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+import { relations } from 'drizzle-orm';
+import { boolean, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
-export const user = sqliteTable('user', {
+const time = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
+
+export const user = pgTable('user', {
 	id: text('id').primaryKey(),
 	name: text('name').notNull(),
 	email: text('email').notNull().unique(),
-	emailVerified: integer('email_verified', { mode: 'boolean' }).default(false).notNull(),
+	emailVerified: boolean('email_verified').default(false).notNull(),
 	image: text('image'),
-	createdAt: integer('created_at', { mode: 'timestamp_ms' })
-		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-		.notNull(),
-	updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
-		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-		.$onUpdate(() => /* @__PURE__ */ new Date())
+	createdAt: time('created_at').defaultNow().notNull(),
+	updatedAt: time('updated_at')
+		.defaultNow()
+		.$onUpdate(() => new Date())
 		.notNull(),
 	username: text('username').unique(),
-	approved: integer('approved', { mode: 'boolean' }).default(false).notNull()
+	approved: boolean('approved').default(false).notNull()
 });
 
-export const session = sqliteTable(
+export const session = pgTable(
 	'session',
 	{
 		id: text('id').primaryKey(),
-		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		expiresAt: time('expires_at').notNull(),
 		token: text('token').notNull().unique(),
-		createdAt: integer('created_at', { mode: 'timestamp_ms' })
-			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-			.notNull(),
-		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
-			.$onUpdate(() => /* @__PURE__ */ new Date())
+		createdAt: time('created_at').defaultNow().notNull(),
+		updatedAt: time('updated_at')
+			.$onUpdate(() => new Date())
 			.notNull(),
 		ipAddress: text('ip_address'),
 		userAgent: text('user_agent'),
@@ -39,7 +37,7 @@ export const session = sqliteTable(
 	(table) => [index('session_userId_idx').on(table.userId)]
 );
 
-export const account = sqliteTable(
+export const account = pgTable(
 	'account',
 	{
 		id: text('id').primaryKey(),
@@ -51,37 +49,29 @@ export const account = sqliteTable(
 		accessToken: text('access_token'),
 		refreshToken: text('refresh_token'),
 		idToken: text('id_token'),
-		accessTokenExpiresAt: integer('access_token_expires_at', {
-			mode: 'timestamp_ms'
-		}),
-		refreshTokenExpiresAt: integer('refresh_token_expires_at', {
-			mode: 'timestamp_ms'
-		}),
+		accessTokenExpiresAt: time('access_token_expires_at'),
+		refreshTokenExpiresAt: time('refresh_token_expires_at'),
 		scope: text('scope'),
 		password: text('password'),
-		createdAt: integer('created_at', { mode: 'timestamp_ms' })
-			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-			.notNull(),
-		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
-			.$onUpdate(() => /* @__PURE__ */ new Date())
+		createdAt: time('created_at').defaultNow().notNull(),
+		updatedAt: time('updated_at')
+			.$onUpdate(() => new Date())
 			.notNull()
 	},
 	(table) => [index('account_userId_idx').on(table.userId)]
 );
 
-export const verification = sqliteTable(
+export const verification = pgTable(
 	'verification',
 	{
 		id: text('id').primaryKey(),
 		identifier: text('identifier').notNull(),
 		value: text('value').notNull(),
-		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
-		createdAt: integer('created_at', { mode: 'timestamp_ms' })
-			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-			.notNull(),
-		updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
-			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-			.$onUpdate(() => /* @__PURE__ */ new Date())
+		expiresAt: time('expires_at').notNull(),
+		createdAt: time('created_at').defaultNow().notNull(),
+		updatedAt: time('updated_at')
+			.defaultNow()
+			.$onUpdate(() => new Date())
 			.notNull()
 	},
 	(table) => [index('verification_identifier_idx').on(table.identifier)]
@@ -93,15 +83,9 @@ export const userRelations = relations(user, ({ many }) => ({
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
-	user: one(user, {
-		fields: [session.userId],
-		references: [user.id]
-	})
+	user: one(user, { fields: [session.userId], references: [user.id] })
 }));
 
 export const accountRelations = relations(account, ({ one }) => ({
-	user: one(user, {
-		fields: [account.userId],
-		references: [user.id]
-	})
+	user: one(user, { fields: [account.userId], references: [user.id] })
 }));
