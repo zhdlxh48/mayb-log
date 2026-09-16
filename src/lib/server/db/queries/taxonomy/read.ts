@@ -24,7 +24,7 @@ export async function getCategoryList(db: Database, now = new Date()) {
 			id: categories.id,
 			name: categories.name,
 			description: categories.description,
-			count: sql<number>`count(${posts.id})`
+			count: sql<number>`count(${posts.id})::int`
 		})
 		.from(categories)
 		.leftJoin(postCategories, eq(postCategories.categoryId, categories.id))
@@ -57,21 +57,19 @@ export async function getSearchOptions(db: Database) {
 }
 
 export async function getSeries(db: Database, id: number) {
-	return (
-		(await db
-			.select({ id: series.id, title: series.title, description: series.description })
-			.from(series)
-			.where(eq(series.id, id))
-			.get()) ?? null
-	);
+	const [item] = await db
+		.select({ id: series.id, title: series.title, description: series.description })
+		.from(series)
+		.where(eq(series.id, id))
+		.limit(1);
+	return item ?? null;
 }
 
 export async function getCategory(db: Database, id: number) {
-	return (
-		(await db
-			.select({ id: categories.id, name: categories.name, description: categories.description })
-			.from(categories)
-			.where(eq(categories.id, id))
-			.get()) ?? null
-	);
+	const [item] = await db
+		.select({ id: categories.id, name: categories.name, description: categories.description })
+		.from(categories)
+		.where(eq(categories.id, id))
+		.limit(1);
+	return item ?? null;
 }

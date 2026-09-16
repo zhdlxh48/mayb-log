@@ -1,9 +1,9 @@
 import { getArchive } from '$lib/server/db/queries/archive';
-import { requestDb } from '$lib/server/db/request';
+import { database } from '$lib/server/db';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ platform }) => {
-	const rows = await getArchive(requestDb(platform));
+export const load: PageServerLoad = async () => {
+	const rows = await getArchive(database());
 	const years: {
 		year: string;
 		count: number;

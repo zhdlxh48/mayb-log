@@ -1,3 +1,4 @@
+import { ListObjectsV2Command, type ListObjectsV2CommandOutput } from '@aws-sdk/client-s3';
 import { MAX_IMAGE_BYTES } from '$lib/limits';
 import { mediaUrl, UUID } from './path';
 
@@ -10,26 +11,36 @@ export async function validWebp(file: File) {
 	);
 }
 
-export async function listPostImages(bucket: R2Bucket, assetId: string) {
+type ObjectLister = {
+	send(command: ListObjectsV2Command): Promise<ListObjectsV2CommandOutput>;
+};
+
+export async function listPostImages(client: ObjectLister, bucket: string, assetId: string) {
 	const prefix = `posts/${assetId}/`;
-	const objects: R2Object[] = [];
-	let cursor: string | undefined;
-	let truncated = true;
-	while (truncated) {
-		const result = await bucket.list(cursor ? { prefix, cursor } : { prefix });
-		objects.push(...result.objects);
-		truncated = result.truncated;
-		cursor = result.truncated ? result.cursor : undefined;
-	}
+	const objects: { Key?: string; LastModified?: Date }[] = [];
+	let continuationToken: string | undefined;
+	do {
+		const result = await client.send(
+			new ListObjectsV2Command({
+				Bucket: bucket,
+				Prefix: prefix,
+				ContinuationToken: continuationToken
+			})
+		);
+		objects.push(...(result.Contents ?? []));
+		continuationToken = result.IsTruncated ? result.NextContinuationToken : undefined;
+	} while (continuationToken);
 	return objects
-		.filter(({ key }) => key.endsWith('.webp'))
-		.filter(({ key }) => UUID.test(key.slice(prefix.length, -'.webp'.length)))
+		.filter((object): object is { Key: string; LastModified?: Date } => Boolean(object.Key))
+		.filter(({ Key }) => Key.endsWith('.webp'))
+		.filter(({ Key }) => UUID.test(Key.slice(prefix.length, -'.webp'.length)))
 		.sort(
 			(a, b) =>
-				a.uploaded.getTime() - b.uploaded.getTime() || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)
+				(a.LastModified?.getTime() ?? 0) - (b.LastModified?.getTime() ?? 0) ||
+				(a.Key < b.Key ? -1 : a.Key > b.Key ? 1 : 0)
 		)
-		.map(({ key }) => {
-			const id = key.slice(prefix.length, -'.webp'.length);
+		.map(({ Key }) => {
+			const id = Key.slice(prefix.length, -'.webp'.length);
 			return { id, url: mediaUrl(assetId, id) };
 		});
 }

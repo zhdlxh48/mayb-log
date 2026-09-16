@@ -6,9 +6,9 @@ import { posts } from '$lib/server/db/schema/content';
 export async function getArchive(db: Database, now = new Date()) {
 	return db
 		.select({
-			year: sql<string>`strftime('%Y', ${posts.publishedAt} / 1000, 'unixepoch', '+9 hours')`,
-			month: sql<string>`strftime('%m', ${posts.publishedAt} / 1000, 'unixepoch', '+9 hours')`,
-			count: sql<number>`count(*)`
+			year: sql<string>`to_char(${posts.publishedAt} AT TIME ZONE 'Asia/Seoul', 'YYYY')`,
+			month: sql<string>`to_char(${posts.publishedAt} AT TIME ZONE 'Asia/Seoul', 'MM')`,
+			count: sql<number>`count(*)::int`
 		})
 		.from(posts)
 		.where(publicPostCondition(now))

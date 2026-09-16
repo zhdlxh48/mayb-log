@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { parseKoreanDateTimeLocal } from '$lib/dates';
 import type { Database } from '$lib/server/db';
 import { postCategories, posts, postTags } from '$lib/server/db/schema/content';
@@ -45,26 +45,14 @@ function postValues(
 	};
 }
 
-function relationStatements(
-	db: Database,
-	where: { id: number } | { assetId: string },
-	input: PostInput
-) {
+async function replaceRelations(db: Pick<Database, 'insert'>, postId: number, input: PostInput) {
 	const categoryIds = [...new Set(input.categories)];
 	const tags = tagNames(input.tags);
-	const postCondition = 'id' in where ? eq(posts.id, where.id) : eq(posts.assetId, where.assetId);
-	return [
-		db
+	if (categoryIds.length)
+		await db
 			.insert(postCategories)
-			.select(
-				sql`SELECT ${posts.id}, value FROM ${posts}, json_each(${JSON.stringify(categoryIds)}) WHERE ${postCondition}`
-			),
-		db
-			.insert(postTags)
-			.select(
-				sql`SELECT ${posts.id}, value FROM ${posts}, json_each(${JSON.stringify(tags)}) WHERE ${postCondition}`
-			)
-	];
+			.values(categoryIds.map((categoryId) => ({ postId, categoryId })));
+	if (tags.length) await db.insert(postTags).values(tags.map((tag) => ({ postId, tag })));
 }
 
 export async function createPost(
@@ -76,21 +64,20 @@ export async function createPost(
 ) {
 	const now = new Date();
 	const publishedAt = publication(input.publishedAt, action);
-	const insert = db
-		.insert(posts)
-		.values({
-			...postValues(input, action, publishedAt),
-			authorId,
-			assetId,
-			createdAt: now,
-			updatedAt: now
-		})
-		.returning({ id: posts.id });
-	const [created] = await db.batch([
-		insert,
-		...relationStatements(db, { assetId }, input)
-	] as Parameters<Database['batch']>[0]);
-	return { id: (created as { id: number }[])[0].id, publishedAt };
+	return db.transaction(async (tx) => {
+		const [created] = await tx
+			.insert(posts)
+			.values({
+				...postValues(input, action, publishedAt),
+				authorId,
+				assetId,
+				createdAt: now,
+				updatedAt: now
+			})
+			.returning({ id: posts.id });
+		await replaceRelations(tx, created.id, input);
+		return { id: created.id, publishedAt };
+	});
 }
 
 export async function updatePost(
@@ -100,21 +87,21 @@ export async function updatePost(
 	action: PublicationAction
 ) {
 	const publishedAt = publication(input.publishedAt, action);
-	const update = db
-		.update(posts)
-		.set(postValues(input, action, publishedAt))
-		.where(eq(posts.id, id))
-		.returning({ id: posts.id });
-	const [updated] = await db.batch([
-		update,
-		db.delete(postCategories).where(eq(postCategories.postId, id)),
-		db.delete(postTags).where(eq(postTags.postId, id)),
-		...relationStatements(db, { id }, input)
-	] as Parameters<Database['batch']>[0]);
-	if (!(updated as { id: number }[]).length) return null;
-	return { id, publishedAt };
+	return db.transaction(async (tx) => {
+		const [updated] = await tx
+			.update(posts)
+			.set(postValues(input, action, publishedAt))
+			.where(eq(posts.id, id))
+			.returning({ id: posts.id });
+		if (!updated) return null;
+		await tx.delete(postCategories).where(eq(postCategories.postId, id));
+		await tx.delete(postTags).where(eq(postTags.postId, id));
+		await replaceRelations(tx, id, input);
+		return { id, publishedAt };
+	});
 }
 
 export async function deletePost(db: Database, id: number) {
-	return (await db.delete(posts).where(eq(posts.id, id)).returning({ id: posts.id }).get()) ?? null;
+	const [removed] = await db.delete(posts).where(eq(posts.id, id)).returning({ id: posts.id });
+	return removed ?? null;
 }

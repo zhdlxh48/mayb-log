@@ -1,0 +1,78 @@
+services:
+  app:
+    image: ${MAYB_LOG_IMAGE:-ghcr.io/zhdlxh48/mayb-log:main}
+    restart: unless-stopped
+    ports:
+      - ${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-3000}:3000
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      ORIGIN: ${ORIGIN}
+      BODY_SIZE_LIMIT: 16M
+      SITE_URL: ${SITE_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY}
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      S3_ENDPOINT: http://garage:3900
+      S3_REGION: garage
+      S3_BUCKET: ${GARAGE_DEFAULT_BUCKET}
+      S3_ACCESS_KEY_ID: ${GARAGE_DEFAULT_ACCESS_KEY}
+      S3_SECRET_ACCESS_KEY: ${GARAGE_DEFAULT_SECRET_KEY}
+      S3_FORCE_PATH_STYLE: 'true'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  postgres:
+    image: postgres:18.6-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ${DATA_ROOT}/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  garage:
+    image: dxflrs/garage:v2.4.1
+    restart: unless-stopped
+    command: /garage server --single-node --default-bucket
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET}
+      GARAGE_DEFAULT_ACCESS_KEY: ${GARAGE_DEFAULT_ACCESS_KEY}
+      GARAGE_DEFAULT_SECRET_KEY: ${GARAGE_DEFAULT_SECRET_KEY}
+      GARAGE_DEFAULT_BUCKET: ${GARAGE_DEFAULT_BUCKET}
+    volumes:
+      - ${GARAGE_CONFIG_FILE:-./deployment/garage.toml}:/etc/garage.toml:ro
+      - ${DATA_ROOT}/garage/meta:/var/lib/garage/meta
+      - ${DATA_ROOT}/garage/data:/var/lib/garage/data
+    healthcheck:
+      test: [CMD, /garage, status]
+      interval: 5s
+      timeout: 5s
+      retries: 18
+      start_period: 10s

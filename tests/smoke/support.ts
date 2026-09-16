@@ -1,5 +1,13 @@
-import { execFileSync } from 'node:child_process';
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import { Pool, type QueryResultRow } from 'pg';
+
+const pool = new Pool({
+	host: '127.0.0.1',
+	port: 5432,
+	database: 'mayb_log_test',
+	user: 'mayb_log_test',
+	password: 'mayb-log-test-password'
+});
 
 export const password = 'Smoke-password-123!';
 export const png = Buffer.from(
@@ -7,43 +15,19 @@ export const png = Buffer.from(
 	'base64'
 );
 
-export function sql(command: string) {
-	execFileSync(
-		process.execPath,
-		[
-			'node_modules/wrangler/bin/wrangler.js',
-			'd1',
-			'execute',
-			'DB',
-			'--local',
-			'--command',
-			command
-		],
-		{ stdio: 'ignore' }
-	);
+export async function sql(command: string, values: unknown[] = []) {
+	await pool.query(command, values);
 }
 
-export function query<T>(command: string) {
-	const output = execFileSync(
-		process.execPath,
-		[
-			'node_modules/wrangler/bin/wrangler.js',
-			'd1',
-			'execute',
-			'DB',
-			'--local',
-			'--command',
-			command,
-			'--json'
-		],
-		{ encoding: 'utf8' }
-	);
-	return (JSON.parse(output) as [{ results: T[] }])[0].results;
+export async function query<T extends QueryResultRow>(command: string, values: unknown[] = []) {
+	return (await pool.query<T>(command, values)).rows;
 }
 
-export function cleanupUser(username: string) {
-	sql(`DELETE FROM posts WHERE author_id IN (SELECT id FROM user WHERE username = '${username}');`);
-	sql(`DELETE FROM user WHERE username = '${username}';`);
+export async function cleanupUser(username: string) {
+	await sql('DELETE FROM posts WHERE author_id IN (SELECT id FROM "user" WHERE username = $1)', [
+		username
+	]);
+	await sql('DELETE FROM "user" WHERE username = $1', [username]);
 }
 
 export async function signup(request: APIRequestContext, username: string, name: string) {
@@ -60,8 +44,8 @@ export async function signup(request: APIRequestContext, username: string, name:
 	});
 }
 
-export function approveUser(username: string) {
-	sql(`UPDATE user SET approved = 1 WHERE username = '${username}';`);
+export async function approveUser(username: string) {
+	await sql('UPDATE "user" SET approved = true WHERE username = $1', [username]);
 }
 
 export async function login(page: Page, username: string, next = '/posts/new') {

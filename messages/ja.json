@@ -161,7 +161,6 @@
 	"series_not_found": "シリーズが見つかりません。",
 	"category_not_found": "カテゴリーが見つかりません。",
 	"image_not_found": "画像が見つかりません。",
-	"cloudflare_unavailable": "Cloudflare bindingsを利用できません。",
 	"invalid_asset_id": "asset IDが正しくありません。",
 	"webp_only": "4MiB以下のWebP画像のみアップロードできます。",
 	"markdown_too_large": "Markdown本文が大きすぎます。",

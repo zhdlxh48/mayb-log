@@ -4,9 +4,10 @@ export default defineConfig({
 	testDir: 'tests/smoke',
 	workers: 1,
 	webServer: {
-		command: 'pnpm db:migrate:local && pnpm build && pnpm preview',
+		command: 'docker compose -f compose.test.yaml up --build',
 		port: 5173,
-		reuseExistingServer: false
+		reuseExistingServer: false,
+		timeout: 180_000
 	},
 	use: { baseURL: 'http://localhost:5173' },
 	projects: [{ name: 'chromium', use: { browserName: 'chromium' } }]

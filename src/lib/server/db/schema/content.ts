@@ -1,25 +1,29 @@
 import { relations, sql } from 'drizzle-orm';
 import {
+	bigint,
+	boolean,
 	check,
 	index,
 	integer,
+	pgTable,
 	primaryKey,
-	sqliteTable,
+	serial,
 	text,
+	timestamp,
 	uniqueIndex
-} from 'drizzle-orm/sqlite-core';
+} from 'drizzle-orm/pg-core';
 import { user } from './auth';
 
-export const series = sqliteTable('series', {
-	id: integer('id').primaryKey({ autoIncrement: true }),
+export const series = pgTable('series', {
+	id: serial('id').primaryKey(),
 	title: text('title').notNull().unique(),
 	description: text('description').notNull().default('')
 });
 
-export const posts = sqliteTable(
+export const posts = pgTable(
 	'posts',
 	{
-		id: integer('id').primaryKey({ autoIncrement: true }),
+		id: serial('id').primaryKey(),
 		assetId: text('asset_id').notNull().unique(),
 		authorId: text('author_id')
 			.notNull()
@@ -29,11 +33,11 @@ export const posts = sqliteTable(
 		description: text('description').notNull(),
 		bodyMarkdown: text('body_markdown').notNull(),
 		seriesId: integer('series_id').references(() => series.id, { onDelete: 'set null' }),
-		seriesPosition: integer('series_position'),
-		noindex: integer('noindex', { mode: 'boolean' }).notNull().default(false),
-		publishedAt: integer('published_at', { mode: 'timestamp_ms' }),
-		createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-		updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+		seriesPosition: bigint('series_position', { mode: 'number' }),
+		noindex: boolean('noindex').notNull().default(false),
+		publishedAt: timestamp('published_at', { withTimezone: true, mode: 'date' }),
+		createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull()
 	},
 	(table) => [
 		index('posts_published_idx')
@@ -48,13 +52,13 @@ export const posts = sqliteTable(
 	]
 );
 
-export const categories = sqliteTable('categories', {
-	id: integer('id').primaryKey({ autoIncrement: true }),
+export const categories = pgTable('categories', {
+	id: serial('id').primaryKey(),
 	name: text('name').notNull().unique(),
 	description: text('description').notNull().default('')
 });
 
-export const postCategories = sqliteTable(
+export const postCategories = pgTable(
 	'post_categories',
 	{
 		postId: integer('post_id')
@@ -70,7 +74,7 @@ export const postCategories = sqliteTable(
 	]
 );
 
-export const postTags = sqliteTable(
+export const postTags = pgTable(
 	'post_tags',
 	{
 		postId: integer('post_id')
@@ -92,16 +96,13 @@ export const postRelations = relations(posts, ({ one, many }) => ({
 }));
 
 export const seriesRelations = relations(series, ({ many }) => ({ posts: many(posts) }));
-
 export const categoryRelations = relations(categories, ({ many }) => ({
 	posts: many(postCategories)
 }));
-
 export const postCategoryRelations = relations(postCategories, ({ one }) => ({
 	post: one(posts, { fields: [postCategories.postId], references: [posts.id] }),
 	category: one(categories, { fields: [postCategories.categoryId], references: [categories.id] })
 }));
-
 export const postTagRelations = relations(postTags, ({ one }) => ({
 	post: one(posts, { fields: [postTags.postId], references: [posts.id] })
 }));

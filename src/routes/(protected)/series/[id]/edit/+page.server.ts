@@ -3,7 +3,7 @@ import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
 import { getSeries } from '$lib/server/db/queries/taxonomy/read';
 import { removeSeries, saveSeries } from '$lib/server/db/queries/taxonomy/write';
-import { requestDb } from '$lib/server/db/request';
+import { database } from '$lib/server/db';
 import { seriesSchema } from '$lib/validation/content';
 import { requireUser } from '$lib/server/auth/guards';
 import { isUniqueConflict } from '$lib/server/db/errors';
@@ -17,21 +17,21 @@ function routeId(value: string) {
 	return id;
 }
 
-export const load: PageServerLoad = async ({ params, platform }) => {
+export const load: PageServerLoad = async ({ params }) => {
 	requireUser();
-	const item = await getSeries(requestDb(platform), routeId(params.id));
+	const item = await getSeries(database(), routeId(params.id));
 	if (!item) error(404, m.series_not_found());
 	return { item, form: await superValidate(item, zod4(seriesSchema)) };
 };
 
 export const actions: Actions = {
-	save: async ({ params, request, platform }) => {
+	save: async ({ params, request }) => {
 		requireUser();
 		const id = routeId(params.id);
 		const form = await superValidate(request, zod4(seriesSchema));
 		if (!form.valid) return fail(400, { form });
 		try {
-			if (!(await saveSeries(requestDb(platform), form.data, id)))
+			if (!(await saveSeries(database(), form.data, id)))
 				return fail(409, { form, error: m.taxonomy_changed() });
 		} catch (cause) {
 			if (isUniqueConflict(cause)) return fail(409, { form, error: m.series_conflict() });
@@ -39,10 +39,9 @@ export const actions: Actions = {
 		}
 		redirect(303, '/series');
 	},
-	delete: async ({ params, platform }) => {
+	delete: async ({ params }) => {
 		requireUser();
-		if (!(await removeSeries(requestDb(platform), routeId(params.id))))
-			error(404, m.series_not_found());
+		if (!(await removeSeries(database(), routeId(params.id)))) error(404, m.series_not_found());
 		redirect(303, '/series');
 	}
 };

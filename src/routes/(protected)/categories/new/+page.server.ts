@@ -1,7 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { superValidate } from 'sveltekit-superforms';
 import { zod4 } from 'sveltekit-superforms/adapters';
-import { requestDb } from '$lib/server/db/request';
+import { database } from '$lib/server/db';
 import { saveCategory } from '$lib/server/db/queries/taxonomy/write';
 import { categorySchema } from '$lib/validation/content';
 import { requireUser } from '$lib/server/auth/guards';
@@ -15,12 +15,12 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions: Actions = {
-	default: async ({ request, platform }) => {
+	default: async ({ request }) => {
 		requireUser();
 		const form = await superValidate(request, zod4(categorySchema));
 		if (!form.valid) return fail(400, { form });
 		try {
-			await saveCategory(requestDb(platform), form.data);
+			await saveCategory(database(), form.data);
 		} catch (cause) {
 			if (isUniqueConflict(cause)) return fail(409, { form, error: m.category_conflict() });
 			throw cause;
