@@ -3,8 +3,8 @@ import { actionStatus, approveUser, cleanupUser, login, password, signup } from 
 
 const username = 'auth_smoke_user';
 
-test.beforeEach(() => cleanupUser(username));
-test.afterEach(() => cleanupUser(username));
+test.beforeEach(async () => cleanupUser(username));
+test.afterEach(async () => cleanupUser(username));
 
 test('ignores a Turnstile script that finishes after the component unmounts', async ({ page }) => {
 	let releaseScript = () => {};
@@ -259,11 +259,20 @@ test('protects mutations and keeps the username approval auth flow working', asy
 		data: { username, password }
 	});
 	expect(unapproved.status()).toBe(403);
-	approveUser(username);
+	await approveUser(username);
 
 	await login(page, username);
 	await expect(page).toHaveURL('/posts/new');
 	await expect(page.locator('input[name="assetId"]')).toHaveValue(/^[0-9a-f-]{36}$/);
+	await page.reload();
+	await expect(page).toHaveURL('/posts/new');
+	await page.goto('/profile');
+	await expect(page.getByText(username, { exact: true })).toBeVisible();
+	await page.getByLabel('Nickname').fill('Updated Auth User');
+	await page.getByRole('button', { name: 'Save profile' }).click();
+	await expect(page.getByRole('status')).toHaveText('Profile saved.');
+	await page.reload();
+	await expect(page.getByLabel('Nickname')).toHaveValue('Updated Auth User');
 
 	const currentPasswordMarker = 'Sensitive-Current-Password-123!';
 	const newPasswordMarker = 'Sensitive-New-Password-123!';
@@ -279,4 +288,7 @@ test('protects mutations and keeps the username approval auth flow working', asy
 	const passwordFailureBody = await passwordFailure.text();
 	expect(passwordFailureBody).not.toContain(currentPasswordMarker);
 	expect(passwordFailureBody).not.toContain(newPasswordMarker);
+	await page.getByRole('button', { name: 'Logout' }).click();
+	await expect(page).toHaveURL('/');
+	expect((await context.request.get('/profile', { maxRedirects: 0 })).status()).toBe(303);
 });

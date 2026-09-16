@@ -161,7 +161,6 @@
 	"series_not_found": "Series not found.",
 	"category_not_found": "Category not found.",
 	"image_not_found": "Image not found.",
-	"cloudflare_unavailable": "Cloudflare bindings are unavailable.",
 	"invalid_asset_id": "The asset ID is invalid.",
 	"webp_only": "Upload a WebP image no larger than 4 MiB.",
 	"markdown_too_large": "The Markdown body is too large.",

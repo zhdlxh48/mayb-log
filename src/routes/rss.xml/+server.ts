@@ -1,11 +1,12 @@
 import { Feed } from 'feed';
 import { getFeedPosts } from '$lib/server/db/queries/posts/read';
-import { requestDb } from '$lib/server/db/request';
+import { database } from '$lib/server/db';
+import { serverConfig } from '$lib/server/env';
 import { renderMarkdown } from '$lib/server/markdown/render';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ platform }) => {
-	const site = platform?.env.SITE_URL ?? '';
+export const GET: RequestHandler = async () => {
+	const site = serverConfig().siteUrl;
 	const feed = new Feed({
 		title: 'mayb-log',
 		description: '개발과 일상의 기록',
@@ -14,7 +15,7 @@ export const GET: RequestHandler = async ({ platform }) => {
 		copyright: `© ${new Date().getFullYear()} mayb-log`,
 		feedLinks: { rss2: `${site}/rss.xml` }
 	});
-	for (const post of await getFeedPosts(requestDb(platform))) {
+	for (const post of await getFeedPosts(database())) {
 		feed.addItem({
 			title: post.title,
 			id: `${site}/posts/${post.id}`,

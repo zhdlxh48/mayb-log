@@ -4,13 +4,13 @@ import { approveUser, cleanupUser, login, png, signup } from './support';
 const username = 'media_smoke_user';
 
 test.beforeEach(async ({ request }) => {
-	cleanupUser(username);
+	await cleanupUser(username);
 	const created = await signup(request, username, 'Media Smoke User');
 	expect(created.ok(), `${created.status()} ${await created.text()}`).toBe(true);
-	approveUser(username);
+	await approveUser(username);
 });
 
-test.afterEach(() => cleanupUser(username));
+test.afterEach(async () => cleanupUser(username));
 
 test('keeps editor preview and media lifecycle consistent', async ({ page, context }) => {
 	test.setTimeout(90_000);
@@ -37,6 +37,20 @@ test('keeps editor preview and media lifecycle consistent', async ({ page, conte
 	const beforeInsert = await page.getByLabel('Body').inputValue();
 	await primaryItem.getByRole('button', { name: /^Insert / }).click();
 	await expect(page.getByLabel('Body')).toHaveValue(`${beforeInsert}![image](${primaryUrl})`);
+	for (const file of [
+		{ name: 'not-webp.txt', mimeType: 'text/plain', buffer: Buffer.from('not an image') },
+		{
+			name: 'oversized.webp',
+			mimeType: 'image/webp',
+			buffer: Buffer.alloc(4 * 1024 * 1024 + 1)
+		}
+	]) {
+		const response = await context.request.post(`/api/media/${assetId}`, {
+			headers: { origin: 'http://localhost:5173' },
+			multipart: { file }
+		});
+		expect(response.status(), file.name).toBe(400);
+	}
 
 	for (const [data, status] of [
 		[{ imageIds: ['not-a-uuid'] }, 400],
@@ -92,6 +106,7 @@ test('keeps editor preview and media lifecycle consistent', async ({ page, conte
 	expect((await singleDelete).status()).toBe(204);
 	await expect(page.locator('.image-item')).toHaveCount(1);
 	await expect(page.getByLabel('Body')).toHaveValue(new RegExp(singleDeleteUrl!));
+	expect((await context.request.get(singleDeleteUrl!)).status()).toBe(404);
 
 	page.once('dialog', (dialog) => dialog.accept());
 	await page.getByLabel('Import .md').setInputFiles({
@@ -126,17 +141,11 @@ test('keeps editor preview and media lifecycle consistent', async ({ page, conte
 		data: '{'
 	});
 	expect(malformedPreview.status()).toBe(400);
-	const oversizedPreview = await context.request.post('/api/markdown-preview', {
-		headers: { 'content-type': 'application/json', origin: 'http://localhost:5173' },
-		data: JSON.stringify({ bodyMarkdown: 'a'.repeat(4 * 1024 * 1024) })
-	});
-	expect(oversizedPreview.status()).toBe(413);
 	const oversizedMarkdown = await context.request.post('/api/markdown-preview', {
 		headers: { 'content-type': 'application/json', origin: 'http://localhost:5173' },
 		data: JSON.stringify({ bodyMarkdown: 'a'.repeat(1024 * 1024 + 1) })
 	});
 	expect(oversizedMarkdown.status()).toBe(413);
-
 	const previewUrlPattern = '**/api/markdown-preview';
 	const previewSources: string[] = [];
 	let markFirstPreviewStarted = () => {};
@@ -236,6 +245,9 @@ Unknown widget
 	await expect(page).toHaveURL(/\/posts\/\d+\/edit\?saved=1$/);
 	const primaryImage = await context.request.get(primaryUrl!);
 	expect(primaryImage.status()).toBe(200);
+	expect(primaryImage.headers()['content-type']).toBe('image/webp');
+	expect(primaryImage.headers()['cache-control']).toBe('public, max-age=31536000, immutable');
+	expect(primaryImage.headers().etag).toBeTruthy();
 	const webp = await primaryImage.body();
 	const paginationImages: { id: string; url: string }[] = [];
 	for (let index = 0; index < 20; index += 1) {
@@ -400,4 +412,12 @@ Unknown widget
 			headers: { origin: 'http://localhost:5173' },
 			data: { imageIds: allIds.slice(index, index + 20) }
 		});
+
+	// A Content-Length rejection intentionally stops before reading the oversized body. Keep it last so
+	// Playwright does not reuse the closed HTTP connection for fixture cleanup or another assertion.
+	const oversizedPreview = await context.request.post('/api/markdown-preview', {
+		headers: { 'content-type': 'application/json', origin: 'http://localhost:5173' },
+		data: JSON.stringify({ bodyMarkdown: 'a'.repeat(4 * 1024 * 1024) })
+	});
+	expect(oversizedPreview.status()).toBe(413);
 });

@@ -2,13 +2,6 @@
 // for information about these interfaces
 declare global {
 	namespace App {
-		interface Platform {
-			env: Cloudflare.Env;
-			ctx: ExecutionContext;
-			caches: CacheStorage;
-			cf?: IncomingRequestCfProperties;
-		}
-
 		interface Error {
 			message: string;
 		}
