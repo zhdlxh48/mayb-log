@@ -4,22 +4,23 @@ import { z } from 'zod';
 const httpUrl = z.url({ protocol: /^https?$/ });
 
 const nonEmpty = z.string().trim().min(1);
+const credential = z.string().refine((value) => value.trim().length > 0);
 
 const serverEnvSchema = z.object({
 	SITE_URL: httpUrl,
-	BETTER_AUTH_SECRET: z.string().min(32),
-	TURNSTILE_SITE_KEY: nonEmpty,
-	TURNSTILE_SECRET_KEY: nonEmpty,
+	BETTER_AUTH_SECRET: credential.min(32),
+	TURNSTILE_SITE_KEY: credential,
+	TURNSTILE_SECRET_KEY: credential,
 	PGHOST: nonEmpty,
 	PGPORT: z.coerce.number().int().min(1).max(65_535).default(5432),
 	PGDATABASE: nonEmpty,
-	PGUSER: nonEmpty,
-	PGPASSWORD: nonEmpty,
+	PGUSER: credential,
+	PGPASSWORD: credential,
 	S3_ENDPOINT: httpUrl,
 	S3_REGION: nonEmpty,
 	S3_BUCKET: nonEmpty,
-	S3_ACCESS_KEY_ID: nonEmpty,
-	S3_SECRET_ACCESS_KEY: nonEmpty,
+	S3_ACCESS_KEY_ID: credential,
+	S3_SECRET_ACCESS_KEY: credential,
 	S3_FORCE_PATH_STYLE: z.enum(['true', 'false']).transform((value) => value === 'true')
 });
 
