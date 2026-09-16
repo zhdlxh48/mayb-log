@@ -1,5 +1,4 @@
 allowBuilds:
-  workerd: true
   esbuild: true
 minimumReleaseAgeExclude:
   - zod@4.6.0

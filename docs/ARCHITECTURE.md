@@ -66,13 +66,13 @@ barrel export, repository/DAO/service 계층 없이 route가 실제 기능 파�
 
 ## PostgreSQL
 
-`src/lib/server/db/schema`는 Better Auth와 콘텐츠 schema를 정의합니다. Post와 분류 관계 저장은 하나의 PostgreSQL transaction에서 처리하며 FK, UNIQUE, CHECK가 무결성 경계입니다. 없는 Post 수정은 `UPDATE ... RETURNING` 결과로 판별하고 Series 삭제는 Post의 `seriesId`와 `seriesPosition`을 같은 transaction에서 비웁니다.
+`src/lib/server/db/schema`는 table, column, constraint, index의 source of truth입니다. 콘텐츠 ID는 PostgreSQL `bigint GENERATED ALWAYS AS IDENTITY`이며 JS에서는 safe integer 범위의 `number`로 사용합니다. Post의 이미지 namespace인 `assetId`는 client가 발급하는 native `uuid`입니다. Post와 분류 관계 저장은 하나의 PostgreSQL transaction에서 처리하며 FK, UNIQUE, CHECK가 무결성 경계입니다. 없는 Post 수정은 `UPDATE ... RETURNING` 결과로 판별하고 Series 삭제는 Post의 `seriesId`와 `seriesPosition`을 같은 transaction에서 비웁니다.
 
 목록과 sitemap은 본문을 읽지 않고 RSS는 최근 공개 글 30개만 읽습니다. Category/Tag는 PostgreSQL JSON aggregate로 구성합니다. 공개 상태는 `publishedAt` 하나로 판단합니다.
 
-검색은 `pg_trgm`과 query 표현식에 맞춘 GIN index를 사용합니다. 3글자 이상은 제목·부제·설명·본문의 substring을 검색하고, 1~2글자는 제목·부제·설명만 검색합니다. Category/Tag 선택은 모든 선택값을 포함해야 하며 Series/Author/date filter와 함께 AND로 결합됩니다. 날짜 검색과 보관함 달력 경계는 `Asia/Seoul`입니다.
+검색은 PostgreSQL extension인 `pg_trgm`과 query 표현식에 맞춘 trigram GIN index를 사용합니다. 3글자 이상은 제목·부제·설명·본문의 substring을 검색하고, 1~2글자는 제목·부제·설명만 검색합니다. Category/Tag 선택은 모든 선택값을 포함해야 하며 Series/Author/date filter와 함께 AND로 결합됩니다. 날짜 검색과 보관함 달력 경계는 `Asia/Seoul`입니다.
 
-`drizzle/`은 PostgreSQL clean baseline입니다. 기존 SQLite migration을 재생하지 않으며 앱 시작 시 `drizzle-orm/node-postgres/migrator`가 pending migration을 적용합니다.
+`drizzle/`은 versioned SQL과 Drizzle snapshot을 보관합니다. schema 변경은 `drizzle-kit generate`로 다음 diff migration을 만들고 SQL과 meta를 함께 commit합니다. 앱 시작 시 SvelteKit `ServerInit`이 `drizzle-orm/node-postgres/migrator`로 pending migration만 적용하며 실패하면 HTTP server가 정상 기동하지 않습니다.
 
 ## Markdown과 이미지
 
@@ -90,6 +90,6 @@ Garage endpoint와 PostgreSQL은 Docker network 내부에서만 접근합니다.
 
 ## 빌드와 운영 경계
 
-`Dockerfile`은 Node 24 multi-stage build로 production dependency, adapter-node `build/`, `drizzle/`만 runtime image에 복사합니다. `compose.yaml`은 GHCR image를 사용하며 Synology에서 source build를 하지 않습니다. GitHub Actions는 실제 PostgreSQL/Garage smoke test와 Docker build 뒤 `main`과 full SHA tag를 GHCR에 게시할 뿐 NAS, Caddy, DNS에는 접속하지 않습니다.
+`Dockerfile`은 Node 24 multi-stage build로 production dependency, adapter-node `build/`, `drizzle/`만 runtime image에 복사합니다. `compose.yaml`은 GHCR image를 사용하며 Synology에서 source build를 하지 않습니다. GitHub Actions는 production image를 한 번 build해 실제 PostgreSQL/Garage로 검증하고, 같은 image를 artifact로 publish job에 전달해 `main`과 source-revision SHA tag로 GHCR에 게시합니다. NAS, Caddy, DNS에는 접속하지 않습니다.
 
 PostgreSQL 18 데이터는 `${DATA_ROOT}/postgres`를 container의 `/var/lib/postgresql`에 mount합니다. Garage metadata와 object data는 `${DATA_ROOT}/garage/{meta,data}`에 분리합니다. single-node Garage와 단일 SSD는 redundancy가 아니므로 PostgreSQL, Garage metadata/object, `.env`를 별도 장치나 원격 위치에 일관되게 백업해야 합니다.

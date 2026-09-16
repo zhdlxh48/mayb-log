@@ -64,14 +64,6 @@ const postEditorSelection = {
 
 export type Post = NonNullable<Awaited<ReturnType<typeof getPublishedPost>>>;
 
-export function mapPost<T extends { categories: string[]; tags: string[] }>(post: T) {
-	return post;
-}
-
-function mapEditorPost<T extends { categoryIds: number[]; tags: string[] }>(post: T) {
-	return post;
-}
-
 export function publicPostCondition(now = new Date()) {
 	return and(isNotNull(posts.publishedAt), lte(posts.publishedAt, now));
 }
@@ -95,7 +87,7 @@ export async function getPublishedPostPage(db: Database, page: number, now = new
 		.orderBy(desc(posts.publishedAt), desc(posts.id))
 		.limit(POSTS_PER_PAGE)
 		.offset((page - 1) * POSTS_PER_PAGE);
-	return rows.map(mapPost);
+	return rows;
 }
 
 export async function getPublishedPost(db: Database, id: number, now = new Date()) {
@@ -106,12 +98,12 @@ export async function getPublishedPost(db: Database, id: number, now = new Date(
 		.leftJoin(series, eq(series.id, posts.seriesId))
 		.where(and(eq(posts.id, id), publicPostCondition(now)))
 		.limit(1);
-	return row ? mapPost(row) : null;
+	return row ?? null;
 }
 
 export async function getEditablePost(db: Database, id: number) {
 	const [row] = await db.select(postEditorSelection).from(posts).where(eq(posts.id, id)).limit(1);
-	return row ? mapEditorPost(row) : null;
+	return row ?? null;
 }
 
 export async function getDrafts(db: Database, now = new Date()) {
