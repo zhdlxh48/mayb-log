@@ -52,33 +52,33 @@ CREATE TABLE "verification" (
 );
 --> statement-breakpoint
 CREATE TABLE "categories" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "categories_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9007199254740991 START WITH 1 CACHE 1),
 	"name" text NOT NULL,
 	"description" text DEFAULT '' NOT NULL,
 	CONSTRAINT "categories_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
 CREATE TABLE "post_categories" (
-	"post_id" integer NOT NULL,
-	"category_id" integer NOT NULL,
+	"post_id" bigint NOT NULL,
+	"category_id" bigint NOT NULL,
 	CONSTRAINT "post_categories_post_id_category_id_pk" PRIMARY KEY("post_id","category_id")
 );
 --> statement-breakpoint
 CREATE TABLE "post_tags" (
-	"post_id" integer NOT NULL,
+	"post_id" bigint NOT NULL,
 	"tag" text NOT NULL,
 	CONSTRAINT "post_tags_post_id_tag_pk" PRIMARY KEY("post_id","tag")
 );
 --> statement-breakpoint
 CREATE TABLE "posts" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"asset_id" text NOT NULL,
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "posts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9007199254740991 START WITH 1 CACHE 1),
+	"asset_id" uuid NOT NULL,
 	"author_id" text NOT NULL,
 	"title" text NOT NULL,
 	"subtitle" text,
 	"description" text NOT NULL,
 	"body_markdown" text NOT NULL,
-	"series_id" integer,
+	"series_id" bigint,
 	"series_position" bigint,
 	"noindex" boolean DEFAULT false NOT NULL,
 	"published_at" timestamp with time zone,
@@ -89,7 +89,7 @@ CREATE TABLE "posts" (
 );
 --> statement-breakpoint
 CREATE TABLE "series" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "series_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9007199254740991 START WITH 1 CACHE 1),
 	"title" text NOT NULL,
 	"description" text DEFAULT '' NOT NULL,
 	CONSTRAINT "series_title_unique" UNIQUE("title")
@@ -110,6 +110,4 @@ CREATE INDEX "post_tags_tag_idx" ON "post_tags" USING btree ("tag","post_id");--
 CREATE INDEX "posts_published_idx" ON "posts" USING btree ("published_at","id") WHERE "posts"."published_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "posts_author_idx" ON "posts" USING btree ("author_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "posts_series_position_idx" ON "posts" USING btree ("series_id","series_position");--> statement-breakpoint
-CREATE INDEX "posts_search_trgm_idx" ON "posts" USING gin (
-	("title" || ' ' || coalesce("subtitle", '') || ' ' || "description" || ' ' || "body_markdown") gin_trgm_ops
-);
+CREATE INDEX "posts_search_trgm_idx" ON "posts" USING gin (("title" || ' ' || coalesce("subtitle", '') || ' ' || "description" || ' ' || "body_markdown") gin_trgm_ops);

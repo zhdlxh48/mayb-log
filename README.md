@@ -30,11 +30,12 @@ pnpm format:check
 pnpm lint
 pnpm check
 pnpm test:unit
+docker build -t mayb-log:test .
 pnpm test:smoke
-pnpm build
+pnpm test:migrations
 ```
 
-`test:smoke`는 `compose.test.yaml`의 실제 PostgreSQL, Garage, app 컨테이너를 사용합니다. 테스트 후 컨테이너와 전용 데이터를 지우려면 다음을 실행합니다.
+`test:smoke`와 `test:migrations`는 미리 만든 동일한 production image와 `compose.test.yaml`의 실제 PostgreSQL, Garage를 사용합니다. 테스트 후 컨테이너와 전용 데이터를 지우려면 다음을 실행합니다.
 
 ```bash
 docker compose -f compose.test.yaml down --volumes --remove-orphans
@@ -49,8 +50,8 @@ Paraglide 코드는 설치할 때 자동 생성되며 `src/lib/paraglide`는 Git
 운영 계정 승인은 PostgreSQL 컨테이너에서 수행합니다.
 
 ```bash
-docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-  -c "UPDATE \"user\" SET approved = true WHERE username = 'your_id';"
+docker compose exec postgres sh -lc \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "UPDATE \"user\" SET approved = true WHERE username = '\''your_id'\'';"'
 ```
 
 `approved`가 유일한 사용 승인 상태입니다. 승인된 작성자는 모든 글, 시리즈, 카테고리를 관리할 수 있습니다. 글의 `authorId`는 최초 작성자 표시이며 수정 소유권이 아닙니다.
@@ -69,7 +70,16 @@ docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
 
 ## 데이터베이스와 배포
 
-`drizzle/0000_*.sql`은 새 PostgreSQL용 clean 기준선입니다. 앱은 시작할 때 공식 Drizzle runtime migrator를 실행하고 migration 실패 시 기동하지 않습니다. 검색은 PostgreSQL `pg_trgm`을 사용합니다.
+`src/lib/server/db/schema`가 table, column, constraint, index의 기준이며 `drizzle/`에는 versioned SQL과 snapshot을 함께 보관합니다. DB schema는 하나의 논리적 변경을 마친 뒤 다음 순서로 갱신합니다.
+
+```text
+schema 수정
+  → pnpm db:generate --name=<name>
+  → SQL + drizzle/meta 검토·commit
+  → 앱 시작 시 pending migration 자동 적용
+```
+
+`drizzle/0000_baseline.sql`은 새 PostgreSQL용 clean 기준선입니다. 이미 적용한 migration과 meta는 수정하거나 초기화하지 않습니다. 앱은 시작할 때 공식 Drizzle runtime migrator를 실행하고 migration 실패 시 기동하지 않습니다. 검색은 PostgreSQL `pg_trgm`을 사용합니다.
 
 GitHub Actions는 검사와 테스트가 모두 성공한 `main`에서 다음 이미지만 GHCR에 게시합니다.
 
@@ -79,5 +89,3 @@ ghcr.io/zhdlxh48/mayb-log:sha-<full commit sha>
 ```
 
 Synology 배포는 자동화하지 않습니다. 실제 설치, 업데이트, rollback, 백업 절차는 [Synology 배포 가이드](./docs/DEPLOY_SYNOLOGY.md)를 따릅니다. 코드 위치와 데이터 흐름은 [아키텍처 문서](./docs/ARCHITECTURE.md)에 정리했습니다.
-
-기존 Cloudflare D1/R2 데이터는 자동 이전되지 않습니다. 필요하면 별도의 일회성 변환과 검증을 거쳐 PostgreSQL/Garage로 옮겨야 합니다.

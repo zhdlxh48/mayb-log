@@ -21,9 +21,9 @@
 		"format": "prettier --write .",
 		"test:unit": "vitest run tests/unit",
 		"test:smoke": "playwright test",
+		"test:migrations": "node scripts/test-migrations.mjs",
 		"test": "pnpm test:unit && pnpm test:smoke",
-		"db:generate": "drizzle-kit generate",
-		"db:migrate": "drizzle-kit migrate"
+		"db:generate": "drizzle-kit generate"
 	},
 	"devDependencies": {
 		"@eslint/js": "10.0.1",
