@@ -26,6 +26,15 @@ export async function query<T extends QueryResultRow>(command: string, values: u
 }
 
 export async function cleanupUser(username: string) {
+	await expect
+		.poll(
+			async () =>
+				(
+					await query<{ ready: boolean }>("SELECT to_regclass('public.posts') IS NOT NULL AS ready")
+				)[0]?.ready,
+			{ timeout: 30_000 }
+		)
+		.toBe(true);
 	await sql('DELETE FROM posts WHERE author_id IN (SELECT id FROM "user" WHERE username = $1)', [
 		username
 	]);
